@@ -1,10 +1,26 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { AppDataSource } from './config/database';
+import { connectRedis } from './config/redis';
 
 dotenv.config();
 
 const app: Express = express();
+
+
+AppDataSource.initialize()
+  .then(() => {
+    console.log('✅ Database connected');
+  })
+  .catch((err) => {
+    console.error('❌ Database connection error:', err);
+  });
+
+connectRedis().then(() => {
+  console.log('✅ Redis connected');
+});
+
 
 // Middleware
 app.use(cors({
@@ -29,3 +45,4 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 export default app;
+

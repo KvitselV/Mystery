@@ -5,6 +5,7 @@ import { AppDataSource } from './config/database';
 import { connectRedis } from './config/redis';
 import authRoutes from './routes/authRoutes';
 import financialRoutes from './routes/financialRoutes';
+import tournamentRoutes from './routes/tournamentRoutes';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.get('/health1', (req: Request, res: Response) => {
 
 app.use('/auth', authRoutes);
 app.use('/user', financialRoutes);
+app.use('/tournaments', tournamentRoutes);
 
 // 404 handler для несуществующих маршрутов
 app.use((req: Request, res: Response) => {

@@ -1,0 +1,412 @@
+### === ПЕРЕМЕННЫЕ (замени после выполнения запросов) ===
+@baseUrl = http://localhost:3001
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjZGRkNDkyMC01MTNhLTQwMjQtOGU1MC02ZmNhYzRkYTgzNDgiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAxNjA4MTYsImV4cCI6MTc3MDc2NTYxNn0.J81Yl-p-JP5vapiYXYnhyzN2nq8JiKPjR818NiXDI64
+@tournamentId = a8b2e4e9-2479-47fb-b8d9-4823c4317556
+@playerId = 24157ed0-b7c4-43f0-a522-0b1475075978
+@tableId = 5229e6fc-ff78-4578-a44e-5cb7c72e0200
+
+
+### ============================================
+### ЭТАП 1: РЕГИСТРАЦИЯ И АВТОРИЗАЦИЯ
+### ============================================
+
+### 1. Регистрация первого пользователя (будущий ADMIN)
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "phone": "+79991111111",
+  "email": "admin@test.com",
+  "firstName": "Админ",
+  "lastName": "Тестовый",
+  "password": "admin123"
+}
+
+### 2. Вход администратора
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79991111111",
+  "password": "admin123"
+}
+
+# ⚠️ СКОПИРУЙ token из ответа и вставь в @token выше
+
+### 3. Регистрация игрока 1
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "phone": "+79992222222",
+  "email": "player1@test.com",
+  "firstName": "Игрок",
+  "lastName": "Первый",
+  "password": "player123"
+}
+
+### 4. Регистрация игрока 2
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "phone": "+79993333333",
+  "email": "player2@test.com",
+  "firstName": "Игрок",
+  "lastName": "Второй",
+  "password": "player123"
+}
+
+### 5. Регистрация игрока 3
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "phone": "+79994444444",
+  "email": "player3@test.com",
+  "firstName": "Игрок",
+  "lastName": "Третий",
+  "password": "player123"
+}
+
+### 6. Регистрация игрока 4
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "phone": "+79995555555",
+  "email": "player4@test.com",
+  "firstName": "Игрок",
+  "lastName": "Четвертый",
+  "password": "player123"
+}
+
+
+### ============================================
+### ЭТАП 2: ПОПОЛНЕНИЕ ДЕПОЗИТА (ДЛЯ ВСЕХ ИГРОКОВ)
+### ============================================
+
+### 7. Войти как игрок 1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79992222222",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 1
+
+### 8. Пополнить депозит игрока 1
+POST {{baseUrl}}/user/deposit/topup
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "amount": 5000
+}
+
+### 9. Войти как игрок 2
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79993333333",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 2
+
+### 10. Пополнить депозит игрока 2
+POST {{baseUrl}}/user/deposit/topup
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "amount": 5000
+}
+
+### 11. Войти как игрок 3
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79994444444",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 3
+
+### 12. Пополнить депозит игрока 3
+POST {{baseUrl}}/user/deposit/topup
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "amount": 5000
+}
+
+### 13. Войти как игрок 4
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79995555555",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 4
+
+### 14. Пополнить депозит игрока 4
+POST {{baseUrl}}/user/deposit/topup
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "amount": 5000
+}
+
+
+### ============================================
+### ЭТАП 3: СОЗДАНИЕ ТУРНИРА (ADMIN)
+### ============================================
+
+### 15. Войти как администратор
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79991111111",
+  "password": "admin123"
+}
+
+# ⚠️ СКОПИРУЙ token администратора и замени @token
+
+### 16. Создать турнир
+POST {{baseUrl}}/tournaments
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Friday Night Poker",
+  "startTime": "2026-02-07T19:00:00Z",
+  "buyInAmount": 1000,
+  "startingStack": 10000
+}
+
+# ⚠️ СКОПИРУЙ id турнира из ответа и замени @tournamentId
+
+### 17. Получить список турниров
+GET {{baseUrl}}/tournaments
+Authorization: Bearer {{token}}
+
+### 18. Получить детали турнира
+GET {{baseUrl}}/tournaments/{{tournamentId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### ЭТАП 4: РЕГИСТРАЦИЯ НА ТУРНИР (ИГРОКИ)
+### ============================================
+
+### 19. Войти как игрок 1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79992222222",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 1
+
+### 20. Зарегистрироваться на турнир (игрок 1)
+POST {{baseUrl}}/tournaments/{{tournamentId}}/register
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "paymentMethod": "DEPOSIT"
+}
+
+### 21. Войти как игрок 2
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79993333333",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 2
+
+### 22. Зарегистрироваться на турнир (игрок 2)
+POST {{baseUrl}}/tournaments/{{tournamentId}}/register
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "paymentMethod": "DEPOSIT"
+}
+
+### 23. Войти как игрок 3
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79994444444",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 3
+
+### 24. Зарегистрироваться на турнир (игрок 3)
+POST {{baseUrl}}/tournaments/{{tournamentId}}/register
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "paymentMethod": "DEPOSIT"
+}
+
+### 25. Войти как игрок 4
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79995555555",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 4
+
+### 26. Зарегистрироваться на турнир (игрок 4)
+POST {{baseUrl}}/tournaments/{{tournamentId}}/register
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "paymentMethod": "DEPOSIT"
+}
+
+### 27. Войти как администратор
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79991111111",
+  "password": "admin123"
+}
+
+# ⚠️ СКОПИРУЙ token администратора
+
+### 28. Получить список игроков турнира
+GET {{baseUrl}}/tournaments/{{tournamentId}}/players
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### ЭТАП 5: АВТОМАТИЧЕСКАЯ РАССАДКА (ADMIN)
+### ============================================
+
+### 29. Автоматическая рассадка игроков
+POST {{baseUrl}}/tournaments/{{tournamentId}}/seating/auto
+Authorization: Bearer {{token}}
+
+### 30. Получить все столы турнира
+GET {{baseUrl}}/tournaments/{{tournamentId}}/tables
+Authorization: Bearer {{token}}
+
+# ⚠️ СКОПИРУЙ id первого стола и замени @tableId
+
+### 31. Получить детали стола
+GET {{baseUrl}}/tournaments/{{tournamentId}}/tables/{{tableId}}
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### ЭТАП 6: РУЧНАЯ ПЕРЕСАДКА (ADMIN)
+### ============================================
+
+### 32. Ручная пересадка игрока
+# Сначала получи playerId из списка столов (шаг 30)
+# Замени @playerId на реальный ID игрока
+POST {{baseUrl}}/tournaments/{{tournamentId}}/seating/manual
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "playerId": "{{playerId}}",
+  "newTableId": "{{tableId}}",
+  "newSeatNumber": 6
+}
+
+### 33. Проверить изменения
+GET {{baseUrl}}/tournaments/{{tournamentId}}/tables
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### ЭТАП 7: ОТМЕНА РЕГИСТРАЦИИ (ИГРОК)
+### ============================================
+
+### 34. Войти как игрок 1
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79992222222",
+  "password": "player123"
+}
+
+# ⚠️ СКОПИРУЙ token игрока 1
+
+### 35. Проверить баланс до отмены
+GET {{baseUrl}}/user/deposit
+Authorization: Bearer {{token}}
+
+### 36. Отменить регистрацию
+DELETE {{baseUrl}}/tournaments/{{tournamentId}}/register
+Authorization: Bearer {{token}}
+
+### 37. Проверить баланс после отмены (должен вернуться buyIn)
+GET {{baseUrl}}/user/deposit
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### ЭТАП 8: ИЗМЕНЕНИЕ СТАТУСА ТУРНИРА (ADMIN)
+### ============================================
+
+### 38. Войти как администратор
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79991111111",
+  "password": "admin123"
+}
+
+# ⚠️ СКОПИРУЙ token администратора
+
+### 39. Изменить статус турнира на LATE_REG
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "LATE_REG"
+}
+
+### 40. Изменить статус на RUNNING
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/status
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "status": "RUNNING"
+}
+
+### 41. Проверить обновленный турнир
+GET {{baseUrl}}/tournaments/{{tournamentId}}
+Authorization: Bearer {{token}}

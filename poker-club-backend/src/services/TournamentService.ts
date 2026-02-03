@@ -181,4 +181,74 @@ export class TournamentService {
 
     return tournament;
   }
+
+      /**
+   * Отменить регистрацию на турнир
+   */
+  async unregisterFromTournament(
+    userId: string,
+    tournamentId: string
+  ): Promise<void> {
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+    });
+
+    if (!tournament) {
+      throw new Error('Tournament not found');
+    }
+
+    // Проверка статуса турнира
+    if (tournament.status !== 'REG_OPEN') {
+      throw new Error('Cannot unregister from started or completed tournament');
+    }
+
+    const playerProfile = await this.playerRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['user', 'balance'],
+    });
+
+    if (!playerProfile) {
+      throw new Error('Player profile not found');
+    }
+
+    // Найти регистрацию
+    const registration = await this.registrationRepository.findOne({
+      where: {
+        tournament: { id: tournamentId },
+        player: { id: playerProfile.id },
+      },
+    });
+
+    if (!registration) {
+      throw new Error('Registration not found');
+    }
+
+    // Вернуть деньги на баланс (если оплачено депозитом)
+    if (registration.paymentMethod === 'DEPOSIT') {
+      if (!playerProfile.balance) {
+        throw new Error('Player balance not found. Cannot refund.');
+      }
+
+      const balance = playerProfile.balance;
+      balance.depositBalance += tournament.buyInAmount;
+      
+      // Сохранить баланс
+      await AppDataSource.getRepository('PlayerBalance').save(balance);
+
+      // Создать операцию возврата
+      const operationRepository = AppDataSource.getRepository('PlayerOperation');
+      const refundOperation = operationRepository.create({
+        playerProfile,
+        operationType: 'REFUND',
+        amount: tournament.buyInAmount,
+      });
+      await operationRepository.save(refundOperation);
+    }
+
+    // Удалить регистрацию
+    await this.registrationRepository.remove(registration);
+  }
+
+
+
 }

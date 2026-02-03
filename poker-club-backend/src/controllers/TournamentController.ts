@@ -164,4 +164,27 @@ export class TournamentController {
         res.status(400).json({ error: error.message });
         }
     }
+    /**
+   * DELETE /tournaments/:id/register - Отменить регистрацию
+   */
+  static async unregisterFromTournament(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const tournamentId = req.params.id as string;
+
+      await tournamentService.unregisterFromTournament(
+        req.user.userId,
+        tournamentId
+      );
+
+      res.json({
+        message: 'Unregistered successfully',
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
 }

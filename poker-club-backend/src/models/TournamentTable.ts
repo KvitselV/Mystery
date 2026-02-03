@@ -1,22 +1,38 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  OneToMany,
+  CreateDateColumn,
+} from 'typeorm';
 import { Tournament } from './Tournament';
 import { TableSeat } from './TableSeat';
 
 @Entity('tournament_tables')
 export class TournamentTable {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
+
+  @ManyToOne(() => Tournament, (tournament) => tournament.tables)
+  tournament!: Tournament;
 
   @Column({ type: 'int' })
-  tableNumber: number;
+  tableNumber!: number; // Номер стола (1, 2, 3...)
 
-  @ManyToOne(() => Tournament, (tournament) => tournament.tables, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'tournament_id' })
-  tournament: Tournament;
+  @Column({ type: 'int', default: 9 })
+  maxSeats!: number; // Максимум мест за столом (обычно 9)
 
-  @OneToMany(() => TableSeat, (seat) => seat.table)
-  seats: TableSeat[];
+  @Column({ type: 'int', default: 0 })
+  occupiedSeats!: number; // Занято мест
 
-  @Column({ type: 'boolean', default: false })
-  isActive: boolean;
+  @Column({ type: 'varchar', default: 'AVAILABLE' })
+  status!: string; // AVAILABLE, ACTIVE, COMPLETED
+
+  @OneToMany(() => TableSeat, (seat) => seat.table, { cascade: true })
+  seats!: TableSeat[];
+
+  @CreateDateColumn()
+  createdAt!: Date;
 }
+

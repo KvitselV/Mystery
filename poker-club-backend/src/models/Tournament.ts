@@ -33,7 +33,7 @@ export class Tournament {
   @JoinColumn({ name: 'series_id' })
   series: TournamentSeries;
 
-  @OneToMany(() => TournamentTable, (table) => table.tournament)
+  @OneToMany(() => TournamentTable, (table) => table.tournament, { cascade: true })
   tables: TournamentTable[];
 
   @OneToMany(() => TournamentRegistration, (reg) => reg.tournament)

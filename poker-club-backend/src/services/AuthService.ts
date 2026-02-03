@@ -1,6 +1,7 @@
 import { AppDataSource } from '../config/database';
 import { User } from '../models/User';
 import { PlayerProfile } from '../models/PlayerProfile';
+import { PlayerBalance } from '../models/PlayerBalance';
 import { JwtService } from './JwtService';
 import bcrypt from 'bcrypt';
 import { RegisterDto, LoginDto, AuthResponse } from '../types';
@@ -8,6 +9,7 @@ import { RegisterDto, LoginDto, AuthResponse } from '../types';
 export class AuthService {
   private userRepository = AppDataSource.getRepository(User);
   private playerRepository = AppDataSource.getRepository(PlayerProfile);
+  private balanceRepository = AppDataSource.getRepository(PlayerBalance);
   private jwtService = new JwtService();
 
   async register(data: RegisterDto): Promise<AuthResponse> {
@@ -30,15 +32,24 @@ export class AuthService {
       phone: data.phone,
       email: data.email,
       passwordHash,
-      role: 'PLAYER', // По умолчанию новые юзеры - игроки
+      role: 'PLAYER',
       isActive: true,
     });
 
     const savedUser = await this.userRepository.save(user);
 
-    // Создай профиль игрока
+    // Создай баланс
+    const balance = this.balanceRepository.create({
+      depositBalance: 0,
+      totalDeposited: 0,
+      totalWithdrawn: 0,
+    });
+    const savedBalance = await this.balanceRepository.save(balance);
+
+    // Создай профиль игрока с балансом
     const playerProfile = this.playerRepository.create({
       user: savedUser,
+      balance: savedBalance,
       mmrValue: 0,
       rankCode: 'E',
       tournamentsCount: 0,
@@ -66,7 +77,6 @@ export class AuthService {
   }
 
   async login(data: LoginDto): Promise<AuthResponse> {
-    // Найди пользователя по номеру
     const user = await this.userRepository.findOne({
       where: { phone: data.phone },
     });
@@ -75,7 +85,6 @@ export class AuthService {
       throw new Error('User not found');
     }
 
-    // Проверь пароль
     const isPasswordValid = await bcrypt.compare(data.password, user.passwordHash);
 
     if (!isPasswordValid) {
@@ -86,7 +95,6 @@ export class AuthService {
       throw new Error('User account is inactive');
     }
 
-    // Генерируй токены
     const accessToken = this.jwtService.generateAccessToken(user.id, user.role);
     const refreshToken = this.jwtService.generateRefreshToken(user.id);
 

@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import { OneToOne } from 'typeorm';
+import { PlayerBalance } from './PlayerBalance';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -31,4 +32,8 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToOne(() => PlayerBalance, { cascade: true })
+  @JoinColumn({ name: 'balance_id' })
+  balance: PlayerBalance;
 }

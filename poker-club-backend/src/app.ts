@@ -4,31 +4,11 @@ import dotenv from 'dotenv';
 import { AppDataSource } from './config/database';
 import { connectRedis } from './config/redis';
 import authRoutes from './routes/authRoutes';
+import financialRoutes from './routes/financialRoutes';
 
 dotenv.config();
 
 const app: Express = express();
-
-
-
-AppDataSource.initialize()
-  .then(() => {
-    console.log('✅ Database connected');
-  })
-  .catch((err) => {
-    console.error('❌ Database connection error:', err);
-  });
-
-connectRedis().then(() => {
-  console.log('✅ Redis connected');
-});
-
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Routes
-app.use('/auth', authRoutes);
 
 // Middleware
 app.use(cors({
@@ -36,9 +16,30 @@ app.use(cors({
   credentials: true,
 }));
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
+// Database initialization
 
+// Routes
+app.get('/health', (req: Request, res: Response) => {
+  res.json({ status: 'OKfsd', timestamp: new Date().toISOString() });
+});
 
+app.get('/health1', (req: Request, res: Response) => {
+  res.json({ status: 'OKfsd', timestamp: new Date().toISOString() });
+});
+
+app.use('/auth', authRoutes);
+app.use('/user', financialRoutes);
+
+// 404 handler для несуществующих маршрутов
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'Route not found',
+    message: `Cannot ${req.method} ${req.originalUrl}`,
+  });
+});
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
@@ -49,15 +50,4 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-app.get('/test', (req, res) => {
-  res.json({ message: 'Server works!' });
-});
-
-
-// Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'poo', timestamp: new Date().toISOString() });
-});
-
 export default app;
-

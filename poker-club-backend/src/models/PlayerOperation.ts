@@ -9,7 +9,7 @@ export class PlayerOperation {
 
   @ManyToOne(() => PlayerProfile)
   @JoinColumn({ name: 'player_id' })
-  player: PlayerProfile;
+  playerProfile: PlayerProfile;
 
   @Column({ type: 'enum', enum: ['DEPOSIT_TOPUP', 'DEPOSIT_WITHDRAWAL', 'BUYIN', 'REBUY', 'ADDON', 'ORDER_PAYMENT', 'PRIZE'] })
   operationType: string;

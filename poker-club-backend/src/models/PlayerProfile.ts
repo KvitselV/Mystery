@@ -1,5 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, JoinColumn } from 'typeorm';
 import { User } from './User';
+import { OneToOne } from 'typeorm';
+import { PlayerBalance } from './PlayerBalance';
 
 @Entity('player_profiles')
 export class PlayerProfile {
@@ -24,4 +26,8 @@ export class PlayerProfile {
 
   @Column({ type: 'float', default: 0 })
   averageFinish: number; // среднее место финиша
+
+  @OneToOne(() => PlayerBalance, (balance) => balance.playerProfile, { cascade: true })
+  @JoinColumn({ name: 'balance_id' })
+  balance: PlayerBalance;
 }

@@ -1,0 +1,1 @@
+{"version":3,"file":"TournamentSeries.d.ts","sourceRoot":"","sources":["../../src/models/TournamentSeries.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,UAAU,EAAE,MAAM,cAAc,CAAC;AAE1C,qBACa,gBAAgB;IAE3B,EAAE,EAAE,MAAM,CAAC;IAGX,QAAQ,EAAE,MAAM,CAAC;IAGjB,IAAI,EAAE,MAAM,CAAC;IAGb,WAAW,EAAE,IAAI,CAAC;IAGlB,SAAS,EAAE,IAAI,CAAC;IAGhB,WAAW,EAAE,UAAU,EAAE,CAAC;CAC3B"}

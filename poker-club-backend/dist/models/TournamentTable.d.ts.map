@@ -1,0 +1,1 @@
+{"version":3,"file":"TournamentTable.d.ts","sourceRoot":"","sources":["../../src/models/TournamentTable.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,UAAU,EAAE,MAAM,cAAc,CAAC;AAC1C,OAAO,EAAE,SAAS,EAAE,MAAM,aAAa,CAAC;AAExC,qBACa,eAAe;IAE1B,EAAE,EAAE,MAAM,CAAC;IAGX,WAAW,EAAE,MAAM,CAAC;IAIpB,UAAU,EAAE,UAAU,CAAC;IAGvB,KAAK,EAAE,SAAS,EAAE,CAAC;IAGnB,QAAQ,EAAE,OAAO,CAAC;CACnB"}

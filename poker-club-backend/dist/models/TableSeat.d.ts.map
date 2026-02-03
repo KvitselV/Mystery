@@ -1,0 +1,1 @@
+{"version":3,"file":"TableSeat.d.ts","sourceRoot":"","sources":["../../src/models/TableSeat.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,eAAe,EAAE,MAAM,mBAAmB,CAAC;AACpD,OAAO,EAAE,aAAa,EAAE,MAAM,iBAAiB,CAAC;AAEhD,qBACa,SAAS;IAEpB,EAAE,EAAE,MAAM,CAAC;IAGX,UAAU,EAAE,MAAM,CAAC;IAInB,KAAK,EAAE,eAAe,CAAC;IAIvB,MAAM,EAAE,aAAa,CAAC;IAGtB,QAAQ,EAAE,OAAO,CAAC;CACnB"}

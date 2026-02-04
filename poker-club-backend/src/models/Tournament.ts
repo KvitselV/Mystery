@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColum
 import { TournamentSeries } from './TournamentSeries';
 import { TournamentTable } from './TournamentTable';
 import { TournamentRegistration } from './TournamentRegistration';
+import { BlindStructure } from './BlindStructure';  
 
 @Entity('tournaments')
 export class Tournament {
@@ -28,6 +29,10 @@ export class Tournament {
 
   @Column({ type: 'uuid', nullable: true })
   blindStructureId: string;
+
+  @ManyToOne(() => BlindStructure, { nullable: true })
+  @JoinColumn({ name: 'blind_structure_id' })
+  blindStructure?: BlindStructure;
 
   @ManyToOne(() => TournamentSeries, { nullable: true })
   @JoinColumn({ name: 'series_id' })

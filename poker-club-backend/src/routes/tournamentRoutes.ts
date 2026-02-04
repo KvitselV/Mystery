@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { TournamentController } from '../controllers/TournamentController';
 import { authMiddleware } from '../middlewares/authMiddleware';
 import seatingRoutes from './seatingRoutes';
+import liveTournamentRoutes from './liveTournamentRoutes';
 
 const router = Router();
 
@@ -21,5 +22,8 @@ router.patch('/:id/status', TournamentController.updateTournamentStatus);
 
 // Подключаем seating routes (рассадка и столы)
 router.use('/', seatingRoutes);
+
+// Подключаем live tournament routes (ребаи, аддоны, выбытие)
+router.use('/', liveTournamentRoutes);  
 
 export default router;

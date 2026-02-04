@@ -1,37 +1,14 @@
-### === ПЕРЕМЕННЫЕ (замени после выполнения запросов) ===
+### === ПЕРЕМЕННЫЕ ===
 @baseUrl = http://localhost:3001
-@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjZGRkNDkyMC01MTNhLTQwMjQtOGU1MC02ZmNhYzRkYTgzNDgiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAxNjA4MTYsImV4cCI6MTc3MDc2NTYxNn0.J81Yl-p-JP5vapiYXYnhyzN2nq8JiKPjR818NiXDI64
-@tournamentId = a8b2e4e9-2479-47fb-b8d9-4823c4317556
-@playerId = 24157ed0-b7c4-43f0-a522-0b1475075978
-@tableId = 5229e6fc-ff78-4578-a44e-5cb7c72e0200
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjODAxYTliZi01MzBkLTQyMWEtYTVhOS1hZjk3ZGFmZmIyZTEiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyNDI4OTIsImV4cCI6MTc3MDg0NzY5Mn0.ZSZgAXc8eQxRPZE8aeyCWsUY0wBjTP1nX-ufQ8NG6ZA
+@tournamentId = bc3108ac-6bc8-4227-8648-d9f7aa5a4b44
+@blindStructureId = 95656c73-9129-42d9-9d23-2e37d41ee0d6
+@playerId = ab8a6498-8bce-42a5-98d4-4c84c5a5fc82
 
 
 ### ============================================
-### ЭТАП 1: РЕГИСТРАЦИЯ И АВТОРИЗАЦИЯ
+### ЭТАП 7.1: СТРУКТУРЫ БЛАЙНДОВ
 ### ============================================
-
-### 1. Регистрация первого пользователя (будущий ADMIN)
-POST {{baseUrl}}/auth/register
-Content-Type: application/json
-
-{
-  "phone": "+79991111111",
-  "email": "admin@test.com",
-  "firstName": "Админ",
-  "lastName": "Тестовый",
-  "password": "admin123"
-}
-
-### 2. Вход администратора
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79991111111",
-  "password": "admin123"
-}
-
-# ⚠️ СКОПИРУЙ token из ответа и вставь в @token выше
 
 ### 3. Регистрация игрока 1
 POST {{baseUrl}}/auth/register
@@ -57,35 +34,6 @@ Content-Type: application/json
   "password": "player123"
 }
 
-### 5. Регистрация игрока 3
-POST {{baseUrl}}/auth/register
-Content-Type: application/json
-
-{
-  "phone": "+79994444444",
-  "email": "player3@test.com",
-  "firstName": "Игрок",
-  "lastName": "Третий",
-  "password": "player123"
-}
-
-### 6. Регистрация игрока 4
-POST {{baseUrl}}/auth/register
-Content-Type: application/json
-
-{
-  "phone": "+79995555555",
-  "email": "player4@test.com",
-  "firstName": "Игрок",
-  "lastName": "Четвертый",
-  "password": "player123"
-}
-
-
-### ============================================
-### ЭТАП 2: ПОПОЛНЕНИЕ ДЕПОЗИТА (ДЛЯ ВСЕХ ИГРОКОВ)
-### ============================================
-
 ### 7. Войти как игрок 1
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
@@ -100,7 +48,7 @@ Content-Type: application/json
 ### 8. Пополнить депозит игрока 1
 POST {{baseUrl}}/user/deposit/topup
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyNzhjYzdiNC0zODc4LTQ4ZGMtOGE3Yi1lYzk1ZWNkNDlhY2QiLCJyb2xlIjoiUExBWUVSIiwiaWF0IjoxNzcwMjQzMjE5LCJleHAiOjE3NzA4NDgwMTl9.uzhu4_zLyuEJOEO_-mUx3c7QHyxXdDBphxfW0JMhIdY
 
 {
   "amount": 5000
@@ -120,58 +68,13 @@ Content-Type: application/json
 ### 10. Пополнить депозит игрока 2
 POST {{baseUrl}}/user/deposit/topup
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4NGU5NzQ2Yy01MjhjLTQzYjAtYTU1ZC0wNmU0MmRkZDYxNTciLCJyb2xlIjoiUExBWUVSIiwiaWF0IjoxNzcwMjQzMjc0LCJleHAiOjE3NzA4NDgwNzR9.NLtFoRgjf_rX4nrjPWlM7_YQrChtwiS7YTn6Fkee_GE
 
 {
   "amount": 5000
 }
 
-### 11. Войти как игрок 3
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79994444444",
-  "password": "player123"
-}
-
-# ⚠️ СКОПИРУЙ token игрока 3
-
-### 12. Пополнить депозит игрока 3
-POST {{baseUrl}}/user/deposit/topup
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "amount": 5000
-}
-
-### 13. Войти как игрок 4
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79995555555",
-  "password": "player123"
-}
-
-# ⚠️ СКОПИРУЙ token игрока 4
-
-### 14. Пополнить депозит игрока 4
-POST {{baseUrl}}/user/deposit/topup
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "amount": 5000
-}
-
-
-### ============================================
-### ЭТАП 3: СОЗДАНИЕ ТУРНИРА (ADMIN)
-### ============================================
-
-### 15. Войти как администратор
+### 1. Войти как администратор
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
@@ -180,56 +83,128 @@ Content-Type: application/json
   "password": "admin123"
 }
 
-# ⚠️ СКОПИРУЙ token администратора и замени @token
+# ⚠️ СКОПИРУЙ token из ответа и замени @adminToken
 
-### 16. Создать турнир
+
+### 2. Создать структуру блайндов "Стандартная"
+POST {{baseUrl}}/blind-structures
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Стандартная структура",
+  "description": "Стандартная структура для обычных турниров",
+  "levels": [
+    {
+      "levelNumber": 1,
+      "smallBlind": 25,
+      "bigBlind": 50,
+      "ante": 0,
+      "durationMinutes": 20
+    },
+    {
+      "levelNumber": 2,
+      "smallBlind": 50,
+      "bigBlind": 100,
+      "ante": 0,
+      "durationMinutes": 20
+    },
+    {
+      "levelNumber": 3,
+      "smallBlind": 75,
+      "bigBlind": 150,
+      "ante": 0,
+      "durationMinutes": 20
+    },
+    {
+      "levelNumber": 4,
+      "smallBlind": 100,
+      "bigBlind": 200,
+      "ante": 25,
+      "durationMinutes": 20
+    },
+    {
+      "levelNumber": 5,
+      "smallBlind": 0,
+      "bigBlind": 0,
+      "ante": 0,
+      "durationMinutes": 15,
+      "isBreak": true,
+      "breakName": "Перерыв 15 минут"
+    },
+    {
+      "levelNumber": 6,
+      "smallBlind": 150,
+      "bigBlind": 300,
+      "ante": 50,
+      "durationMinutes": 20
+    },
+    {
+      "levelNumber": 7,
+      "smallBlind": 200,
+      "bigBlind": 400,
+      "ante": 50,
+      "durationMinutes": 20
+    },
+    {
+      "levelNumber": 8,
+      "smallBlind": 300,
+      "bigBlind": 600,
+      "ante": 100,
+      "durationMinutes": 20
+    }
+  ]
+}
+
+# ⚠️ СКОПИРУЙ structure.id из ответа и замени @blindStructureId
+
+
+### 3. Получить все структуры
+GET {{baseUrl}}/blind-structures
+Authorization: Bearer {{adminToken}}
+
+
+### 4. Получить детали структуры
+GET {{baseUrl}}/blind-structures/{{blindStructureId}}
+Authorization: Bearer {{adminToken}}
+
+
+### 5. Добавить уровень к структуре
+POST {{baseUrl}}/blind-structures/{{blindStructureId}}/levels
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "levelNumber": 9,
+  "smallBlind": 400,
+  "bigBlind": 800,
+  "ante": 100,
+  "durationMinutes": 20
+}
+
+
+### ============================================
+### ЭТАП 7.2: СОЗДАНИЕ ТУРНИРА С БЛАЙНДАМИ
+### ============================================
+
+### 6. Создать турнир с привязкой к структуре блайндов
 POST {{baseUrl}}/tournaments
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 {
-  "name": "Friday Night Poker",
+  "name": "Friday Night Poker with Blinds",
   "startTime": "2026-02-07T19:00:00Z",
   "buyInAmount": 1000,
-  "startingStack": 10000
+  "startingStack": 10000,
+  "blindStructureId": "{{blindStructureId}}"
 }
 
-# ⚠️ СКОПИРУЙ id турнира из ответа и замени @tournamentId
-
-### 17. Получить список турниров
-GET {{baseUrl}}/tournaments
-Authorization: Bearer {{token}}
-
-### 18. Получить детали турнира
-GET {{baseUrl}}/tournaments/{{tournamentId}}
-Authorization: Bearer {{token}}
+# ⚠️ СКОПИРУЙ id турнира и замени @tournamentId
 
 
-### ============================================
-### ЭТАП 4: РЕГИСТРАЦИЯ НА ТУРНИР (ИГРОКИ)
-### ============================================
-
-### 19. Войти как игрок 1
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79992222222",
-  "password": "player123"
-}
-
-# ⚠️ СКОПИРУЙ token игрока 1
-
-### 20. Зарегистрироваться на турнир (игрок 1)
-POST {{baseUrl}}/tournaments/{{tournamentId}}/register
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "paymentMethod": "DEPOSIT"
-}
-
-### 21. Войти как игрок 2
+### 7. Зарегистрировать игроков (используй токены из предыдущих тестов)
+# Войди как игрок 2 и зарегистрируйся
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
@@ -238,175 +213,125 @@ Content-Type: application/json
   "password": "player123"
 }
 
-# ⚠️ СКОПИРУЙ token игрока 2
+# СКОПИРУЙ token игрока 2
 
-### 22. Зарегистрироваться на турнир (игрок 2)
+### 8. Регистрация игрока 2 на турнир
 POST {{baseUrl}}/tournaments/{{tournamentId}}/register
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4NGU5NzQ2Yy01MjhjLTQzYjAtYTU1ZC0wNmU0MmRkZDYxNTciLCJyb2xlIjoiUExBWUVSIiwiaWF0IjoxNzcwMjQzMzIwLCJleHAiOjE3NzA4NDgxMjB9.dDM5heBU8qwKidiBIMxEMWAB9LeCYtR2ZOqYeMQb3xI
 
 {
   "paymentMethod": "DEPOSIT"
 }
 
-### 23. Войти как игрок 3
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79994444444",
-  "password": "player123"
-}
-
-# ⚠️ СКОПИРУЙ token игрока 3
-
-### 24. Зарегистрироваться на турнир (игрок 3)
-POST {{baseUrl}}/tournaments/{{tournamentId}}/register
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "paymentMethod": "DEPOSIT"
-}
-
-### 25. Войти как игрок 4
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79995555555",
-  "password": "player123"
-}
-
-# ⚠️ СКОПИРУЙ token игрока 4
-
-### 26. Зарегистрироваться на турнир (игрок 4)
-POST {{baseUrl}}/tournaments/{{tournamentId}}/register
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "paymentMethod": "DEPOSIT"
-}
-
-### 27. Войти как администратор
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79991111111",
-  "password": "admin123"
-}
-
-# ⚠️ СКОПИРУЙ token администратора
-
-### 28. Получить список игроков турнира
-GET {{baseUrl}}/tournaments/{{tournamentId}}/players
-Authorization: Bearer {{token}}
+# Повтори для игроков 3 и 4
 
 
 ### ============================================
-### ЭТАП 5: АВТОМАТИЧЕСКАЯ РАССАДКА (ADMIN)
+### ЭТАП 7.3: LIVE ОПЕРАЦИИ
 ### ============================================
 
-### 29. Автоматическая рассадка игроков
-POST {{baseUrl}}/tournaments/{{tournamentId}}/seating/auto
-Authorization: Bearer {{token}}
-
-### 30. Получить все столы турнира
-GET {{baseUrl}}/tournaments/{{tournamentId}}/tables
-Authorization: Bearer {{token}}
-
-# ⚠️ СКОПИРУЙ id первого стола и замени @tableId
-
-### 31. Получить детали стола
-GET {{baseUrl}}/tournaments/{{tournamentId}}/tables/{{tableId}}
-Authorization: Bearer {{token}}
-
-
-### ============================================
-### ЭТАП 6: РУЧНАЯ ПЕРЕСАДКА (ADMIN)
-### ============================================
-
-### 32. Ручная пересадка игрока
-# Сначала получи playerId из списка столов (шаг 30)
-# Замени @playerId на реальный ID игрока
-POST {{baseUrl}}/tournaments/{{tournamentId}}/seating/manual
-Content-Type: application/json
-Authorization: Bearer {{token}}
-
-{
-  "playerId": "{{playerId}}",
-  "newTableId": "{{tableId}}",
-  "newSeatNumber": 6
-}
-
-### 33. Проверить изменения
-GET {{baseUrl}}/tournaments/{{tournamentId}}/tables
-Authorization: Bearer {{token}}
-
-
-### ============================================
-### ЭТАП 7: ОТМЕНА РЕГИСТРАЦИИ (ИГРОК)
-### ============================================
-
-### 34. Войти как игрок 1
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79992222222",
-  "password": "player123"
-}
-
-# ⚠️ СКОПИРУЙ token игрока 1
-
-### 35. Проверить баланс до отмены
-GET {{baseUrl}}/user/deposit
-Authorization: Bearer {{token}}
-
-### 36. Отменить регистрацию
-DELETE {{baseUrl}}/tournaments/{{tournamentId}}/register
-Authorization: Bearer {{token}}
-
-### 37. Проверить баланс после отмены (должен вернуться buyIn)
-GET {{baseUrl}}/user/deposit
-Authorization: Bearer {{token}}
-
-
-### ============================================
-### ЭТАП 8: ИЗМЕНЕНИЕ СТАТУСА ТУРНИРА (ADMIN)
-### ============================================
-
-### 38. Войти как администратор
-POST {{baseUrl}}/auth/login
-Content-Type: application/json
-
-{
-  "phone": "+79991111111",
-  "password": "admin123"
-}
-
-# ⚠️ СКОПИРУЙ token администратора
-
-### 39. Изменить статус турнира на LATE_REG
+### 9. Запустить турнир (изменить статус)
 PATCH {{baseUrl}}/tournaments/{{tournamentId}}/status
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 {
   "status": "LATE_REG"
 }
 
-### 40. Изменить статус на RUNNING
-PATCH {{baseUrl}}/tournaments/{{tournamentId}}/status
+
+### 10. Получить текущий уровень турнира
+GET {{baseUrl}}/tournaments/{{tournamentId}}/level/current
+Authorization: Bearer {{adminToken}}
+
+
+### 11. Перейти на следующий уровень
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/level/next
+Authorization: Bearer {{adminToken}}
+
+
+### 12. Проверить новый уровень
+GET {{baseUrl}}/tournaments/{{tournamentId}}/level/current
+Authorization: Bearer {{adminToken}}
+
+### 12. Проверить новый уровень
+POST {{baseUrl}}/tournaments/{{tournamentId}}/seating/auto
+Authorization: Bearer {{adminToken}}
+
+### 13. Получить список игроков с playerId
+GET {{baseUrl}}/tournaments/{{tournamentId}}/tables
+Authorization: Bearer {{adminToken}}
+
+# ⚠️ СКОПИРУЙ playerId из ответа и замени @playerId
+
+
+### 14. Ребай для игрока
+POST {{baseUrl}}/tournaments/{{tournamentId}}/player/{{playerId}}/rebuy
 Content-Type: application/json
-Authorization: Bearer {{token}}
+Authorization: Bearer {{adminToken}}
 
 {
-  "status": "RUNNING"
+  "amount": 1000
 }
 
-### 41. Проверить обновленный турнир
-GET {{baseUrl}}/tournaments/{{tournamentId}}
-Authorization: Bearer {{token}}
+
+### 15. Аддон для игрока
+POST {{baseUrl}}/tournaments/{{tournamentId}}/player/{{playerId}}/addon
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "amount": 500
+}
+
+
+### 16. Получить историю операций игрока
+GET {{baseUrl}}/tournaments/{{tournamentId}}/player/{{playerId}}/operations
+Authorization: Bearer {{adminToken}}
+
+
+### 17. Выбить игрока (4 место, приз 2000)
+POST {{baseUrl}}/tournaments/{{tournamentId}}/player/{{playerId}}/eliminate
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "finishPosition": 4,
+  "prizeAmount": 2000
+}
+
+
+### 18. Проверить что игрок исключен со стола
+GET {{baseUrl}}/tournaments/{{tournamentId}}/tables
+Authorization: Bearer {{adminToken}}
+
+
+### 19. Перейти на уровень 3
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/level/next
+Authorization: Bearer {{adminToken}}
+
+
+### 20. Перейти на уровень 4
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/level/next
+Authorization: Bearer {{adminToken}}
+
+
+### 21. Перейти на уровень 5 (должен быть перерыв)
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/level/next
+Authorization: Bearer {{adminToken}}
+
+
+### 22. Проверить текущий уровень (должен быть перерыв)
+GET {{baseUrl}}/tournaments/{{tournamentId}}/level/current
+Authorization: Bearer {{adminToken}}
+
+
+### 23. Завершить турнир
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "FINISHED"
+}

@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
 import financialRoutes from './routes/financialRoutes';
 import tournamentRoutes from './routes/tournamentRoutes';
-
+import blindStructureRoutes from './routes/blindStructureRoutes';
 
 dotenv.config();
 
@@ -33,7 +33,7 @@ app.get('/health1', (req: Request, res: Response) => {
 app.use('/auth', authRoutes);
 app.use('/user', financialRoutes);
 app.use('/tournaments', tournamentRoutes);
-
+app.use('/blind-structures', blindStructureRoutes); 
 
 // 404 handler для несуществующих маршрутов
 app.use((req: Request, res: Response) => {

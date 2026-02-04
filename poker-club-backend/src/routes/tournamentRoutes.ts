@@ -3,6 +3,7 @@ import { TournamentController } from '../controllers/TournamentController';
 import { authMiddleware } from '../middlewares/authMiddleware';
 import seatingRoutes from './seatingRoutes';
 import liveTournamentRoutes from './liveTournamentRoutes';
+import liveStateRoutes from './liveStateRoutes'; 
 
 const router = Router();
 
@@ -25,5 +26,8 @@ router.use('/', seatingRoutes);
 
 // Подключаем live tournament routes (ребаи, аддоны, выбытие)
 router.use('/', liveTournamentRoutes);  
+
+// Подключаем live state routes (live состояние турнира)
+router.use('/', liveStateRoutes);
 
 export default router;

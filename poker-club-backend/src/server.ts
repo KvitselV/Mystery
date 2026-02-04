@@ -1,16 +1,19 @@
-import app from './app';
+import 'reflect-metadata';
 import { AppDataSource } from './config/database';
+import { httpServer } from './app';
 
+const PORT = process.env.PORT || 3001;
 
-const PORT = parseInt(process.env.PORT || '3001', 10);
+AppDataSource.initialize()
+  .then(() => {
+    console.log('✅ Database connected successfully');
 
-AppDataSource.initialize().then(async () => {
-  console.log('✅ Database connected');
-
-  // Запусти seeder только в development
-
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log(`🔌 WebSocket ready on ws://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('❌ Database connection error:', error);
+    process.exit(1);
   });
-});

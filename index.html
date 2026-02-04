@@ -1,0 +1,34 @@
+<!-- live-test.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<body>
+<script type="module">
+  import { io } from "https://cdn.socket.io/4.8.3/socket.io.esm.min.js";
+
+  const socket = io("ws://localhost:3001", {
+    auth: { token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjODAxYTliZi01MzBkLTQyMWEtYTVhOS1hZjk3ZGFmZmIyZTEiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyNDc5ODgsImV4cCI6MTc3MDg1Mjc4OH0.DhWuRrnZ5daAeI__x0E2eN36FQX2gXym43nVoswafS4" },
+  });
+
+  socket.on("connect", () => {
+    console.log("CONNECTED", socket.id);
+    socket.emit("join_tournament", "a39ef1dd-a8f8-4023-8b1e-d2c1138398a1");
+  });
+
+  socket.on("joined_tournament", (data) => {
+    console.log("joined_tournament", data);
+  });
+
+  socket.on("live_state_update", (data) => {
+    console.log("live_state_update", data);
+  });
+
+  socket.on("level_change", (data) => {
+    console.log("level_change", data);
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.log("DISCONNECTED", reason);
+  });
+</script>
+</body>
+</html>

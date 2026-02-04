@@ -23,6 +23,7 @@
     "express": "^5.2.1",
     "pg": "^8.17.2",
     "redis": "^5.10.0",
+    "socket.io": "^4.8.3",
     "typeorm": "^0.3.28"
   },
   "devDependencies": {
@@ -33,6 +34,7 @@
     "@types/ms": "^2.1.0",
     "@types/node": "^25.0.10",
     "@types/redis": "^4.0.10",
+    "@types/socket.io": "^3.0.1",
     "@typescript-eslint/eslint-plugin": "^8.53.1",
     "@typescript-eslint/parser": "^8.53.1",
     "eslint": "^9.39.2",

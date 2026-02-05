@@ -48,7 +48,7 @@ Content-Type: application/json
 ### 8. Пополнить депозит игрока 1
 POST {{baseUrl}}/user/deposit/topup
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyNzhjYzdiNC0zODc4LTQ4ZGMtOGE3Yi1lYzk1ZWNkNDlhY2QiLCJyb2xlIjoiUExBWUVSIiwiaWF0IjoxNzcwMjQzMjE5LCJleHAiOjE3NzA4NDgwMTl9.uzhu4_zLyuEJOEO_-mUx3c7QHyxXdDBphxfW0JMhIdY
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjODAxYTliZi01MzBkLTQyMWEtYTVhOS1hZjk3ZGFmZmIyZTEiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyNTM2OTcsImV4cCI6MTc3MDg1ODQ5N30.6cLz6dhMZXMjsNRgcMNIwkxMOht-wp6b0SRuTwJjyZ0
 
 {
   "amount": 5000

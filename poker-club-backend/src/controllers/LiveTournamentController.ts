@@ -204,4 +204,28 @@ export class LiveTournamentController {
       res.status(400).json({ error: error.message });
     }
   }
+
+  /**
+   * POST /tournaments/:id/finish - Завершить турнир
+   * Только для администраторов
+   */
+  static async finishTournament(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const tournamentId = req.params.id as string;
+
+      await liveTournamentService.finishTournament(tournamentId);
+
+      res.json({
+        message: 'Tournament finished successfully',
+        tournamentId,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
 }

@@ -1,4 +1,5 @@
 import { AppDataSource } from '../config/database';
+import { redisClient } from '../config/redis';
 import { TournamentLiveState } from '../models/TournamentLiveState';
 import { Tournament } from '../models/Tournament';
 import { TableSeat } from '../models/TableSeat';
@@ -10,10 +11,50 @@ export class LiveStateService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
   private seatRepository = AppDataSource.getRepository(TableSeat);
 
+  // ---------- Redis helpers ----------
+
+  private getLiveStateKey(tournamentId: string): string {
+    return `tournament:live:${tournamentId}`;
+  }
+
+  private async getFromCache(tournamentId: string): Promise<any | null> {
+    if (!redisClient.isOpen) return null;
+
+    const key = this.getLiveStateKey(tournamentId);
+    const raw = await redisClient.get(key);
+    if (!raw) return null;
+
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  private async saveToCache(tournamentId: string, dto: any): Promise<void> {
+    if (!redisClient.isOpen) return;
+
+    const key = this.getLiveStateKey(tournamentId);
+    await redisClient.set(key, JSON.stringify(dto), {
+      EX: 60, // TTL: 60 сек, можешь поменять на 300
+    });
+  }
+
+  private async deleteFromCache(tournamentId: string): Promise<void> {
+    if (!redisClient.isOpen) return;
+    await redisClient.del(this.getLiveStateKey(tournamentId));
+  }
+
+  // ---------- Основная логика ----------
+
   /**
    * Создать или получить Live State для турнира
+   * + попробовать взять DTO из Redis
    */
   async getOrCreateLiveState(tournamentId: string): Promise<TournamentLiveState> {
+    // NOTE: этот метод по-прежнему возвращает entity, но
+    // кэшируем мы уже форматированный DTO в местах обновления
+
     let liveState = await this.liveStateRepository.findOne({
       where: { tournament: { id: tournamentId } },
       relations: ['tournament'],
@@ -47,6 +88,7 @@ export class LiveStateService {
 
   /**
    * Обновить Live State
+   * + обновить Redis + отправить WebSocket
    */
   async updateLiveState(
     tournamentId: string,
@@ -59,8 +101,9 @@ export class LiveStateService {
 
     const updated = await this.liveStateRepository.save(liveState);
 
-    // 🔥 Отправляем WebSocket обновление
-    broadcastLiveStateUpdate(io, tournamentId, this.formatLiveState(updated));
+    const dto = this.formatLiveState(updated);
+    await this.saveToCache(tournamentId, dto);        // 👈 кэш
+    broadcastLiveStateUpdate(io, tournamentId, dto);  // 🔥 вебсокет
 
     return updated;
   }
@@ -71,7 +114,6 @@ export class LiveStateService {
   async recalculateStats(tournamentId: string): Promise<TournamentLiveState> {
     const liveState = await this.getOrCreateLiveState(tournamentId);
 
-    // Получить всех активных игроков
     const activeSeats = await this.seatRepository.count({
       where: {
         table: { tournament: { id: tournamentId } },
@@ -85,17 +127,15 @@ export class LiveStateService {
 
     const updated = await this.liveStateRepository.save(liveState);
 
-    // 🔥 Отправляем WebSocket обновление
-    broadcastLiveStateUpdate(io, tournamentId, this.formatLiveState(updated));
+    const dto = this.formatLiveState(updated);
+    await this.saveToCache(tournamentId, dto);        // 👈 кэш
+    broadcastLiveStateUpdate(io, tournamentId, dto);  // 🔥 вебсокет
 
     console.log(`📊 Stats recalculated for tournament ${tournamentId}: ${activeSeats} players`);
 
     return updated;
   }
 
-  /**
-   * Поставить турнир на паузу
-   */
   async pauseTournament(tournamentId: string): Promise<TournamentLiveState> {
     const updated = await this.updateLiveState(tournamentId, {
       isPaused: true,
@@ -103,13 +143,9 @@ export class LiveStateService {
     });
 
     console.log(`⏸️ Tournament ${tournamentId} paused`);
-
     return updated;
   }
 
-  /**
-   * Возобновить турнир
-   */
   async resumeTournament(tournamentId: string): Promise<TournamentLiveState> {
     const updated = await this.updateLiveState(tournamentId, {
       isPaused: false,
@@ -117,13 +153,9 @@ export class LiveStateService {
     });
 
     console.log(`▶️ Tournament ${tournamentId} resumed`);
-
     return updated;
   }
 
-  /**
-   * Обновить оставшееся время на уровне
-   */
   async updateLevelTime(
     tournamentId: string,
     remainingSeconds: number
@@ -133,41 +165,50 @@ export class LiveStateService {
     });
 
     console.log(`⏱️ Level time updated for tournament ${tournamentId}: ${remainingSeconds}s`);
-
     return updated;
   }
 
-  /**
-   * Переключить на следующий уровень
-   */
   async advanceToNextLevel(tournamentId: string): Promise<TournamentLiveState> {
     const liveState = await this.getOrCreateLiveState(tournamentId);
     const nextLevel = liveState.currentLevelNumber + 1;
 
     const updated = await this.updateLiveState(tournamentId, {
       currentLevelNumber: nextLevel,
-      levelRemainingTimeSeconds: 1200, // Сбрасываем таймер на 20 минут
+      levelRemainingTimeSeconds: 1200,
     });
 
-    // 🔥 Отправляем отдельное событие об изменении уровня
     broadcastLevelChange(io, tournamentId, {
       levelNumber: nextLevel,
       durationSeconds: 1200,
     });
 
     console.log(`🆙 Advanced to level ${nextLevel} in tournament ${tournamentId}`);
-
     return updated;
   }
 
   /**
    * Получить Live State
+   * ⚠️ Важно: для API лучше отдавать DTO и сначала пробовать Redis
    */
-  async getLiveState(tournamentId: string): Promise<TournamentLiveState | null> {
-    return this.liveStateRepository.findOne({
+  async getLiveState(tournamentId: string): Promise<any | null> {
+    // 1. Сначала пробуем DTO из Redis
+    const cached = await this.getFromCache(tournamentId);
+    if (cached) {
+      return cached;
+    }
+
+    // 2. Если нет в кэше — читаем из БД и кладём
+    const liveState = await this.liveStateRepository.findOne({
       where: { tournament: { id: tournamentId } },
       relations: ['tournament'],
     });
+
+    if (!liveState) return null;
+
+    const dto = this.formatLiveState(liveState);
+    await this.saveToCache(tournamentId, dto);
+
+    return dto;
   }
 
   /**
@@ -182,6 +223,8 @@ export class LiveStateService {
       await this.liveStateRepository.remove(liveState);
       console.log(`🗑️ Deleted Live State for tournament ${tournamentId}`);
     }
+
+    await this.deleteFromCache(tournamentId); // 👈 чистим Redis
   }
 
   /**

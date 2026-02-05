@@ -19,7 +19,4 @@ router.get('/:id/tables', SeatingController.getTournamentTables);
 // Получить детали стола (доступно всем)
 router.get('/:tournamentId/tables/:tableId', SeatingController.getTableDetails);
 
-// Исключить игрока (только ADMIN)
-router.post('/:id/player/:playerId/eliminate', SeatingController.eliminatePlayer);
-
 export default router;

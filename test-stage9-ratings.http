@@ -1,0 +1,194 @@
+### === ПЕРЕМЕННЫЕ ===
+@baseUrl = http://localhost:3001
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjUwMmRjNS01Y2FiLTRhZjgtYmFiZi0xMjhjZmE3Y2I3NjciLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAyNTg5NjcsImV4cCI6MTc3MDg2Mzc2N30.9BJzEaxkhHHcncb5sEitGFjcHFhKcs9Xi157YDSdZBA
+@tournamentId = cab78d21-4e1a-4c57-a471-7a0bb5b0de31
+@playerId = 5ef7defc-beb6-4da2-8775-aec23d9d13a1
+@leaderboardId = 85bc5c12-4b40-4981-93fd-f017ba950ef0
+
+5ef7defc-beb6-4da2-8775-aec23d9d13a1
+### ============================================
+### ЭТАП 9: СИСТЕМА РЕЙТИНГОВ ТЕСТИРОВАНИЕ
+### ============================================
+
+### 1. Войти как администратор
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79992222222",
+  "password": "player123"
+}
+### 
+POST {{baseUrl}}/user/deposit/topup
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "amount": 5000
+}
+
+# ⚠️ СКОПИРУЙ token из ответа и замени @adminToken
+
+
+### 2. Создать турнир для теста
+POST {{baseUrl}}/tournaments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Rating System Test Tournament",
+  "startTime": "2026-02-07T19:00:00Z",
+  "buyInAmount": 1,
+  "startingStack": 10000,
+  "blindStructureId": "7ca81579-2e49-4de6-92db-1f3e108cc41b"
+}
+
+# ⚠️ СКОПИРУЙ id турнира и замени @tournamentId
+
+
+### 3. Зарегистрироваться на турнир
+POST {{baseUrl}}/tournaments/{{tournamentId}}/register
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "paymentMethod": "DEPOSIT"
+}
+
+# ⚠️ СКОПИРУЙ playerId из ответа
+
+### 3.5. Автоматическая рассадка игроков по столам
+POST {{baseUrl}}/tournaments/{{tournamentId}}/seating/auto
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "maxSeatsPerTable": 9
+}
+### 1. Получить Live State (создаёт и кладёт в Redis)
+GET {{baseUrl}}/tournaments/{{tournamentId}}/live
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 2. Обновить оставшееся время уровня
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/live/time
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "remainingSeconds": 900
+}
+
+###
+
+### 3. Поставить турнир на паузу
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/pause
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 4. Возобновить турнир
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/resume
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 5. Пересчитать статистику
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/live/recalculate
+Authorization: Bearer {{adminToken}}
+
+
+### 4. Завершить игру с результатом (3-е место с призом)
+POST {{baseUrl}}/tournaments/{{tournamentId}}/player/{{playerId}}/eliminate
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "finishPosition": 1,
+  "prizeAmount": 5000
+}
+
+### 12. Проверить новый уровень
+POST {{baseUrl}}/tournaments/{{tournamentId}}/seating/auto
+Authorization: Bearer {{adminToken}}
+
+### 9. Запустить турнир (изменить статус)
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "LATE_REG"
+}
+
+### 4.5. Изменить статус турнира на RUNNING
+PATCH {{baseUrl}}/tournaments/{{tournamentId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "RUNNING"
+}
+
+### 5. Завершить турнир (пересчёт ММР и рейтингов)
+POST {{baseUrl}}/tournaments/{{tournamentId}}/finish
+Authorization: Bearer {{adminToken}}
+
+### 
+GET http://localhost:3001/mmr/top?limit=10
+Authorization: Bearer {{adminToken}}
+
+### 6. Получить топ игроков по ММР
+GET {{baseUrl}}/mmr/top?limit=20
+Authorization: Bearer {{adminToken}}
+
+
+### 7. Получить игроков ранга E
+GET {{baseUrl}}/mmr/rank/E
+Authorization: Bearer {{adminToken}}
+
+
+### 8. Получить игроков ранга D
+GET {{baseUrl}}/mmr/rank/D
+Authorization: Bearer {{adminToken}}
+
+
+### 9. Создать сезонный рейтинг
+POST {{baseUrl}}/leaderboards/seasonal/create
+Authorization: Bearer {{adminToken}}
+
+
+### 10. Получить все рейтинги
+GET {{baseUrl}}/leaderboards
+Authorization: Bearer {{adminToken}}
+
+# ⚠️ СКОПИРУЙ id любого рейтинга и замени @leaderboardId
+
+
+### 11. Получить записи рейтинга
+GET {{baseUrl}}/leaderboards/{{leaderboardId}}/entries?limit=20
+Authorization: Bearer {{adminToken}}
+
+
+### 12. Обновить рейтинг по ММР
+POST {{baseUrl}}/leaderboards/rank-mmr/update
+Authorization: Bearer {{adminToken}}
+
+
+### 13. Получить топ по рангам
+GET {{baseUrl}}/leaderboards/rank-mmr
+Authorization: Bearer {{adminToken}}
+
+
+### 14. Пересчитать ММР для турнира (ручной пересчёт)
+POST {{baseUrl}}/mmr/recalculate/{{tournamentId}}
+Authorization: Bearer {{adminToken}}
+
+### 15. Проверить баланс и данные пользователя
+GET {{baseUrl}}/user/deposit
+Authorization: Bearer {{adminToken}}
+
+### Проверить результаты турнира
+GET {{baseUrl}}/tournaments/{{tournamentId}}
+Authorization: Bearer {{adminToken}}

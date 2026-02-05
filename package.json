@@ -8,4 +8,5 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/pg": "^8.16.0"
   }
+ 
 }

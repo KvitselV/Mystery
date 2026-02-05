@@ -25,4 +25,7 @@ router.get('/:id/level/current', LiveTournamentController.getCurrentLevel);
 // История операций игрока (доступно всем)
 router.get('/:id/player/:playerId/operations', LiveTournamentController.getPlayerOperations);
 
+// Завершить турнир (только ADMIN)
+router.post('/:id/finish', LiveTournamentController.finishTournament);
+
 export default router;

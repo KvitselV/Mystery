@@ -6,6 +6,9 @@ import { TournamentResult } from '../models/TournamentResult';
 import { BlindStructure } from '../models/BlindStructure';
 import { TournamentLevel } from '../models/TournamentLevel';
 import { SeatingService } from './SeatingService';
+import { MMRService } from './MMRService';
+import { LeaderboardService } from './LeaderboardService';
+import { LiveStateService } from './LiveStateService';
 
 export class LiveTournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
@@ -14,8 +17,10 @@ export class LiveTournamentService {
   private resultRepository = AppDataSource.getRepository(TournamentResult);
   private blindStructureRepository = AppDataSource.getRepository(BlindStructure);
   private levelRepository = AppDataSource.getRepository(TournamentLevel);
+  private liveStateService = new LiveStateService();
   private seatingService = new SeatingService();
-
+  private mmrService = new MMRService();              
+  private leaderboardService = new LeaderboardService();
   /**
    * Ребай - игрок докупает фишки
    */
@@ -119,17 +124,21 @@ export class LiveTournamentService {
   /**
    * Выбытие игрока с записью результата
    */
-  async eliminatePlayer(
+    async eliminatePlayer(
     tournamentId: string,
     playerProfileId: string,
     finishPosition: number,
     prizeAmount?: number
   ): Promise<TournamentResult> {
+    
+    console.log('ELIMINATE CALLED:', { tournamentId, playerProfileId, finishPosition, prizeAmount });
+
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
     });
 
     if (!tournament) {
+      console.error('ELIMINATE ERROR: Tournament not found');
       throw new Error('Tournament not found');
     }
 
@@ -139,13 +148,20 @@ export class LiveTournamentService {
     });
 
     if (!player) {
+      console.error('ELIMINATE ERROR: Player not found');
       throw new Error('Player not found');
     }
 
     // Исключить игрока со стола
     await this.seatingService.eliminatePlayer(playerProfileId, finishPosition);
 
-    // Создать результат
+    console.log('CREATING RESULT:', {
+      tournamentId: tournament.id,
+      playerId: player.id,
+      finishPosition,
+      prizeAmount: prizeAmount || 0,
+    });
+
     const result = this.resultRepository.create({
       tournament,
       player,
@@ -156,7 +172,8 @@ export class LiveTournamentService {
 
     const savedResult = await this.resultRepository.save(result);
 
-    // Если есть призовые - начислить на баланс
+    console.log('SAVED RESULT ID:', savedResult.id);
+
     if (prizeAmount && prizeAmount > 0 && player.balance) {
       player.balance.depositBalance += prizeAmount;
       await AppDataSource.getRepository('PlayerBalance').save(player.balance);
@@ -164,6 +181,7 @@ export class LiveTournamentService {
 
     return savedResult;
   }
+
 
   /**
    * Перейти на следующий уровень
@@ -254,4 +272,38 @@ export class LiveTournamentService {
       order: { createdAt: 'DESC' },
     });
   }
+
+  /**
+   * Завершить турнир и обновить все рейтинги
+   */
+  async finishTournament(tournamentId: string): Promise<void> {
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+    });
+
+    if (!tournament) {
+      throw new Error('Tournament not found');
+    }
+
+    // Проверка что турнир в статусе RUNNING
+    if (tournament.status !== 'RUNNING') {
+      throw new Error('Tournament is not running');
+    }
+
+    // 1. Изменить статус турнира на FINISHED
+    tournament.status = 'FINISHED';
+    await this.tournamentRepository.save(tournament);
+
+    console.log(`🏁 Tournament ${tournamentId} finished`);
+
+    
+     
+    await this.liveStateService.deleteLiveState(tournamentId);
+
+    await this.mmrService.recalculateTournamentMMR(tournamentId);
+    await this.leaderboardService.updateLeaderboardsAfterTournament(tournamentId);
+
+    console.log(`✅ Tournament ${tournamentId} completed: MMR and leaderboards updated`);
+  }
+
 }

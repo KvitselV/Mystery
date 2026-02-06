@@ -1,0 +1,728 @@
+### ============================================
+### ЭТАП 11: МЕНЮ И ЗАКАЗЫ
+### ПОЛНЫЙ ТЕСТОВЫЙ НАБОР (С НУЛЯ)
+### ============================================
+
+### === ПЕРЕМЕННЫЕ ===
+@baseUrl = http://localhost:3001
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3YTcwYmQ3MS1kOGQyLTQ4NTctYmQ1Mi02MzNjYTNlMzJkM2QiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzAzNDAzNTMsImV4cCI6MTc3MDk0NTE1M30.OwM76ubzozNkCW9IU_mrZOGbUCT7c0mpZf_QNkHiyuw
+
+@userId = 7a70bd71-d8d2-4857-bd52-633ca3e32d3d
+
+@categoryDrinksId = dad4ae5f-884e-492c-a72a-65cf3f46c603
+@categorySnacksId = 4168c1f4-60f4-40d0-a56e-07f346158b15
+@categoryDessertsId = 6e4650fa-e1e7-41c4-9f9a-aa0b7a58a224
+@itemCocaColaId = ad2d4c36-d3f4-412f-b2e9-e16d5201dfe6
+
+
+
+@itemPizzaId = 2130811e-f36a-4831-8187-bcf58f99b941
+@itemCookieId = 24b36adb-fc20-4594-9b8f-b0dd6450fe08
+@orderId = ec47b766-888a-4313-a39a-4cfe89cb6422
+@tournamentId = 6870e63b-899e-4be8-b7d5-3b012298c305
+
+### ============================================
+### ЭТАП 1: РЕГИСТРАЦИЯ И ВХОД
+### ============================================
+
+### 1. Зарегистрировать нового пользователя
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "phone": "+79009876543",
+  "password": "test123",
+  "firstName": "Заказчик",
+  "lastName": "Тестовый"
+}
+
+### ⚠️ СКОПИРУЙ:
+### - token → замени @adminToken
+### - user.id → замени @userId
+
+###
+### 2. Войти под созданным пользователем
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{adminToken}}
+
+
+
+### 2. Войти под созданным пользователем
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "+79009876543",
+  "password": "test123"
+}
+
+###
+
+### 3. Пополнить депозит на 10000
+POST {{baseUrl}}/user/deposit/topup
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "amount": 10000
+}
+
+### ⚠️ Баланс должен стать 10000
+
+###
+
+### 4. Проверить баланс
+GET {{baseUrl}}/user/balance
+Authorization: Bearer {{adminToken}}
+
+###
+
+### ============================================
+### ЭТАП 2: СОЗДАНИЕ КАТЕГОРИЙ МЕНЮ
+### ============================================
+
+### 5. Создать категорию "Напитки"
+POST {{baseUrl}}/menu/categories
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Напитки",
+  "description": "Прохладительные и горячие напитки",
+  "sortOrder": 1
+}
+
+### ⚠️ СКОПИРУЙ id → замени @categoryDrinksId
+
+###
+
+### 6. Создать категорию "Закуски"
+POST {{baseUrl}}/menu/categories
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Закуски",
+  "description": "Закуски к турниру",
+  "sortOrder": 2
+}
+
+### ⚠️ СКОПИРУЙ id → замени @categorySnacksId
+
+###
+
+### 7. Создать категорию "Десерты"
+POST {{baseUrl}}/menu/categories
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Десерты",
+  "description": "Сладкие десерты",
+  "sortOrder": 3
+}
+
+### ⚠️ СКОПИРУЙ id → замени @categoryDessertsId
+
+###
+
+### 8. Получить все категории
+GET {{baseUrl}}/menu/categories/list
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Должно быть 3 категории
+
+###
+
+### ============================================
+### ЭТАП 3: СОЗДАНИЕ ПОЗИЦИЙ МЕНЮ
+### ============================================
+
+### 9. Создать позицию "Coca-Cola 0.5л"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Coca-Cola 0.5л",
+  "description": "Газированный напиток",
+  "price": 150,
+  "categoryId": "{{categoryDrinksId}}",
+  "imageUrl": "/images/coca-cola.jpg",
+  "sortOrder": 1
+}
+
+### ⚠️ СКОПИРУЙ id → замени @itemCocaColaId
+
+###
+
+### 10. Создать позицию "Pepsi 0.5л"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Pepsi 0.5л",
+  "description": "Газированный напиток",
+  "price": 150,
+  "categoryId": "{{categoryDrinksId}}",
+  "sortOrder": 2
+}
+
+###
+
+### 11. Создать позицию "Кофе Американо"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Кофе Американо",
+  "description": "Горячий кофе",
+  "price": 200,
+  "categoryId": "{{categoryDrinksId}}",
+  "sortOrder": 3
+}
+
+###
+
+### 12. Создать позицию "Пицца Маргарита"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Пицца Маргарита",
+  "description": "Классическая пицца с сыром и томатами",
+  "price": 800,
+  "categoryId": "{{categorySnacksId}}",
+  "sortOrder": 1
+}
+
+### ⚠️ СКОПИРУЙ id → замени @itemPizzaId
+
+###
+
+### 13. Создать позицию "Сэндвич с курицей"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Сэндвич с курицей",
+  "description": "Свежий сэндвич с куриной грудкой",
+  "price": 350,
+  "categoryId": "{{categorySnacksId}}",
+  "sortOrder": 2
+}
+
+###
+
+### 14. Создать позицию "Чипсы Lays"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Чипсы Lays",
+  "description": "Картофельные чипсы, 150г",
+  "price": 120,
+  "categoryId": "{{categorySnacksId}}",
+  "sortOrder": 3
+}
+
+###
+
+### 15. Создать позицию "Шоколадное печенье"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Шоколадное печенье",
+  "description": "Домашнее печенье с шоколадной крошкой",
+  "price": 180,
+  "categoryId": "{{categoryDessertsId}}",
+  "sortOrder": 1
+}
+
+### ⚠️ СКОПИРУЙ id → замени @itemCookieId
+
+###
+
+### 16. Создать позицию "Чизкейк"
+POST {{baseUrl}}/menu/items
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Чизкейк",
+  "description": "Нежный чизкейк с ягодным соусом",
+  "price": 300,
+  "categoryId": "{{categoryDessertsId}}",
+  "sortOrder": 2
+}
+
+###
+
+### 17. Получить все категории с позициями
+GET {{baseUrl}}/menu/categories
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Должно вернуться 3 категории с 8 позициями
+
+###
+
+### 18. Получить только позиции категории "Напитки"
+GET {{baseUrl}}/menu/items?categoryId={{categoryDrinksId}}
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Должно быть 3 напитка
+
+###
+
+### 19. Получить все доступные позиции
+GET {{baseUrl}}/menu/items?availableOnly=true
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Все 8 позиций должны быть доступны
+
+###
+
+### ============================================
+### ЭТАП 4: СОЗДАНИЕ ЗАКАЗА
+### ============================================
+
+### 20. Создать заказ №1 (Coca-Cola + Пицца)
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "userId": "{{userId}}",
+  "items": [
+    {
+      "menuItemId": "{{itemCocaColaId}}",
+      "quantity": 2,
+      "notes": "Без льда"
+    },
+    {
+      "menuItemId": "{{itemPizzaId}}",
+      "quantity": 1,
+      "notes": "Не острую"
+    }
+  ],
+  "notes": "Доставить к столу 5",
+  "tableNumber": 5
+}
+
+### ⚠️ СКОПИРУЙ id → замени @orderId
+### ⚠️ Баланс должен уменьшиться на: 150*2 + 800 = 1100
+### ⚠️ Новый баланс: 10000 - 1100 = 8900
+
+###
+
+### 21. Проверить баланс после заказа
+GET {{baseUrl}}/user/deposit
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ depositBalance должен быть 8900
+
+###
+
+### 22. Получить созданный заказ по ID
+GET {{baseUrl}}/orders/{{orderId}}
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Проверь:
+### - status: PENDING
+### - totalAmount: 1100
+### - items: 2 позиции
+
+###
+
+### 23. Получить мои заказы
+GET {{baseUrl}}/orders/my
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Должен быть 1 заказ
+
+###
+
+### ============================================
+### ЭТАП 5: УПРАВЛЕНИЕ СТАТУСОМ ЗАКАЗА
+### ============================================
+
+### 24. Изменить статус на "Готовится"
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "PREPARING"
+}
+
+###
+
+### 25. Изменить статус на "Готов"
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "READY"
+}
+
+###
+
+### 26. Изменить статус на "Доставлен"
+PATCH {{baseUrl}}/orders/{{orderId}}/status
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "status": "DELIVERED"
+}
+
+###
+
+### 27. Проверить обновлённый заказ
+GET {{baseUrl}}/orders/{{orderId}}
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ status должен быть DELIVERED
+
+###
+
+### ============================================
+### ЭТАП 6: ДОПОЛНИТЕЛЬНЫЕ ЗАКАЗЫ
+### ============================================
+
+### 28. Создать заказ №2 (Кофе + Печенье)
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "userId": "{{userId}}",
+  "items": [
+    {
+      "menuItemId": "{{itemCookieId}}",
+      "quantity": 3
+    }
+  ],
+  "notes": "К кофе-брейку",
+  "tableNumber": 5
+}
+
+### ⚠️ Сумма: 180 * 3 = 540
+### ⚠️ Баланс: 8900 - 540 = 8360
+
+###
+
+### 29. Создать заказ №3 (Пицца x2)
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "items": [
+    {
+      "menuItemId": "{{itemPizzaId}}",
+      "quantity": 2
+    }
+  ],
+  "tableNumber": 5
+}
+
+### ⚠️ Сумма: 800 * 2 = 1600
+### ⚠️ Баланс: 8360 - 1600 = 6760
+
+###
+
+### 30. Получить все мои заказы (должно быть 3)
+GET {{baseUrl}}/orders/my?userId={{userId}}
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Всего 3 заказа
+
+###
+
+### 31. Проверить итоговый баланс
+GET {{baseUrl}}/user/deposit
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ depositBalance должен быть 6760
+
+###
+
+### ============================================
+### ЭТАП 7: ОТМЕНА ЗАКАЗА
+### ============================================
+
+### 32. Создать заказ №4 для отмены
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "items": [
+    {
+      "menuItemId": "{{itemCocaColaId}}",
+      "quantity": 1
+    }
+  ],
+  "tableNumber": 5
+}
+
+### ⚠️ СКОПИРУЙ id нового заказа
+### ⚠️ Баланс: 6760 - 150 = 6610
+
+###
+
+### 33. Отменить только что созданный заказ
+POST {{baseUrl}}/orders/PASTE_ORDER_ID_HERE/cancel
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Замените PASTE_ORDER_ID_HERE на ID из шага 32
+### ⚠️ Деньги должны вернуться: 6610 + 150 = 6760
+
+###
+
+### 34. Проверить баланс после отмены
+GET {{baseUrl}}/user/balance
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ depositBalance должен вернуться к 6760
+
+###
+
+### ============================================
+### ЭТАП 8: ПОЛУЧЕНИЕ ВСЕХ ЗАКАЗОВ (ADMIN)
+### ============================================
+
+### 35. Получить все заказы
+GET {{baseUrl}}/orders
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 36. Получить заказы со статусом PENDING
+GET {{baseUrl}}/orders?status=PENDING
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 37. Получить заказы со статусом DELIVERED
+GET {{baseUrl}}/orders?status=DELIVERED
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 38. Получить последние 5 заказов
+GET {{baseUrl}}/orders?limit=5
+Authorization: Bearer {{adminToken}}
+
+###
+
+### ============================================
+### ЭТАП 9: СТАТИСТИКА ЗАКАЗОВ
+### ============================================
+
+### 39. Получить общую статистику заказов
+GET {{baseUrl}}/orders/statistics
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Проверь:
+### - totalOrders: количество заказов
+### - totalRevenue: общая выручка
+### - averageOrderAmount: средний чек
+### - ordersByStatus: распределение по статусам
+### - topItems: популярные позиции
+
+###
+
+### ============================================
+### ЭТАП 10: ПОПУЛЯРНЫЕ ПОЗИЦИИ
+### ============================================
+
+### 40. Получить топ-10 популярных позиций
+GET {{baseUrl}}/menu/items/popular?limit=10
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Должна быть пицца на первом месте (заказывали 3 раза)
+
+###
+
+### 41. Получить топ-3 популярных позиций
+GET {{baseUrl}}/menu/items/popular?limit=3
+Authorization: Bearer {{adminToken}}
+
+###
+
+### ============================================
+### ЭТАП 11: ОБНОВЛЕНИЕ МЕНЮ
+### ============================================
+
+### 42. Обновить цену Coca-Cola
+PATCH {{baseUrl}}/menu/items/{{itemCocaColaId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "price": 180
+}
+
+### ⚠️ Цена изменена со 150 на 180
+
+###
+
+### 43. Сделать позицию недоступной
+PATCH {{baseUrl}}/menu/items/{{itemCocaColaId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "isAvailable": false
+}
+
+###
+
+### 44. Проверить доступные позиции
+GET {{baseUrl}}/menu/items?availableOnly=true
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Coca-Cola не должна отображаться
+
+###
+
+### 45. Вернуть доступность
+PATCH {{baseUrl}}/menu/items/{{itemCocaColaId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "isAvailable": true
+}
+
+###
+
+### 46. Обновить категорию "Напитки"
+PATCH {{baseUrl}}/menu/categories/{{categoryDrinksId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "description": "Прохладительные и горячие напитки для игроков"
+}
+
+###
+
+### ============================================
+### ЭТАП 12: ЗАКАЗЫ В ТУРНИРЕ
+### ============================================
+
+### 47. Создать тестовый турнир
+POST {{baseUrl}}/tournaments
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "Турнир с заказами",
+  "startTime": "2026-02-07T19:00:00Z",
+  "buyInAmount": 100,
+  "startingStack": 10000,
+  "blindStructureId": "c44f5d52-8d7b-47c6-9237-208d5912037a"
+}
+
+### ⚠️ СКОПИРУЙ id → замени @tournamentId
+### ⚠️ Замените PASTE_BLIND_STRUCTURE_ID на ID вашей структуры
+
+###
+
+### 48. Создать заказ с привязкой к турниру
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "tournamentId": "{{tournamentId}}",
+  "items": [
+    {
+      "menuItemId": "{{itemPizzaId}}",
+      "quantity": 1
+    },
+    {
+      "menuItemId": "{{itemCocaColaId}}",
+      "quantity": 1
+    }
+  ],
+  "notes": "Заказ во время турнира",
+  "tableNumber": 3
+}
+
+###
+
+### 49. Получить заказы турнира
+GET {{baseUrl}}/orders/tournament/{{tournamentId}}
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Должен быть минимум 1 заказ
+
+###
+
+### 50. Получить статистику заказов турнира
+GET {{baseUrl}}/orders/statistics?tournamentId={{tournamentId}}
+Authorization: Bearer {{adminToken}}
+
+###
+
+### ============================================
+### ЭТАП 13: УДАЛЕНИЕ (ADMIN)
+### ============================================
+
+### 51. Удалить позицию "Чизкейк"
+DELETE {{baseUrl}}/menu/items/PASTE_CHEESECAKE_ID_HERE
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Замените на ID чизкейка из шага 16
+
+###
+
+### 52. Попробовать удалить категорию с позициями (должна удалиться с каскадом)
+DELETE {{baseUrl}}/menu/categories/{{categoryDessertsId}}
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Категория удалится вместе с оставшимися позициями
+
+###
+
+### 53. Проверить категории после удаления
+GET {{baseUrl}}/menu/categories/list
+Authorization: Bearer {{adminToken}}
+
+### ⚠️ Должно остаться 2 категории (Напитки, Закуски)
+
+###
+
+### ============================================
+### 🎉 ЭТАП 11 ПОЛНОСТЬЮ ПРОТЕСТИРОВАН!
+### ============================================
+
+### ✅ Что протестировано:
+### 1. Создание категорий меню (3 категории)
+### 2. Создание позиций меню (8 позиций)
+### 3. Получение меню с фильтрами
+### 4. Создание заказов (4 заказа)
+### 5. Автоматическое списание с баланса
+### 6. Управление статусами заказа
+### 7. Отмена заказа с возвратом денег
+### 8. Получение заказов пользователя
+### 9. Получение всех заказов с фильтрами
+### 10. Статистика заказов
+### 11. Популярные позиции
+### 12. Обновление меню
+### 13. Заказы в турнире
+### 14. Удаление позиций и категорий
+
+###

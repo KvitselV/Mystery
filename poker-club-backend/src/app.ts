@@ -10,6 +10,8 @@ import leaderboardRoutes from './routes/leaderboardRoutes';
 import mmrRoutes from './routes/mmrRoutes';
 import achievementRoutes from './routes/achievements';
 import statisticsRoutes from './routes/statistics';
+import menuRoutes from './routes/menu';
+import orderRoutes from './routes/orders';
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,6 +37,8 @@ app.use('/leaderboards', leaderboardRoutes);  // ← Добавь
 app.use('/mmr', mmrRoutes);  
 app.use('/achievements', achievementRoutes);  // НОВОЕ
 app.use('/statistics', statisticsRoutes);  
+app.use('/menu', menuRoutes);
+app.use('/orders', orderRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

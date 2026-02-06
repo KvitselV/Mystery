@@ -8,6 +8,8 @@ import blindStructureRoutes from './routes/blindStructureRoutes';
 import { initializeWebSocket } from './websocket';
 import leaderboardRoutes from './routes/leaderboardRoutes';
 import mmrRoutes from './routes/mmrRoutes';
+import achievementRoutes from './routes/achievements';
+import statisticsRoutes from './routes/statistics';
 
 const app = express();
 const httpServer = createServer(app);
@@ -31,6 +33,8 @@ app.use('/tournaments', tournamentRoutes);
 app.use('/blind-structures', blindStructureRoutes);
 app.use('/leaderboards', leaderboardRoutes);  // ← Добавь
 app.use('/mmr', mmrRoutes);  
+app.use('/achievements', achievementRoutes);  // НОВОЕ
+app.use('/statistics', statisticsRoutes);  
 
 // Health check
 app.get('/health', (req, res) => {

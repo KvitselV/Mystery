@@ -9,6 +9,8 @@ import { SeatingService } from './SeatingService';
 import { MMRService } from './MMRService';
 import { LeaderboardService } from './LeaderboardService';
 import { LiveStateService } from './LiveStateService';
+import { AchievementService } from './AchievementService';
+import { StatisticsService } from './StatisticsService';
 
 export class LiveTournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
@@ -19,8 +21,11 @@ export class LiveTournamentService {
   private levelRepository = AppDataSource.getRepository(TournamentLevel);
   private liveStateService = new LiveStateService();
   private seatingService = new SeatingService();
-  private mmrService = new MMRService();              
+  private mmrService = new MMRService();
   private leaderboardService = new LeaderboardService();
+  private achievementService = new AchievementService();
+  private statisticsService = new StatisticsService();
+
   /**
    * Ребай - игрок докупает фишки
    */
@@ -124,14 +129,18 @@ export class LiveTournamentService {
   /**
    * Выбытие игрока с записью результата
    */
-    async eliminatePlayer(
+  async eliminatePlayer(
     tournamentId: string,
     playerProfileId: string,
     finishPosition: number,
     prizeAmount?: number
   ): Promise<TournamentResult> {
-    
-    console.log('ELIMINATE CALLED:', { tournamentId, playerProfileId, finishPosition, prizeAmount });
+    console.log('ELIMINATE CALLED:', {
+      tournamentId,
+      playerProfileId,
+      finishPosition,
+      prizeAmount,
+    });
 
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
@@ -144,7 +153,7 @@ export class LiveTournamentService {
 
     const player = await this.playerRepository.findOne({
       where: { id: playerProfileId },
-      relations: ['balance'],
+      relations: ['balance', 'user'],
     });
 
     if (!player) {
@@ -174,14 +183,45 @@ export class LiveTournamentService {
 
     console.log('SAVED RESULT ID:', savedResult.id);
 
+    // Выплатить приз
     if (prizeAmount && prizeAmount > 0 && player.balance) {
       player.balance.depositBalance += prizeAmount;
       await AppDataSource.getRepository('PlayerBalance').save(player.balance);
     }
 
+    // ========================================
+    // ЭТАП 10: Обновить статистику и достижения
+    // ========================================
+    try {
+      if (player.user?.id) {
+        console.log(`📊 Updating statistics for player ${player.user.id}...`);
+        await this.statisticsService.updatePlayerStatistics(
+          player.user.id,
+          tournamentId
+        );
+
+        console.log(`🏆 Checking achievements for player ${player.user.id}...`);
+        const grantedAchievements =
+          await this.achievementService.checkAndGrantAchievements(
+            player.user.id,
+            tournamentId
+          );
+
+        if (grantedAchievements.length > 0) {
+          console.log(
+            `🎉 Player ${player.user.id} earned ${grantedAchievements.length} achievement(s):`,
+            grantedAchievements.map((a) => a.achievementType?.code || 'unknown')
+          );
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error updating statistics/achievements:', error);
+      // Не прерываем выполнение, просто логируем ошибку
+    }
+    // ========================================
+
     return savedResult;
   }
-
 
   /**
    * Перейти на следующий уровень
@@ -296,14 +336,82 @@ export class LiveTournamentService {
 
     console.log(`🏁 Tournament ${tournamentId} finished`);
 
-    
-     
+    // 2. Удалить live state
     await this.liveStateService.deleteLiveState(tournamentId);
 
+    // 3. Обновить MMR и лидерборды
     await this.mmrService.recalculateTournamentMMR(tournamentId);
-    await this.leaderboardService.updateLeaderboardsAfterTournament(tournamentId);
+    await this.leaderboardService.updateLeaderboardsAfterTournament(
+      tournamentId
+    );
 
-    console.log(`✅ Tournament ${tournamentId} completed: MMR and leaderboards updated`);
+    // ========================================
+    // ЭТАП 10: Обновить статистику и достижения для всех игроков
+    // ========================================
+    try {
+      console.log(
+        `📊 Updating statistics and achievements for all players...`
+      );
+
+      // Получить все результаты турнира
+      const results = await this.resultRepository
+        .createQueryBuilder('result')
+        .leftJoinAndSelect('result.player', 'player')
+        .leftJoinAndSelect('player.user', 'user')
+        .where('result.tournamentId = :tournamentId', { tournamentId })
+        .getMany();
+
+      console.log(`Found ${results.length} results to process`);
+
+      // Обработать каждого игрока
+      for (const result of results) {
+        try {
+          const userId = result.player?.user?.id;
+
+          if (!userId) {
+            console.warn(
+              `⚠️ Skipping result ${result.id}: no user ID found`
+            );
+            continue;
+          }
+
+          // Обновить статистику
+          await this.statisticsService.updatePlayerStatistics(
+            userId,
+            tournamentId
+          );
+
+          // Проверить достижения
+          const grantedAchievements =
+            await this.achievementService.checkAndGrantAchievements(
+              userId,
+              tournamentId
+            );
+
+          if (grantedAchievements.length > 0) {
+            console.log(
+              `🏆 Player ${userId} earned ${grantedAchievements.length} achievement(s):`,
+              grantedAchievements.map(
+                (a) => a.achievementType?.code || 'unknown'
+              )
+            );
+          }
+        } catch (error) {
+          console.error(
+            `❌ Error processing player ${result.player?.id}:`,
+            error
+          );
+        }
+      }
+
+      console.log('✅ All statistics and achievements updated');
+    } catch (error) {
+      console.error('❌ Error in statistics/achievements update:', error);
+    }
+    // ========================================
+
+    console.log(
+      `✅ Tournament ${tournamentId} completed: MMR and leaderboards updated`
+    );
   }
-
 }

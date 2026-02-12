@@ -2,14 +2,20 @@ import { AppDataSource } from '../config/database';
 import { Tournament } from '../models/Tournament';
 import { TournamentSeries } from '../models/TournamentSeries';
 import { TournamentRegistration } from '../models/TournamentRegistration';
+import { TournamentReward } from '../models/TournamentReward';
+import { Reward } from '../models/Reward';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { FinancialService } from './FinancialService';
+import { Club } from '../models/Club';
 
 export class TournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
   private seriesRepository = AppDataSource.getRepository(TournamentSeries);
   private registrationRepository = AppDataSource.getRepository(TournamentRegistration);
+  private tournamentRewardRepository = AppDataSource.getRepository(TournamentReward);
+  private rewardRepository = AppDataSource.getRepository(Reward);
   private playerRepository = AppDataSource.getRepository(PlayerProfile);
+  private clubRepository = AppDataSource.getRepository(Club);
   private financialService = new FinancialService();
 
   /**
@@ -18,27 +24,73 @@ export class TournamentService {
   async createTournament(data: {
     name: string;
     seriesId?: string;
+    clubId?: string;
     startTime: Date;
-    buyInAmount: number;
+    buyInCost: number;
     startingStack: number;
+    addonChips?: number;
+    rebuyChips?: number;
     blindStructureId?: string;
+    rewards?: { rewardId: string; place: number }[];
   }): Promise<Tournament> {
     const series = data.seriesId
       ? await this.seriesRepository.findOne({ where: { id: data.seriesId } })
       : null;
 
+    const club = data.clubId
+      ? await this.clubRepository.findOne({ where: { id: data.clubId } })
+      : null;
+
+    if (data.clubId && !club) {
+      throw new Error('Club not found');
+    }
+
     const tournament = this.tournamentRepository.create({
       name: data.name,
       series: series || undefined,
+      club: club || undefined,
+      clubId: club?.id,
       startTime: data.startTime,
-      buyInAmount: data.buyInAmount,
+      buyInCost: data.buyInCost,
       startingStack: data.startingStack,
+      addonChips: data.addonChips ?? 0,
+      rebuyChips: data.rebuyChips ?? 0,
       blindStructureId: data.blindStructureId,
       status: 'REG_OPEN',
       currentLevelNumber: 0,
     });
 
-    return await this.tournamentRepository.save(tournament);
+    const saved = await this.tournamentRepository.save(tournament);
+
+    if (data.rewards?.length) {
+      await this.setTournamentRewards(saved.id, data.rewards);
+    }
+
+    return await this.getTournamentById(saved.id);
+  }
+
+  /**
+   * Установить награды турнира (место -> награда). Заменяет текущий список.
+   */
+  async setTournamentRewards(
+    tournamentId: string,
+    rewards: { rewardId: string; place: number }[]
+  ): Promise<void> {
+    const tournament = await this.tournamentRepository.findOne({ where: { id: tournamentId } });
+    if (!tournament) throw new Error('Tournament not found');
+
+    await this.tournamentRewardRepository.delete({ tournament: { id: tournamentId } });
+
+    for (const { rewardId, place } of rewards) {
+      const reward = await this.rewardRepository.findOne({ where: { id: rewardId } });
+      if (!reward) throw new Error(`Reward not found: ${rewardId}`);
+      const tr = this.tournamentRewardRepository.create({
+        tournament,
+        reward,
+        place,
+      });
+      await this.tournamentRewardRepository.save(tr);
+    }
   }
 
   /**
@@ -47,6 +99,7 @@ export class TournamentService {
   async getTournaments(filters?: {
     status?: string;
     seriesId?: string;
+    clubId?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ tournaments: Tournament[]; total: number }> {
@@ -60,9 +113,13 @@ export class TournamentService {
       where.series = { id: filters.seriesId };
     }
 
+    if (filters?.clubId) {
+      where.club = { id: filters.clubId };
+    }
+
     const [tournaments, total] = await this.tournamentRepository.findAndCount({
       where,
-      relations: ['series'],
+      relations: ['series', 'club', 'rewards', 'rewards.reward'],
       order: { startTime: 'ASC' },
       take: filters?.limit || 50,
       skip: filters?.offset || 0,
@@ -111,23 +168,13 @@ export class TournamentService {
       throw new Error('Player not found');
     }
 
-    // Спиши бай-ин с депозита (если DEPOSIT)
-    if (paymentMethod === 'DEPOSIT') {
-      await this.financialService.deductBalance(
-        playerProfileId,
-        tournament.buyInAmount,
-        'BUYIN',
-        tournamentId
-      );
-    }
-
-    // Создай регистрацию
     const registration = this.registrationRepository.create({
       tournament,
       player,
       registeredAt: new Date(),
       paymentMethod,
       isActive: true,
+      currentStack: tournament.startingStack,
     });
 
     await this.registrationRepository.save(registration);
@@ -172,7 +219,7 @@ export class TournamentService {
   async getTournamentById(tournamentId: string): Promise<Tournament> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
-      relations: ['series', 'registrations'],
+      relations: ['series', 'club', 'registrations', 'rewards', 'rewards.reward'],
     });
 
     if (!tournament) {
@@ -223,27 +270,7 @@ export class TournamentService {
       throw new Error('Registration not found');
     }
 
-    // Вернуть деньги на баланс (если оплачено депозитом)
-    if (registration.paymentMethod === 'DEPOSIT') {
-      if (!playerProfile.balance) {
-        throw new Error('Player balance not found. Cannot refund.');
-      }
 
-      const balance = playerProfile.balance;
-      balance.depositBalance += tournament.buyInAmount;
-      
-      // Сохранить баланс
-      await AppDataSource.getRepository('PlayerBalance').save(balance);
-
-      // Создать операцию возврата
-      const operationRepository = AppDataSource.getRepository('PlayerOperation');
-      const refundOperation = operationRepository.create({
-        playerProfile,
-        operationType: 'REFUND',
-        amount: tournament.buyInAmount,
-      });
-      await operationRepository.save(refundOperation);
-    }
 
     // Удалить регистрацию
     await this.registrationRepository.remove(registration);

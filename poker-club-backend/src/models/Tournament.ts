@@ -2,7 +2,9 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColum
 import { TournamentSeries } from './TournamentSeries';
 import { TournamentTable } from './TournamentTable';
 import { TournamentRegistration } from './TournamentRegistration';
-import { BlindStructure } from './BlindStructure';  
+import { TournamentReward } from './TournamentReward';
+import { BlindStructure } from './BlindStructure';
+import { Club } from './Club';  
 
 @Entity('tournaments')
 export class Tournament {
@@ -18,11 +20,17 @@ export class Tournament {
   @Column({ type: 'enum', enum: ['REG_OPEN', 'LATE_REG', 'RUNNING', 'FINISHED', 'ARCHIVED'], default: 'REG_OPEN' })
   status: string;
 
-  @Column({ type: 'int' })
-  buyInAmount: number;
+  @Column({ type: 'int', default: 0 })
+  buyInCost: number; 
 
   @Column({ type: 'int' })
   startingStack: number;
+
+  @Column({ type: 'int', default: 0 })
+  addonChips: number;
+
+  @Column({ type: 'int', default: 0 })
+  rebuyChips: number;
 
   @Column({ type: 'int', default: 0 })
   currentLevelNumber: number;
@@ -38,9 +46,19 @@ export class Tournament {
   @JoinColumn({ name: 'series_id' })
   series: TournamentSeries;
 
+  @Column({ type: 'uuid', nullable: true })
+  clubId: string;
+
+  @ManyToOne(() => Club, { nullable: true })
+  @JoinColumn({ name: 'club_id' })
+  club: Club;
+
   @OneToMany(() => TournamentTable, (table) => table.tournament, { cascade: true })
   tables: TournamentTable[];
 
   @OneToMany(() => TournamentRegistration, (reg) => reg.tournament)
   registrations: TournamentRegistration[];
+
+  @OneToMany(() => TournamentReward, (tr) => tr.tournament, { cascade: true })
+  rewards: TournamentReward[];
 }

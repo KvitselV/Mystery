@@ -13,8 +13,6 @@ router.get('/deposit', FinancialController.getDeposit);
 // Пополнить депозит
 router.post('/deposit/topup', FinancialController.topupDeposit);
 
-// Вывести средства
-router.post('/deposit/withdraw', FinancialController.withdrawDeposit);
 
 // История операций
 router.get('/operations', FinancialController.getOperations);

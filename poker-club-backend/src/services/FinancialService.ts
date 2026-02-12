@@ -12,9 +12,7 @@ export class FinancialService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
 
 
-  /**
-   * Пополнение депозита
-   */
+
   async topupDeposit(playerId: string, amount: number): Promise<PlayerBalance> {
     if (amount <= 0) {
       throw new Error('Amount must be greater than 0');
@@ -37,7 +35,7 @@ export class FinancialService {
         playerProfile: player,  // ✅ ИЗМЕНЕНО
         depositBalance: 0,
         totalDeposited: 0,
-        totalWithdrawn: 0,
+      
       });
     }
 
@@ -65,9 +63,7 @@ export class FinancialService {
   }
 
 
-  /**
-   * Получить баланс игрока
-   */
+
   async getBalance(playerId: string): Promise<PlayerBalance> {
     const player = await this.playerProfileRepository.findOne({
       where: { id: playerId },
@@ -82,10 +78,10 @@ export class FinancialService {
 
     if (!player.balance) {
       const newBalance = this.playerBalanceRepository.create({
-        playerProfile: player,  // ✅ ИЗМЕНЕНО
+        playerProfile: player,  
         depositBalance: 0,
         totalDeposited: 0,
-        totalWithdrawn: 0,
+      
       });
       return await this.playerBalanceRepository.save(newBalance);
     }
@@ -95,9 +91,7 @@ export class FinancialService {
   }
 
 
-  /**
-   * Вычесть из депозита (при бай-ине в турнир)
-   */
+ 
   async deductBalance(
     playerId: string,
     amount: number,
@@ -146,9 +140,7 @@ export class FinancialService {
   }
 
 
-  /**
-   * Пополнить баланс (при выигрыше, рефунде и т.д.)
-   */
+
   async addBalance(
     playerId: string,
     amount: number,
@@ -171,7 +163,7 @@ export class FinancialService {
         playerProfile: player,  // ✅ ИЗМЕНЕНО
         depositBalance: 0,
         totalDeposited: 0,
-        totalWithdrawn: 0,
+        
       });
     }
 
@@ -202,9 +194,7 @@ export class FinancialService {
   }
 
 
-  /**
-   * Получить историю операций
-   */
+ 
   async getOperationHistory(
     playerId: string,
     limit: number = 50,
@@ -222,49 +212,5 @@ export class FinancialService {
     return { operations, total };
   }
 
-
-  /**
-   * Вывести деньги (withdrawal)
-   */
-  async withdrawDeposit(playerId: string, amount: number): Promise<PlayerBalance> {
-    if (amount <= 0) {
-      throw new Error('Amount must be greater than 0');
-    }
-
-
-    const player = await this.playerProfileRepository.findOne({
-      where: { id: playerId },
-      relations: ['balance'],
-    });
-
-
-    if (!player || !player.balance) {
-      throw new Error('Player or balance not found');
-    }
-
-
-    if (player.balance.depositBalance < amount) {
-      throw new Error('Insufficient balance');
-    }
-
-
-    player.balance.depositBalance -= amount;
-    player.balance.totalWithdrawn += amount;
-    player.balance.updatedAt = new Date();
-
-
-    const updatedBalance = await this.playerBalanceRepository.save(player.balance);
-
-
-    // Запиши операцию
-    const operation = this.playerOperationRepository.create({
-      playerProfile: player,  // ✅ ИЗМЕНЕНО
-      operationType: 'DEPOSIT_WITHDRAWAL',
-      amount,
-    });
-    await this.playerOperationRepository.save(operation);
-
-
-    return updatedBalance;
-  }
+  
 }

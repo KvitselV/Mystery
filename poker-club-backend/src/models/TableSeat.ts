@@ -14,7 +14,8 @@ export class TableSeat {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @ManyToOne(() => TournamentTable, (table) => table.seats)
+  @ManyToOne(() => TournamentTable, (table) => table.seats, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'table_id' })
   table!: TournamentTable;
 
   @Column({ type: 'int' })

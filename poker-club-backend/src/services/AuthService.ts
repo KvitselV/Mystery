@@ -42,7 +42,7 @@ export class AuthService {
     const balance = this.balanceRepository.create({
       depositBalance: 0,
       totalDeposited: 0,
-      totalWithdrawn: 0,
+
     });
     const savedBalance = await this.balanceRepository.save(balance);
 

@@ -2,6 +2,7 @@ import { AppDataSource } from '../config/database';
 import { Tournament } from '../models/Tournament';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { PlayerOperation } from '../models/PlayerOperation';
+import { TournamentRegistration } from '../models/TournamentRegistration';
 import { TournamentResult } from '../models/TournamentResult';
 import { BlindStructure } from '../models/BlindStructure';
 import { TournamentLevel } from '../models/TournamentLevel';
@@ -16,6 +17,7 @@ export class LiveTournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
   private playerRepository = AppDataSource.getRepository(PlayerProfile);
   private operationRepository = AppDataSource.getRepository(PlayerOperation);
+  private registrationRepository = AppDataSource.getRepository(TournamentRegistration);
   private resultRepository = AppDataSource.getRepository(TournamentResult);
   private blindStructureRepository = AppDataSource.getRepository(BlindStructure);
   private levelRepository = AppDataSource.getRepository(TournamentLevel);
@@ -26,9 +28,7 @@ export class LiveTournamentService {
   private achievementService = new AchievementService();
   private statisticsService = new StatisticsService();
 
-  /**
-   * Ребай - игрок докупает фишки
-   */
+  
   async rebuy(
     tournamentId: string,
     playerProfileId: string,
@@ -56,25 +56,33 @@ export class LiveTournamentService {
       throw new Error('Player not found');
     }
 
-    const rebuyAmount = amount || tournament.buyInAmount;
+    const rebuyAmount = amount ?? tournament.buyInCost;
+    const rebuyChips = tournament.rebuyChips ?? 0;
 
-    // Проверка баланса
-    if (!player.balance || player.balance.depositBalance < rebuyAmount) {
-      throw new Error('Insufficient balance for rebuy');
+    const registration = await this.registrationRepository.findOne({
+      where: {
+        tournament: { id: tournamentId },
+        player: { id: playerProfileId },
+      },
+    });
+    if (!registration) {
+      throw new Error('Player is not registered for this tournament');
     }
 
-    // Списать с баланса
-    player.balance.depositBalance -= rebuyAmount;
-    await AppDataSource.getRepository('PlayerBalance').save(player.balance);
-
-    // Создать операцию
     const operation = this.operationRepository.create({
       playerProfile: player,
       operationType: 'REBUY',
       amount: rebuyAmount,
+      tournament,
     });
+    const savedOp = await this.operationRepository.save(operation);
 
-    return this.operationRepository.save(operation);
+    registration.currentStack += rebuyChips;
+    await this.registrationRepository.save(registration);
+
+    await this.liveStateService.recalculateStats(tournamentId);
+
+    return savedOp;
   }
 
   /**
@@ -107,23 +115,32 @@ export class LiveTournamentService {
       throw new Error('Player not found');
     }
 
-    // Проверка баланса
-    if (!player.balance || player.balance.depositBalance < amount) {
-      throw new Error('Insufficient balance for addon');
+    const addonChips = tournament.addonChips ?? 0;
+
+    const registration = await this.registrationRepository.findOne({
+      where: {
+        tournament: { id: tournamentId },
+        player: { id: playerProfileId },
+      },
+    });
+    if (!registration) {
+      throw new Error('Player is not registered for this tournament');
     }
 
-    // Списать с баланса
-    player.balance.depositBalance -= amount;
-    await AppDataSource.getRepository('PlayerBalance').save(player.balance);
-
-    // Создать операцию
     const operation = this.operationRepository.create({
       playerProfile: player,
       operationType: 'ADDON',
       amount,
+      tournament,
     });
+    const savedOp = await this.operationRepository.save(operation);
 
-    return this.operationRepository.save(operation);
+    registration.currentStack += addonChips;
+    await this.registrationRepository.save(registration);
+
+    await this.liveStateService.recalculateStats(tournamentId);
+
+    return savedOp;
   }
 
   /**
@@ -133,13 +150,11 @@ export class LiveTournamentService {
     tournamentId: string,
     playerProfileId: string,
     finishPosition: number,
-    prizeAmount?: number
   ): Promise<TournamentResult> {
     console.log('ELIMINATE CALLED:', {
       tournamentId,
       playerProfileId,
       finishPosition,
-      prizeAmount,
     });
 
     const tournament = await this.tournamentRepository.findOne({
@@ -161,21 +176,20 @@ export class LiveTournamentService {
       throw new Error('Player not found');
     }
 
-    // Исключить игрока со стола
     await this.seatingService.eliminatePlayer(playerProfileId, finishPosition);
+
+    await this.liveStateService.recalculateStats(tournamentId);
 
     console.log('CREATING RESULT:', {
       tournamentId: tournament.id,
       playerId: player.id,
       finishPosition,
-      prizeAmount: prizeAmount || 0,
     });
 
     const result = this.resultRepository.create({
       tournament,
       player,
       finishPosition,
-      prizeAmount: prizeAmount || 0,
       isFinalTable: finishPosition <= 9,
     });
 
@@ -183,15 +197,8 @@ export class LiveTournamentService {
 
     console.log('SAVED RESULT ID:', savedResult.id);
 
-    // Выплатить приз
-    if (prizeAmount && prizeAmount > 0 && player.balance) {
-      player.balance.depositBalance += prizeAmount;
-      await AppDataSource.getRepository('PlayerBalance').save(player.balance);
-    }
 
-    // ========================================
-    // ЭТАП 10: Обновить статистику и достижения
-    // ========================================
+
     try {
       if (player.user?.id) {
         console.log(`📊 Updating statistics for player ${player.user.id}...`);
@@ -218,14 +225,11 @@ export class LiveTournamentService {
       console.error('❌ Error updating statistics/achievements:', error);
       // Не прерываем выполнение, просто логируем ошибку
     }
-    // ========================================
 
     return savedResult;
   }
 
-  /**
-   * Перейти на следующий уровень
-   */
+
   async moveToNextLevel(tournamentId: string): Promise<{
     tournament: Tournament;
     currentLevel: TournamentLevel | null;
@@ -273,9 +277,7 @@ export class LiveTournamentService {
     };
   }
 
-  /**
-   * Получить текущий уровень турнира
-   */
+
   async getCurrentLevel(tournamentId: string): Promise<TournamentLevel | null> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
@@ -345,9 +347,7 @@ export class LiveTournamentService {
       tournamentId
     );
 
-    // ========================================
-    // ЭТАП 10: Обновить статистику и достижения для всех игроков
-    // ========================================
+
     try {
       console.log(
         `📊 Updating statistics and achievements for all players...`
@@ -408,7 +408,7 @@ export class LiveTournamentService {
     } catch (error) {
       console.error('❌ Error in statistics/achievements update:', error);
     }
-    // ========================================
+    
 
     console.log(
       `✅ Tournament ${tournamentId} completed: MMR and leaderboards updated`

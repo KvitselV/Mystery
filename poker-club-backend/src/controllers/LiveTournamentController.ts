@@ -5,10 +5,7 @@ import { LiveTournamentService } from '../services/LiveTournamentService';
 const liveTournamentService = new LiveTournamentService();
 
 export class LiveTournamentController {
-  /**
-   * POST /tournaments/:id/player/:playerId/rebuy - Ребай
-   * Только для администраторов
-   */
+
   static async rebuy(req: AuthRequest, res: Response) {
     try {
       if (!req.user || req.user.role !== 'ADMIN') {
@@ -39,10 +36,7 @@ export class LiveTournamentController {
     }
   }
 
-  /**
-   * POST /tournaments/:id/player/:playerId/addon - Аддон
-   * Только для администраторов
-   */
+
   static async addon(req: AuthRequest, res: Response) {
     try {
       if (!req.user || req.user.role !== 'ADMIN') {
@@ -89,7 +83,7 @@ export class LiveTournamentController {
 
       const tournamentId = req.params.id as string;
       const playerId = req.params.playerId as string;
-      const { finishPosition, prizeAmount } = req.body;
+      const { finishPosition } = req.body;
 
       if (!finishPosition) {
         return res.status(400).json({ error: 'finishPosition is required' });
@@ -99,7 +93,7 @@ export class LiveTournamentController {
         tournamentId,
         playerId,
         finishPosition,
-        prizeAmount
+
       );
 
       res.json({
@@ -107,7 +101,6 @@ export class LiveTournamentController {
         result: {
           id: result.id,
           finishPosition: result.finishPosition,
-          prizeAmount: result.prizeAmount,
           isFinalTable: result.isFinalTable,
         },
       });

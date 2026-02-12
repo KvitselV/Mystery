@@ -8,9 +8,7 @@ export class StatisticsService {
   private resultRepo = AppDataSource.getRepository(TournamentResult);
   private tournamentRepo = AppDataSource.getRepository(Tournament);
 
-  /**
-   * Обновить статистику игрока после завершения турнира
-   */
+
   async updatePlayerStatistics(
     userId: string,
     tournamentId: string
@@ -38,11 +36,6 @@ export class StatisticsService {
       return;
     }
 
-    // 1. Обновить ROI%
-    profile.roiPercent = this.calculateROI(
-      profile.totalBuyIns,
-      profile.totalWinnings
-    );
 
     // 2. Обновить bestFinish
     if (!profile.bestFinish || result.finishPosition < profile.bestFinish) {
@@ -64,15 +57,6 @@ export class StatisticsService {
     await this.profileRepo.save(profile);
   }
 
-  /**
-   * Рассчитать ROI%
-   */
-  private calculateROI(totalBuyIns: number, totalWinnings: number): number {
-    if (totalBuyIns === 0) return 0;
-    return parseFloat(
-      (((totalWinnings - totalBuyIns) / totalBuyIns) * 100).toFixed(2)
-    );
-  }
 
   /**
    * Рассчитать процент финальных столов (winRate)
@@ -131,7 +115,7 @@ export class StatisticsService {
     result: TournamentResult
   ): Promise<void> {
     // Считаем, что финиш в призах = финальный стол или призовые деньги
-    const isInPrizes = result.isFinalTable || (result.prizeAmount ?? 0) > 0;
+    const isInPrizes = result.isFinalTable 
 
     if (isInPrizes) {
       profile.currentStreak += 1;

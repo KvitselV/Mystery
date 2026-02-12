@@ -12,6 +12,8 @@ import achievementRoutes from './routes/achievements';
 import statisticsRoutes from './routes/statistics';
 import menuRoutes from './routes/menu';
 import orderRoutes from './routes/orders';
+import clubRoutes from './routes/clubRoutes';
+import rewardRoutes from './routes/rewardRoutes';
 
 const app = express();
 const httpServer = createServer(app);
@@ -39,6 +41,8 @@ app.use('/achievements', achievementRoutes);  // НОВОЕ
 app.use('/statistics', statisticsRoutes);  
 app.use('/menu', menuRoutes);
 app.use('/orders', orderRoutes);
+app.use('/clubs', clubRoutes);
+app.use('/rewards', rewardRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

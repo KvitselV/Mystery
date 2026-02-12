@@ -19,9 +19,6 @@ export class TournamentResult {
   finishPosition: number; // место финиша
 
   @Column({ type: 'int', default: 0 })
-  prizeAmount: number;
-
-  @Column({ type: 'int', default: 0 })
   mmrGained: number; // ММR за турнир
 
   @Column({ type: 'boolean', default: false })

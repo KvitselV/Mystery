@@ -7,6 +7,9 @@ const router = Router();
 // Все маршруты требуют авторизации
 router.use(authMiddleware);
 
+// Инициализация столов турнира из столов клуба (только ADMIN)
+router.post('/:id/tables/init-from-club', SeatingController.initTablesFromClub);
+
 // Автоматическая рассадка (только ADMIN)
 router.post('/:id/seating/auto', SeatingController.autoSeating);
 

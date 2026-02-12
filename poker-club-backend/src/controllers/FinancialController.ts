@@ -38,7 +38,7 @@ export class FinancialController {
       res.json({
         depositBalance: balance.depositBalance,
         totalDeposited: balance.totalDeposited,
-        totalWithdrawn: balance.totalWithdrawn,
+
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -72,32 +72,7 @@ export class FinancialController {
     }
   }
 
-  /**
-   * POST /user/deposit/withdraw - Вывести средства
-   */
-  static async withdrawDeposit(req: AuthRequest, res: Response) {
-    try {
-      if (!req.user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
 
-      const { amount } = req.body;
-
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ error: 'Invalid amount' });
-      }
-
-      const playerProfileId = await FinancialController.getPlayerProfileId(req.user.userId);
-      const balance = await financialService.withdrawDeposit(playerProfileId, amount);
-
-      res.json({
-        message: 'Withdrawal successful',
-        depositBalance: balance.depositBalance,
-      });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  }
 
   /**
    * GET /user/operations - Получить историю операций

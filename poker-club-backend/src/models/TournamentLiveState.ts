@@ -24,10 +24,19 @@ export class TournamentLiveState {
   levelRemainingTimeSeconds!: number; // Оставшееся время на уровне (в секундах)
 
   @Column({ type: 'int', default: 0 })
-  playersCount!: number; // Количество игроков в игре
+  playersCount!: number; // Активные участники (не вылетели)
 
   @Column({ type: 'int', default: 0 })
-  averageStack!: number; // Средний стек
+  totalParticipants!: number; // Всего участников (регистраций)
+
+  @Column({ type: 'int', default: 0 })
+  totalEntries!: number; // Всего входов (вход + ребаи)
+
+  @Column({ type: 'int', default: 0 })
+  totalChipsInPlay!: number; // Сумма фишек у активных игроков
+
+  @Column({ type: 'int', default: 0 })
+  averageStack!: number; // Средний стек = totalChipsInPlay / playersCount
 
   @Column({ type: 'boolean', default: false })
   isPaused!: boolean; // На паузе ли турнир

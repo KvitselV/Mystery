@@ -1,8 +1,11 @@
 import { AppDataSource } from '../config/database';
+import { In } from 'typeorm';
 import { redisClient } from '../config/redis';
 import { TournamentLiveState } from '../models/TournamentLiveState';
 import { Tournament } from '../models/Tournament';
 import { TableSeat } from '../models/TableSeat';
+import { TournamentRegistration } from '../models/TournamentRegistration';
+import { PlayerOperation } from '../models/PlayerOperation';
 import { io } from '../app';
 import { broadcastLiveStateUpdate, broadcastLevelChange } from '../websocket';
 
@@ -10,6 +13,8 @@ export class LiveStateService {
   private liveStateRepository = AppDataSource.getRepository(TournamentLiveState);
   private tournamentRepository = AppDataSource.getRepository(Tournament);
   private seatRepository = AppDataSource.getRepository(TableSeat);
+  private registrationRepository = AppDataSource.getRepository(TournamentRegistration);
+  private operationRepository = AppDataSource.getRepository(PlayerOperation);
 
   // ---------- Redis helpers ----------
 
@@ -72,8 +77,11 @@ export class LiveStateService {
       liveState = this.liveStateRepository.create({
         tournament,
         currentLevelNumber: tournament.currentLevelNumber || 1,
-        levelRemainingTimeSeconds: 1200, // 20 минут по умолчанию
+        levelRemainingTimeSeconds: 1200,
         playersCount: 0,
+        totalParticipants: 0,
+        totalEntries: 0,
+        totalChipsInPlay: 0,
         averageStack: tournament.startingStack,
         isPaused: false,
         liveStatus: 'RUNNING',
@@ -109,29 +117,59 @@ export class LiveStateService {
   }
 
   /**
-   * Пересчитать статистику (количество игроков, средний стек)
+   * Пересчитать статистику: активные участники, всего участников, входы, фишки в игре, средний стек
    */
   async recalculateStats(tournamentId: string): Promise<TournamentLiveState> {
     const liveState = await this.getOrCreateLiveState(tournamentId);
 
-    const activeSeats = await this.seatRepository.count({
+    const activeSeats = await this.seatRepository.find({
       where: {
         table: { tournament: { id: tournamentId } },
         isOccupied: true,
         status: 'ACTIVE',
       },
+      relations: ['player'],
+    });
+    const activePlayerIds = [...new Set(activeSeats.map((s) => s.player?.id).filter(Boolean))] as string[];
+
+    const totalParticipants = await this.registrationRepository.count({
+      where: { tournament: { id: tournamentId } },
     });
 
-    liveState.playersCount = activeSeats;
+    const rebuyCount = await this.operationRepository.count({
+      where: {
+        tournament: { id: tournamentId },
+        operationType: 'REBUY',
+      },
+    });
+    const totalEntries = totalParticipants + rebuyCount;
+
+    let totalChipsInPlay = 0;
+    if (activePlayerIds.length > 0) {
+      const activeRegs = await this.registrationRepository.find({
+        where: {
+          tournament: { id: tournamentId },
+          player: { id: In(activePlayerIds) },
+        },
+      });
+      totalChipsInPlay = activeRegs.reduce((sum, r) => sum + (r.currentStack ?? 0), 0);
+    }
+
+    const playersCount = activePlayerIds.length;
+    const averageStack = playersCount > 0 ? Math.floor(totalChipsInPlay / playersCount) : 0;
+
+    liveState.playersCount = playersCount;
+    liveState.totalParticipants = totalParticipants;
+    liveState.totalEntries = totalEntries;
+    liveState.totalChipsInPlay = totalChipsInPlay;
+    liveState.averageStack = averageStack;
     liveState.updatedAt = new Date();
 
     const updated = await this.liveStateRepository.save(liveState);
 
     const dto = this.formatLiveState(updated);
-    await this.saveToCache(tournamentId, dto);        // 👈 кэш
-    broadcastLiveStateUpdate(io, tournamentId, dto);  // 🔥 вебсокет
-
-    console.log(`📊 Stats recalculated for tournament ${tournamentId}: ${activeSeats} players`);
+    await this.saveToCache(tournamentId, dto);
+    broadcastLiveStateUpdate(io, tournamentId, dto);
 
     return updated;
   }
@@ -237,6 +275,9 @@ export class LiveStateService {
       currentLevelNumber: liveState.currentLevelNumber,
       levelRemainingTimeSeconds: liveState.levelRemainingTimeSeconds,
       playersCount: liveState.playersCount,
+      totalParticipants: liveState.totalParticipants,
+      totalEntries: liveState.totalEntries,
+      totalChipsInPlay: liveState.totalChipsInPlay,
       averageStack: liveState.averageStack,
       isPaused: liveState.isPaused,
       liveStatus: liveState.liveStatus,

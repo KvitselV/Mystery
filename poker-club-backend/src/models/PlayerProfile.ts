@@ -26,13 +26,6 @@ export class PlayerProfile {
   @Column({ type: 'float', default: 0 })
   averageFinish: number; // среднее место финиша
 
-  // ========================================
-  // НОВЫЕ ПОЛЯ ДЛЯ ЭТАПА 10
-  // ========================================
-
-  @Column({ type: 'float', default: 0 })
-  roiPercent: number; // ROI% (Return on Investment)
-
   @Column({ type: 'int', nullable: true })
   bestFinish?: number; // Лучшее место (например, 1 = первое место)
 
@@ -44,14 +37,6 @@ export class PlayerProfile {
 
   @Column({ type: 'int', default: 0 })
   bestStreak: number; // Лучшая серия финишей в призах
-
-  @Column({ type: 'float', default: 0 })
-  totalBuyIns: number; // Общая сумма бай-инов
-
-  @Column({ type: 'float', default: 0 })
-  totalWinnings: number; // Общая сумма выигрышей
-
-  // ========================================
 
   @OneToOne(() => PlayerBalance, (balance) => balance.playerProfile, { cascade: true })
   @JoinColumn({ name: 'balance_id' })

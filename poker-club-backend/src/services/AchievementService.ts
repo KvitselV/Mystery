@@ -191,8 +191,7 @@ export class AchievementService {
     const recentResults = allResults.slice(-3);
     if (recentResults.length >= 3) {
       const allInPrizes = recentResults.every(
-        (r) => r.isFinalTable || (r.prizeAmount ?? 0) > 0
-      );
+        (r) => r.isFinalTable );
       if (allInPrizes) {
         const achievement = await this.grantAchievement(
           userId,

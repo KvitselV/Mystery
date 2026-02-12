@@ -15,8 +15,7 @@ export class PlayerBalance {
   @Column({ type: 'int', default: 0 })
   totalDeposited: number; // всего внесено
 
-  @Column({ type: 'int', default: 0 })
-  totalWithdrawn: number; // всего выведено
+
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;

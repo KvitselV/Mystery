@@ -20,6 +20,7 @@ router.delete('/:id/register', TournamentController.unregisterFromTournament);
 // Только для админов
 router.post('/', TournamentController.createTournament);
 router.patch('/:id/status', TournamentController.updateTournamentStatus);
+router.patch('/:id/rewards', TournamentController.updateTournamentRewards);
 
 // Подключаем seating routes (рассадка и столы)
 router.use('/', seatingRoutes);

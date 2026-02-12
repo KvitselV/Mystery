@@ -23,4 +23,7 @@ export class TournamentRegistration {
 
   @Column({ type: 'boolean', default: false })
   isActive: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  currentStack: number;
 }

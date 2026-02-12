@@ -8,28 +8,30 @@ const tournamentService = new TournamentService();
 const playerProfileRepository = AppDataSource.getRepository(PlayerProfile);
 
 export class TournamentController {
-  /**
-   * POST /tournaments - Создать турнир (только админ)
-   */
+
   static async createTournament(req: AuthRequest, res: Response) {
     try {
       if (!req.user || req.user.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Forbidden' });
       }
 
-      const { name, seriesId, startTime, buyInAmount, startingStack, blindStructureId } = req.body;
+      const { name, seriesId, clubId, startTime, buyInCost, startingStack, addonChips, rebuyChips, blindStructureId, rewards } = req.body;
 
-      if (!name || !startTime || !buyInAmount || !startingStack) {
+      if (!name || !startTime || !buyInCost || !startingStack) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
       const tournament = await tournamentService.createTournament({
         name,
         seriesId,
+        clubId,
         startTime: new Date(startTime),
-        buyInAmount,
+        buyInCost,
         startingStack,
+        addonChips: addonChips ?? 0,
+        rebuyChips: rebuyChips ?? 0,
         blindStructureId,
+        rewards: Array.isArray(rewards) ? rewards : undefined,
       });
 
       res.status(201).json(tournament);
@@ -45,17 +47,20 @@ export class TournamentController {
     try {
       const statusRaw = req.query.status;
       const seriesIdRaw = req.query.seriesId;
+      const clubIdRaw = req.query.clubId;
       const limitRaw = req.query.limit;
       const offsetRaw = req.query.offset;
 
       const status = typeof statusRaw === 'string' ? statusRaw : undefined;
       const seriesId = typeof seriesIdRaw === 'string' ? seriesIdRaw : undefined;
+      const clubId = typeof clubIdRaw === 'string' ? clubIdRaw : undefined;
       const limit = typeof limitRaw === 'string' ? parseInt(limitRaw) : 50;
       const offset = typeof offsetRaw === 'string' ? parseInt(offsetRaw) : 0;
 
       const { tournaments, total } = await tournamentService.getTournaments({
         status,
         seriesId,
+        clubId,
         limit,
         offset,
       });
@@ -81,6 +86,27 @@ export class TournamentController {
         res.status(404).json({ error: error.message });
     }
     }
+
+  /**
+   * PATCH /tournaments/:id/rewards - Обновить награды турнира (ADMIN)
+   */
+  static async updateTournamentRewards(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const { rewards } = req.body;
+      if (!Array.isArray(rewards)) {
+        return res.status(400).json({ error: 'rewards must be an array of { rewardId, place }' });
+      }
+      await tournamentService.setTournamentRewards(id, rewards);
+      const tournament = await tournamentService.getTournamentById(id);
+      res.json(tournament);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
 
     /**
      * POST /tournaments/:id/register - Зарегистрироваться на турнир

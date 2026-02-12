@@ -1,10 +1,35 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { SeatingService } from '../services/SeatingService';
+import { LiveStateService } from '../services/LiveStateService';
 
 const seatingService = new SeatingService();
+const liveStateService = new LiveStateService();
 
 export class SeatingController {
+  /**
+   * POST /tournaments/:id/tables/init-from-club - Создать столы турнира из столов клуба
+   * Только для администраторов. Вызывать при запуске турнира (турнир должен быть привязан к клубу).
+   */
+  static async initTablesFromClub(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const tournamentId = req.params.id as string;
+
+      const result = await seatingService.initializeTablesFromClub(tournamentId);
+
+      res.json({
+        message: 'Tournament tables initialized from club',
+        ...result,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+
   /**
    * POST /tournaments/:id/seating/auto - Автоматическая рассадка
    * Только для администраторов
@@ -18,6 +43,8 @@ export class SeatingController {
       const tournamentId = req.params.id as string;
 
       const result = await seatingService.autoSeating(tournamentId);
+
+      await liveStateService.recalculateStats(tournamentId);
 
       res.json({
         message: 'Auto seating completed successfully',
@@ -81,6 +108,10 @@ export class SeatingController {
         tables: tables.map((table) => ({
           id: table.id,
           tableNumber: table.tableNumber,
+          clubTableId: table.clubTableId ?? undefined,
+          clubTable: table.clubTable
+            ? { id: table.clubTable.id, tableNumber: table.clubTable.tableNumber }
+            : undefined,
           status: table.status,
           occupiedSeats: table.occupiedSeats,
           maxSeats: table.maxSeats,
@@ -113,6 +144,10 @@ export class SeatingController {
         table: {
           id: table.id,
           tableNumber: table.tableNumber,
+          clubTableId: table.clubTableId ?? undefined,
+          clubTable: table.clubTable
+            ? { id: table.clubTable.id, tableNumber: table.clubTable.tableNumber }
+            : undefined,
           tournamentId: table.tournament.id,
           status: table.status,
           occupiedSeats: table.occupiedSeats,

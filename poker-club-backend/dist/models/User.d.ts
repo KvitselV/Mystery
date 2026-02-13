@@ -1,3 +1,4 @@
+import { PlayerBalance } from './PlayerBalance';
 export declare class User {
     id: string;
     firstName: string;
@@ -9,5 +10,6 @@ export declare class User {
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;
+    balance: PlayerBalance;
 }
 //# sourceMappingURL=User.d.ts.map

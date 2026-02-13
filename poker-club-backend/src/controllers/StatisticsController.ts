@@ -1,4 +1,5 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../middlewares/authMiddleware';
 import { StatisticsService } from '../services/StatisticsService';
 import { AppDataSource } from '../config/database';
 import { PlayerProfile } from '../models/PlayerProfile';
@@ -6,16 +7,23 @@ import { PlayerProfile } from '../models/PlayerProfile';
 const statisticsService = new StatisticsService();
 const profileRepo = AppDataSource.getRepository(PlayerProfile);
 
+function canAccessUser(req: AuthRequest, userId: string): boolean {
+  if (!req.user) return false;
+  return req.user.userId === userId || req.user.role === 'ADMIN';
+}
+
 export class StatisticsController {
   /**
-   * GET /statistics/user/:userId
-   * Получить полную статистику пользователя
+   * GET /statistics/user/:userId — только свой профиль или ADMIN
    */
-  static async getFullStatistics(req: Request, res: Response): Promise<void> {
+  static async getFullStatistics(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.params.userId as string;
+      if (!canAccessUser(req, userId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
 
-      // Получить playerProfileId по userId
       const profile = await profileRepo.findOne({
         where: { user: { id: userId } },
         relations: ['user'],
@@ -29,18 +37,20 @@ export class StatisticsController {
       const stats = await statisticsService.getPlayerFullStatistics(profile.id);
       res.json(stats);
     } catch (error) {
-      console.error('Error fetching full statistics:', error);
       res.status(500).json({ error: 'Failed to fetch full statistics' });
     }
   }
 
   /**
    * GET /statistics/user/:userId/finishes
-   * Получить статистику финишей
    */
-  static async getFinishStatistics(req: Request, res: Response): Promise<void> {
+  static async getFinishStatistics(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.params.userId as string;
+      if (!canAccessUser(req, userId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
 
       const profile = await profileRepo.findOne({
         where: { user: { id: userId } },
@@ -62,14 +72,17 @@ export class StatisticsController {
 
   /**
    * GET /statistics/user/:userId/participation
-   * Получить график участия
    */
   static async getParticipationChart(
-    req: Request,
+    req: AuthRequest,
     res: Response
   ): Promise<void> {
     try {
       const userId = req.params.userId as string;
+      if (!canAccessUser(req, userId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
 
       const profile = await profileRepo.findOne({
         where: { user: { id: userId } },
@@ -91,11 +104,14 @@ export class StatisticsController {
 
   /**
    * GET /statistics/user/:userId/last-tournament
-   * Получить последний турнир
    */
-  static async getLastTournament(req: Request, res: Response): Promise<void> {
+  static async getLastTournament(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.params.userId as string;
+      if (!canAccessUser(req, userId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
 
       const profile = await profileRepo.findOne({
         where: { user: { id: userId } },
@@ -116,10 +132,9 @@ export class StatisticsController {
   }
 
   /**
-   * POST /statistics/user/:userId/update
-   * Обновить статистику пользователя вручную (admin)
+   * POST /statistics/user/:userId/update — только ADMIN (requireRole в роуте)
    */
-  static async updateStatistics(req: Request, res: Response): Promise<void> {
+  static async updateStatistics(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.params.userId as string;
       const { tournamentId } = req.body;
@@ -132,7 +147,6 @@ export class StatisticsController {
       await statisticsService.updatePlayerStatistics(userId, tournamentId);
       res.json({ message: 'Statistics updated successfully' });
     } catch (error) {
-      console.error('Error updating statistics:', error);
       res.status(500).json({ error: 'Failed to update statistics' });
     }
   }

@@ -40,8 +40,8 @@ export class FinancialController {
         totalDeposited: balance.totalDeposited,
 
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -67,8 +67,8 @@ export class FinancialController {
         message: 'Deposit topup successful',
         depositBalance: balance.depositBalance,
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -106,8 +106,8 @@ export class FinancialController {
         limit,
         offset,
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 }

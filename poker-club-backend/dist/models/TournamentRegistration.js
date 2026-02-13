@@ -42,6 +42,10 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
 ], TournamentRegistration.prototype, "isActive", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], TournamentRegistration.prototype, "currentStack", void 0);
 exports.TournamentRegistration = TournamentRegistration = __decorate([
     (0, typeorm_1.Entity)('tournament_registrations')
 ], TournamentRegistration);

@@ -48,8 +48,8 @@ export class BlindStructureController {
           })),
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -69,8 +69,8 @@ export class BlindStructureController {
           createdAt: structure.createdAt,
         })),
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -102,8 +102,8 @@ export class BlindStructureController {
           })),
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -149,8 +149,8 @@ export class BlindStructureController {
           breakName: level.breakName,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -176,8 +176,8 @@ export class BlindStructureController {
           isActive: structure.isActive,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 }

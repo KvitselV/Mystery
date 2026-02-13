@@ -21,23 +21,35 @@ __decorate([
     __metadata("design:type", String)
 ], TableSeat.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int' }),
-    __metadata("design:type", Number)
-], TableSeat.prototype, "seatNumber", void 0);
-__decorate([
     (0, typeorm_1.ManyToOne)(() => TournamentTable_1.TournamentTable, (table) => table.seats, { onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'table_id' }),
     __metadata("design:type", TournamentTable_1.TournamentTable)
 ], TableSeat.prototype, "table", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => PlayerProfile_1.PlayerProfile),
+    (0, typeorm_1.Column)({ type: 'int' }),
+    __metadata("design:type", Number)
+], TableSeat.prototype, "seatNumber", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => PlayerProfile_1.PlayerProfile, { nullable: true, onDelete: 'SET NULL' }),
     (0, typeorm_1.JoinColumn)({ name: 'player_id' }),
-    __metadata("design:type", PlayerProfile_1.PlayerProfile)
+    __metadata("design:type", Object)
 ], TableSeat.prototype, "player", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    (0, typeorm_1.Column)({ type: 'varchar', nullable: true }),
+    __metadata("design:type", Object)
+], TableSeat.prototype, "playerName", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
     __metadata("design:type", Boolean)
-], TableSeat.prototype, "isActive", void 0);
+], TableSeat.prototype, "isOccupied", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', default: 'WAITING' }),
+    __metadata("design:type", String)
+], TableSeat.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], TableSeat.prototype, "createdAt", void 0);
 exports.TableSeat = TableSeat = __decorate([
     (0, typeorm_1.Entity)('table_seats')
 ], TableSeat);

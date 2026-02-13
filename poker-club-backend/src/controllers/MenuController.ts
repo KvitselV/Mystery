@@ -76,11 +76,11 @@ export class MenuController {
       });
 
       res.status(201).json(category);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating category:', error);
       res.status(500).json({
         error: 'Failed to create category',
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Operation failed',
       });
     }
   }
@@ -102,11 +102,11 @@ export class MenuController {
       });
 
       res.json(category);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating category:', error);
       res.status(500).json({
         error: 'Failed to update category',
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Operation failed',
       });
     }
   }
@@ -120,11 +120,11 @@ export class MenuController {
       const id = req.params.id as string;
       await menuService.deleteCategory(id);
       res.json({ message: 'Category deleted successfully' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting category:', error);
       res.status(500).json({
         error: 'Failed to delete category',
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Operation failed',
       });
     }
   }
@@ -196,11 +196,11 @@ export class MenuController {
       });
 
       res.status(201).json(item);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating item:', error);
       res.status(500).json({
         error: 'Failed to create item',
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Operation failed',
       });
     }
   }
@@ -233,11 +233,11 @@ export class MenuController {
       });
 
       res.json(item);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating item:', error);
       res.status(500).json({
         error: 'Failed to update item',
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Operation failed',
       });
     }
   }
@@ -251,11 +251,11 @@ export class MenuController {
       const id = req.params.id as string;
       await menuService.deleteItem(id);
       res.json({ message: 'Menu item deleted successfully' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting item:', error);
       res.status(500).json({
         error: 'Failed to delete item',
-        details: error.message,
+        details: error instanceof Error ? error.message : 'Operation failed',
       });
     }
   }

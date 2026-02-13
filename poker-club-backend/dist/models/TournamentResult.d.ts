@@ -5,7 +5,6 @@ export declare class TournamentResult {
     tournament: Tournament;
     player: PlayerProfile;
     finishPosition: number;
-    prizeAmount: number;
     mmrGained: number;
     isFinalTable: boolean;
 }

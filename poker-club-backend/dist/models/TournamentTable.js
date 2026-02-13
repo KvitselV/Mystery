@@ -13,6 +13,7 @@ exports.TournamentTable = void 0;
 const typeorm_1 = require("typeorm");
 const Tournament_1 = require("./Tournament");
 const TableSeat_1 = require("./TableSeat");
+const ClubTable_1 = require("./ClubTable");
 let TournamentTable = class TournamentTable {
 };
 exports.TournamentTable = TournamentTable;
@@ -21,22 +22,43 @@ __decorate([
     __metadata("design:type", String)
 ], TournamentTable.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int' }),
-    __metadata("design:type", Number)
-], TournamentTable.prototype, "tableNumber", void 0);
-__decorate([
     (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, (tournament) => tournament.tables, { onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'tournament_id' }),
     __metadata("design:type", Tournament_1.Tournament)
 ], TournamentTable.prototype, "tournament", void 0);
 __decorate([
-    (0, typeorm_1.OneToMany)(() => TableSeat_1.TableSeat, (seat) => seat.table),
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], TournamentTable.prototype, "clubTableId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => ClubTable_1.ClubTable, { nullable: true, onDelete: 'SET NULL' }),
+    (0, typeorm_1.JoinColumn)({ name: 'club_table_id' }),
+    __metadata("design:type", Object)
+], TournamentTable.prototype, "clubTable", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int' }),
+    __metadata("design:type", Number)
+], TournamentTable.prototype, "tableNumber", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 9 }),
+    __metadata("design:type", Number)
+], TournamentTable.prototype, "maxSeats", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], TournamentTable.prototype, "occupiedSeats", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', default: 'INACTIVE' }),
+    __metadata("design:type", String)
+], TournamentTable.prototype, "status", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => TableSeat_1.TableSeat, (seat) => seat.table, { cascade: true }),
     __metadata("design:type", Array)
 ], TournamentTable.prototype, "seats", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'boolean', default: false }),
-    __metadata("design:type", Boolean)
-], TournamentTable.prototype, "isActive", void 0);
+    (0, typeorm_1.CreateDateColumn)(),
+    __metadata("design:type", Date)
+], TournamentTable.prototype, "createdAt", void 0);
 exports.TournamentTable = TournamentTable = __decorate([
     (0, typeorm_1.Entity)('tournament_tables')
 ], TournamentTable);

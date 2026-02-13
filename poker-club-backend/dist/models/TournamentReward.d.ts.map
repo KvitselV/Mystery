@@ -1,0 +1,1 @@
+{"version":3,"file":"TournamentReward.d.ts","sourceRoot":"","sources":["../../src/models/TournamentReward.ts"],"names":[],"mappings":"AAQA,OAAO,EAAE,UAAU,EAAE,MAAM,cAAc,CAAC;AAC1C,OAAO,EAAE,MAAM,EAAE,MAAM,UAAU,CAAC;AAElC,qBACa,gBAAgB;IAE3B,EAAE,EAAE,MAAM,CAAC;IAIX,UAAU,EAAE,UAAU,CAAC;IAIvB,MAAM,EAAE,MAAM,CAAC;IAGf,KAAK,EAAE,MAAM,CAAC;IAGd,SAAS,EAAE,IAAI,CAAC;CACjB"}

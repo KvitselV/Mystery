@@ -1,4 +1,5 @@
 import { AppDataSource } from '../config/database';
+import { FindOptionsWhere } from 'typeorm';
 import { Club } from '../models/Club';
 import { ClubTable } from '../models/ClubTable';
 import { ClubSchedule } from '../models/ClubSchedule';
@@ -58,7 +59,7 @@ export class ClubService {
     limit?: number;
     offset?: number;
   }): Promise<{ clubs: Club[]; total: number }> {
-    const where: any = {};
+    const where: FindOptionsWhere<Club> = {};
 
     if (filters?.isActive !== undefined) {
       where.isActive = filters.isActive;
@@ -180,7 +181,7 @@ export class ClubService {
       isActive?: boolean;
     }
   ): Promise<ClubSchedule[]> {
-    const where: any = { club: { id: clubId } };
+    const where: FindOptionsWhere<ClubSchedule> = { club: { id: clubId } };
 
     if (filters?.dayOfWeek !== undefined) {
       where.dayOfWeek = filters.dayOfWeek;

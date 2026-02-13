@@ -31,8 +31,8 @@ export class LiveTournamentController {
           createdAt: operation.createdAt,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -66,8 +66,8 @@ export class LiveTournamentController {
           createdAt: operation.createdAt,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -104,8 +104,8 @@ export class LiveTournamentController {
           isFinalTable: result.isFinalTable,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -142,8 +142,8 @@ export class LiveTournamentController {
             }
           : null,
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -171,8 +171,8 @@ export class LiveTournamentController {
           breakName: currentLevel.breakName,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -193,8 +193,8 @@ export class LiveTournamentController {
           createdAt: op.createdAt,
         })),
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -216,8 +216,8 @@ export class LiveTournamentController {
         message: 'Tournament finished successfully',
         tournamentId,
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 

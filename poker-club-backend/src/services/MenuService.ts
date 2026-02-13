@@ -216,10 +216,8 @@ export class MenuService {
     }
   }
 
-  /**
-   * Получить популярные позиции (по количеству заказов)
-   */
-  async getPopularItems(limit: number = 10): Promise<any[]> {
+  /** Получить популярные позиции (по количеству заказов) */
+  async getPopularItems(limit: number = 10): Promise<{ id: string; name: string; price: number; orderCount: number; totalQuantity: number }[]> {
     const result = await this.itemRepo
       .createQueryBuilder('item')
       .leftJoin('order_items', 'oi', 'oi.menu_item_id = item.id')

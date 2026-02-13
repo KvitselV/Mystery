@@ -75,23 +75,23 @@ export function initializeWebSocket(httpServer: HTTPServer) {
   return io;
 }
 
-// Функции для отправки обновлений
-export function broadcastLiveStateUpdate(io: SocketServer, tournamentId: string, liveState: any) {
+// Функции для отправки обновлений (payload — типизированы на стороне вызывающего кода)
+export function broadcastLiveStateUpdate(io: SocketServer, tournamentId: string, liveState: unknown): void {
   io.to(`tournament:${tournamentId}`).emit('live_state_update', liveState);
 }
 
-export function broadcastLevelChange(io: SocketServer, tournamentId: string, levelData: any) {
+export function broadcastLevelChange(io: SocketServer, tournamentId: string, levelData: unknown): void {
   io.to(`tournament:${tournamentId}`).emit('level_change', levelData);
 }
 
-export function broadcastPlayerEliminated(io: SocketServer, tournamentId: string, playerData: any) {
+export function broadcastPlayerEliminated(io: SocketServer, tournamentId: string, playerData: unknown): void {
   io.to(`tournament:${tournamentId}`).emit('player_eliminated', playerData);
 }
 
-export function broadcastTableUpdate(io: SocketServer, tableId: string, tableData: any) {
+export function broadcastTableUpdate(io: SocketServer, tableId: string, tableData: unknown): void {
   io.to(`table:${tableId}`).emit('table_update', tableData);
 }
 
-export function broadcastSeatingChange(io: SocketServer, tournamentId: string, seatingData: any) {
+export function broadcastSeatingChange(io: SocketServer, tournamentId: string, seatingData: unknown): void {
   io.to(`tournament:${tournamentId}`).emit('seating_change', seatingData);
 }

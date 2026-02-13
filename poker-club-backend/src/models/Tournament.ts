@@ -21,7 +21,7 @@ export class Tournament {
   status: string;
 
   @Column({ type: 'int', default: 0 })
-  buyInCost: number; 
+  buyInCost: number; // стоимость входа; при оплате DEPOSIT списывается с депозита 
 
   @Column({ type: 'int' })
   startingStack: number;

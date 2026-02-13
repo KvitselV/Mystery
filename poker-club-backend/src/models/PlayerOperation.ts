@@ -11,7 +11,7 @@ export class PlayerOperation {
   @JoinColumn({ name: 'player_id' })
   playerProfile: PlayerProfile;
 
-  @Column({ type: 'enum', enum: ['DEPOSIT_TOPUP', 'DEPOSIT_WITHDRAWAL', 'BUYIN', 'REBUY', 'ADDON', 'ORDER_PAYMENT'] })
+  @Column({ type: 'enum', enum: ['DEPOSIT_TOPUP', 'DEPOSIT_WITHDRAWAL', 'BUYIN', 'REBUY', 'ADDON', 'ORDER_PAYMENT', 'REFUND'] })
   operationType: string;
 
   @Column({ type: 'int' })

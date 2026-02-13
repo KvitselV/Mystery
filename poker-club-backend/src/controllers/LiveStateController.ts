@@ -32,8 +32,8 @@ export class LiveStateController {
           updatedAt: liveState.updatedAt,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -59,8 +59,8 @@ export class LiveStateController {
           liveStatus: liveState.liveStatus,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -86,8 +86,8 @@ export class LiveStateController {
           liveStatus: liveState.liveStatus,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -113,8 +113,8 @@ export class LiveStateController {
           averageStack: liveState.averageStack,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -147,8 +147,8 @@ export class LiveStateController {
           levelRemainingTimeSeconds: liveState.levelRemainingTimeSeconds,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 }

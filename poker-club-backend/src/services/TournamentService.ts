@@ -1,4 +1,5 @@
 import { AppDataSource } from '../config/database';
+import { FindOptionsWhere } from 'typeorm';
 import { Tournament } from '../models/Tournament';
 import { TournamentSeries } from '../models/TournamentSeries';
 import { TournamentRegistration } from '../models/TournamentRegistration';
@@ -103,7 +104,7 @@ export class TournamentService {
     limit?: number;
     offset?: number;
   }): Promise<{ tournaments: Tournament[]; total: number }> {
-    const where: any = {};
+    const where: FindOptionsWhere<Tournament> = {};
 
     if (filters?.status) {
       where.status = filters.status;
@@ -168,6 +169,16 @@ export class TournamentService {
       throw new Error('Player not found');
     }
 
+    // Оплата с депозита: списать бай-ин до создания регистрации
+    if (paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
+      await this.financialService.deductBalance(
+        playerProfileId,
+        tournament.buyInCost,
+        'BUYIN',
+        tournamentId
+      );
+    }
+
     const registration = this.registrationRepository.create({
       tournament,
       player,
@@ -177,9 +188,21 @@ export class TournamentService {
       currentStack: tournament.startingStack,
     });
 
-    await this.registrationRepository.save(registration);
-
-    return registration;
+    try {
+      await this.registrationRepository.save(registration);
+      return registration;
+    } catch (err) {
+      // Откат: вернуть депозит при ошибке сохранения регистрации
+      if (paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
+        await this.financialService.addBalance(
+          playerProfileId,
+          tournament.buyInCost,
+          'REFUND',
+          tournamentId
+        );
+      }
+      throw err;
+    }
   }
 
   /**
@@ -270,9 +293,16 @@ export class TournamentService {
       throw new Error('Registration not found');
     }
 
+    // Возврат депозита при отмене регистрации (если платили с депозита)
+    if (registration.paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
+      await this.financialService.addBalance(
+        playerProfile.id,
+        tournament.buyInCost,
+        'REFUND',
+        tournamentId
+      );
+    }
 
-
-    // Удалить регистрацию
     await this.registrationRepository.remove(registration);
   }
 

@@ -114,8 +114,8 @@ export class StatisticsService {
     profile: PlayerProfile,
     result: TournamentResult
   ): Promise<void> {
-    // Считаем, что финиш в призах = финальный стол или призовые деньги
-    const isInPrizes = result.isFinalTable 
+    // Финиш «в призах» = финальный стол (место в турнире, без денежных призов)
+    const isInPrizes = result.isFinalTable; 
 
     if (isInPrizes) {
       profile.currentStreak += 1;

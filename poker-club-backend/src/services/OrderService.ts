@@ -1,5 +1,5 @@
 import { AppDataSource } from '../config/database';
-import { Order, OrderStatus } from '../models/Order';
+import { Order, OrderStatus, OrderPaymentMethod } from '../models/Order';
 import { OrderItem } from '../models/OrderItem';
 import { MenuItem } from '../models/MenuItem';
 import { PlayerBalance } from '../models/PlayerBalance';
@@ -13,7 +13,7 @@ export class OrderService {
   private profileRepo = AppDataSource.getRepository(PlayerProfile);
 
   /**
-   * Создать новый заказ
+   * Создать новый заказ (создание заказа и списание баланса в одной транзакции)
    */
   async createOrder(data: {
     userId: string;
@@ -25,88 +25,100 @@ export class OrderService {
     }>;
     notes?: string;
     tableNumber?: number;
+    paymentMethod?: OrderPaymentMethod;
   }): Promise<Order> {
-    // Получить профиль и баланс пользователя
-    const profile = await this.profileRepo.findOne({
-      where: { user: { id: data.userId } },
-      relations: ['user', 'balance'],
+    const paymentMethod = data.paymentMethod ?? OrderPaymentMethod.DEPOSIT;
+    const isCredit = paymentMethod === OrderPaymentMethod.CREDIT;
+
+    return AppDataSource.transaction(async (manager) => {
+      const orderRepo = manager.getRepository(Order);
+      const orderItemRepo = manager.getRepository(OrderItem);
+      const menuItemRepo = manager.getRepository(MenuItem);
+      const balanceRepo = manager.getRepository(PlayerBalance);
+      const profileRepo = manager.getRepository(PlayerProfile);
+
+      const profile = await profileRepo.findOne({
+        where: { user: { id: data.userId } },
+        relations: ['user', 'balance'],
+      });
+
+      if (!profile) {
+        throw new Error('User profile not found');
+      }
+
+      if (!isCredit && !profile.balance) {
+        throw new Error('Balance not found (required for DEPOSIT payment)');
+      }
+
+      let totalAmount = 0;
+      const orderItems: Array<{ menuItem: MenuItem; quantity: number; notes?: string }> = [];
+
+      for (const itemData of data.items) {
+        const menuItem = await menuItemRepo.findOne({
+          where: { id: itemData.menuItemId },
+        });
+
+        if (!menuItem) {
+          throw new Error(`Menu item ${itemData.menuItemId} not found`);
+        }
+
+        if (!menuItem.isAvailable) {
+          throw new Error(`Menu item ${menuItem.name} is not available`);
+        }
+
+        if (itemData.quantity <= 0) {
+          throw new Error('Quantity must be greater than 0');
+        }
+
+        totalAmount += menuItem.price * itemData.quantity;
+        orderItems.push({
+          menuItem,
+          quantity: itemData.quantity,
+          notes: itemData.notes,
+        });
+      }
+
+      if (!isCredit && profile.balance && profile.balance.depositBalance < totalAmount) {
+        throw new Error(
+          `Insufficient balance. Required: ${totalAmount}, Available: ${profile.balance.depositBalance}`
+        );
+      }
+
+      const order = orderRepo.create({
+        userId: data.userId,
+        tournamentId: data.tournamentId,
+        status: OrderStatus.PENDING,
+        totalAmount,
+        paymentMethod,
+        notes: data.notes,
+        tableNumber: data.tableNumber,
+      });
+
+      const savedOrder = await orderRepo.save(order);
+
+      for (const item of orderItems) {
+        const orderItem = orderItemRepo.create({
+          orderId: savedOrder.id,
+          menuItemId: item.menuItem.id,
+          quantity: item.quantity,
+          priceAtOrder: item.menuItem.price,
+          notes: item.notes,
+        });
+        await orderItemRepo.save(orderItem);
+      }
+
+      if (!isCredit && profile.balance) {
+        profile.balance.depositBalance -= totalAmount;
+        await balanceRepo.save(profile.balance);
+      }
+
+      const full = await orderRepo.findOne({
+        where: { id: savedOrder.id },
+        relations: ['user', 'tournament', 'items', 'items.menuItem'],
+      });
+      if (!full) throw new Error('Order not found after save');
+      return full;
     });
-
-    if (!profile || !profile.balance) {
-      throw new Error('User profile or balance not found');
-    }
-
-    // Проверить позиции меню и рассчитать сумму
-    let totalAmount = 0;
-    const orderItems: Array<{
-      menuItem: MenuItem;
-      quantity: number;
-      notes?: string;
-    }> = [];
-
-    for (const itemData of data.items) {
-      const menuItem = await this.menuItemRepo.findOne({
-        where: { id: itemData.menuItemId },
-      });
-
-      if (!menuItem) {
-        throw new Error(`Menu item ${itemData.menuItemId} not found`);
-      }
-
-      if (!menuItem.isAvailable) {
-        throw new Error(`Menu item ${menuItem.name} is not available`);
-      }
-
-      if (itemData.quantity <= 0) {
-        throw new Error('Quantity must be greater than 0');
-      }
-
-      totalAmount += menuItem.price * itemData.quantity;
-      orderItems.push({
-        menuItem,
-        quantity: itemData.quantity,
-        notes: itemData.notes,
-      });
-    }
-
-    // Проверить баланс
-    if (profile.balance.depositBalance < totalAmount) {
-      throw new Error(
-        `Insufficient balance. Required: ${totalAmount}, Available: ${profile.balance.depositBalance}`
-      );
-    }
-
-    // Создать заказ
-    const order = this.orderRepo.create({
-      userId: data.userId,
-      tournamentId: data.tournamentId,
-      status: OrderStatus.PENDING,
-      totalAmount,
-      notes: data.notes,
-      tableNumber: data.tableNumber,
-    });
-
-    const savedOrder = await this.orderRepo.save(order);
-
-    // Создать позиции заказа
-    for (const item of orderItems) {
-      const orderItem = this.orderItemRepo.create({
-        orderId: savedOrder.id,
-        menuItemId: item.menuItem.id,
-        quantity: item.quantity,
-        priceAtOrder: item.menuItem.price,
-        notes: item.notes,
-      });
-
-      await this.orderItemRepo.save(orderItem);
-    }
-
-    // Списать деньги с баланса
-    profile.balance.depositBalance -= totalAmount;
-    await this.balanceRepo.save(profile.balance);
-
-    // Вернуть заказ с позициями
-    return this.getOrderById(savedOrder.id);
   }
 
   /**
@@ -202,42 +214,53 @@ export class OrderService {
   }
 
   /**
-   * Отменить заказ (с возвратом денег)
+   * Отменить заказ (возврат на баланс и смена статуса в одной транзакции)
    */
   async cancelOrder(id: string): Promise<Order> {
-    const order = await this.orderRepo.findOne({
-      where: { id },
-      relations: ['user'],
+    return AppDataSource.transaction(async (manager) => {
+      const orderRepo = manager.getRepository(Order);
+      const balanceRepo = manager.getRepository(PlayerBalance);
+      const profileRepo = manager.getRepository(PlayerProfile);
+
+      const order = await orderRepo.findOne({
+        where: { id },
+        relations: ['user'],
+      });
+
+      if (!order) {
+        throw new Error('Order not found');
+      }
+
+      if (order.status === OrderStatus.DELIVERED) {
+        throw new Error('Cannot cancel delivered order');
+      }
+
+      if (order.status === OrderStatus.CANCELLED) {
+        throw new Error('Order is already cancelled');
+      }
+
+      const profile = await profileRepo.findOne({
+        where: { user: { id: order.userId } },
+        relations: ['balance'],
+      });
+
+      // Возврат на депозит только если заказ был оплачен с депозита (не в долг)
+      const paidFromDeposit = order.paymentMethod !== OrderPaymentMethod.CREDIT;
+      if (profile && profile.balance && paidFromDeposit) {
+        profile.balance.depositBalance += order.totalAmount;
+        await balanceRepo.save(profile.balance);
+      }
+
+      order.status = OrderStatus.CANCELLED;
+      await orderRepo.save(order);
+
+      const full = await orderRepo.findOne({
+        where: { id },
+        relations: ['user', 'tournament', 'items', 'items.menuItem'],
+      });
+      if (!full) throw new Error('Order not found after save');
+      return full;
     });
-
-    if (!order) {
-      throw new Error('Order not found');
-    }
-
-    if (order.status === OrderStatus.DELIVERED) {
-      throw new Error('Cannot cancel delivered order');
-    }
-
-    if (order.status === OrderStatus.CANCELLED) {
-      throw new Error('Order is already cancelled');
-    }
-
-    // Вернуть деньги на баланс
-    const profile = await this.profileRepo.findOne({
-      where: { user: { id: order.userId } },
-      relations: ['balance'],
-    });
-
-    if (profile && profile.balance) {
-      profile.balance.depositBalance += order.totalAmount;
-      await this.balanceRepo.save(profile.balance);
-    }
-
-    // Обновить статус
-    order.status = OrderStatus.CANCELLED;
-    await this.orderRepo.save(order);
-
-    return this.getOrderById(id);
   }
 
   /**

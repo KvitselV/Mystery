@@ -21,8 +21,8 @@ export class MMRController {
           rankCode: player.rankCode,
         })),
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -55,8 +55,8 @@ export class MMRController {
           rankCode: player.rankCode,
         })),
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -83,8 +83,8 @@ export class MMRController {
         message: 'MMR recalculation completed',
         tournamentId,
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 }

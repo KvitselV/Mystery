@@ -9,6 +9,22 @@ import { PlayerOperation } from '../models/PlayerOperation';
 import { io } from '../app';
 import { broadcastLiveStateUpdate, broadcastLevelChange } from '../websocket';
 
+export interface LiveStateDto {
+  tournamentId: string;
+  tournamentName: string;
+  currentLevelNumber: number;
+  levelRemainingTimeSeconds: number;
+  playersCount: number;
+  totalParticipants: number;
+  totalEntries: number;
+  totalChipsInPlay: number;
+  averageStack: number;
+  isPaused: boolean;
+  liveStatus: string;
+  nextBreakTime: Date | null;
+  updatedAt: Date;
+}
+
 export class LiveStateService {
   private liveStateRepository = AppDataSource.getRepository(TournamentLiveState);
   private tournamentRepository = AppDataSource.getRepository(Tournament);
@@ -22,7 +38,7 @@ export class LiveStateService {
     return `tournament:live:${tournamentId}`;
   }
 
-  private async getFromCache(tournamentId: string): Promise<any | null> {
+  private async getFromCache(tournamentId: string): Promise<LiveStateDto | null> {
     if (!redisClient.isOpen) return null;
 
     const key = this.getLiveStateKey(tournamentId);
@@ -30,13 +46,13 @@ export class LiveStateService {
     if (!raw) return null;
 
     try {
-      return JSON.parse(raw);
+      return JSON.parse(raw) as LiveStateDto;
     } catch {
       return null;
     }
   }
 
-  private async saveToCache(tournamentId: string, dto: any): Promise<void> {
+  private async saveToCache(tournamentId: string, dto: LiveStateDto): Promise<void> {
     if (!redisClient.isOpen) return;
 
     const key = this.getLiveStateKey(tournamentId);
@@ -228,7 +244,7 @@ export class LiveStateService {
    * Получить Live State
    * ⚠️ Важно: для API лучше отдавать DTO и сначала пробовать Redis
    */
-  async getLiveState(tournamentId: string): Promise<any | null> {
+  async getLiveState(tournamentId: string): Promise<LiveStateDto | null> {
     // 1. Сначала пробуем DTO из Redis
     const cached = await this.getFromCache(tournamentId);
     if (cached) {
@@ -268,7 +284,7 @@ export class LiveStateService {
   /**
    * Форматировать Live State для ответа и WebSocket
    */
-  private formatLiveState(liveState: TournamentLiveState) {
+  private formatLiveState(liveState: TournamentLiveState): LiveStateDto {
     return {
       tournamentId: liveState.tournament.id,
       tournamentName: liveState.tournament.name,
@@ -281,7 +297,7 @@ export class LiveStateService {
       averageStack: liveState.averageStack,
       isPaused: liveState.isPaused,
       liveStatus: liveState.liveStatus,
-      nextBreakTime: liveState.nextBreakTime,
+      nextBreakTime: liveState.nextBreakTime ?? null,
       updatedAt: liveState.updatedAt,
     };
   }

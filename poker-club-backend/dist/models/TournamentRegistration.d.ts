@@ -7,5 +7,6 @@ export declare class TournamentRegistration {
     registeredAt: Date;
     paymentMethod: string;
     isActive: boolean;
+    currentStack: number;
 }
 //# sourceMappingURL=TournamentRegistration.d.ts.map

@@ -1,16 +1,27 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const app_1 = __importDefault(require("./app"));
+require("reflect-metadata");
 const database_1 = require("./config/database");
-const PORT = parseInt(process.env.PORT || '3001', 10);
-database_1.AppDataSource.initialize().then(async () => {
-    console.log('✅ Database connected');
-    // Запусти seeder только в development
-    app_1.default.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-    });
-});
+const app_1 = require("./app");
+const redis_1 = require("./config/redis");
+const PORT = process.env.PORT || 3001;
+async function bootstrap() {
+    try {
+        await database_1.AppDataSource.initialize();
+        console.log('✅ Database connected successfully');
+        console.log('SERVER BUILD MARKER v3');
+        // 👇 Подключаемся к Redis
+        await (0, redis_1.connectRedis)();
+        // При успешном коннекте у тебя в redis.ts уже есть лог "✅ Redis connected"
+        app_1.httpServer.listen(PORT, () => {
+            console.log(`🚀 Server running on http://localhost:${PORT}`);
+            console.log(`🔌 WebSocket ready on ws://localhost:${PORT}`);
+        });
+    }
+    catch (error) {
+        console.error('❌ Startup error:', error);
+        process.exit(1);
+    }
+}
+bootstrap();
 //# sourceMappingURL=server.js.map

@@ -28,7 +28,7 @@ export class MMRService {
       mmrChange += 50;
     }
 
-    // Бонус за призовые места
+    // Бонус за место в турнире (1–9, без денежных призов)
     if (finishPosition === 1) {
       mmrChange += 100; // 1-е место
     } else if (finishPosition === 2) {
@@ -171,10 +171,10 @@ export class MMRService {
     for (const result of results) {
       try {
         await this.updatePlayerMMR(result.player.id, tournamentId);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(
           `❌ Failed to update MMR for player ${result.player.id}:`,
-          error.message
+          error instanceof Error ? error.message : String(error)
         );
       }
     }

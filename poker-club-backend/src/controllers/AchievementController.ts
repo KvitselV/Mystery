@@ -1,92 +1,77 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../middlewares/authMiddleware';
 import { AchievementService } from '../services/AchievementService';
 
 const achievementService = new AchievementService();
 
+function canAccessUser(req: AuthRequest, userId: string): boolean {
+  if (!req.user) return false;
+  return req.user.userId === userId || req.user.role === 'ADMIN';
+}
+
 export class AchievementController {
-  /**
-   * GET /achievements/types
-   * Получить все типы достижений
-   */
-  static async getAllTypes(req: Request, res: Response): Promise<void> {
+  static async getAllTypes(req: AuthRequest, res: Response): Promise<void> {
     try {
       const types = await achievementService.getAllAchievementTypes();
       res.json(types);
     } catch (error) {
-      console.error('Error fetching achievement types:', error);
       res.status(500).json({ error: 'Failed to fetch achievement types' });
     }
   }
 
-  /**
-   * GET /achievements/user/:userId
-   * Получить все достижения пользователя
-   */
-  static async getUserAchievements(
-    req: Request,
-    res: Response
-  ): Promise<void> {
+  static async getUserAchievements(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.params.userId as string;
+      if (!canAccessUser(req, userId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
       const achievements = await achievementService.getUserAchievements(userId);
       res.json(achievements);
     } catch (error) {
-      console.error('Error fetching user achievements:', error);
       res.status(500).json({ error: 'Failed to fetch user achievements' });
     }
   }
 
-  /**
-   * GET /achievements/user/:userId/progress
-   * Получить прогресс достижений пользователя
-   */
-  static async getUserProgress(req: Request, res: Response): Promise<void> {
+  static async getUserProgress(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.params.userId as string;
-      const progress = await achievementService.getUserAchievementProgress(
-        userId
-      );
+      if (!canAccessUser(req, userId)) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
+      const progress = await achievementService.getUserAchievementProgress(userId);
       res.json(progress);
     } catch (error) {
-      console.error('Error fetching user achievement progress:', error);
-      res
-        .status(500)
-        .json({ error: 'Failed to fetch user achievement progress' });
+      res.status(500).json({ error: 'Failed to fetch user achievement progress' });
     }
   }
 
   /**
-   * POST /achievements/check/:userId/:tournamentId
-   * Проверить и выдать достижения (вызывается автоматически)
+   * POST /achievements/check — только ADMIN (requireRole в роуте)
    */
-  static async checkAchievements(req: Request, res: Response): Promise<void> {
+  static async checkAchievements(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userId = req.params.userId as string;
       const tournamentId = req.params.tournamentId as string;
-      const granted = await achievementService.checkAndGrantAchievements(
-        userId,
-        tournamentId
-      );
+      const granted = await achievementService.checkAndGrantAchievements(userId, tournamentId);
       res.json({
         message: `Granted ${granted.length} achievement(s)`,
         achievements: granted,
       });
     } catch (error) {
-      console.error('Error checking achievements:', error);
       res.status(500).json({ error: 'Failed to check achievements' });
     }
   }
 
   /**
-   * POST /achievements/seed
-   * Инициализировать типы достижений (admin only)
+   * POST /achievements/seed — только ADMIN (requireRole в роуте)
    */
-  static async seedTypes(req: Request, res: Response): Promise<void> {
+  static async seedTypes(req: AuthRequest, res: Response): Promise<void> {
     try {
       await achievementService.seedAchievementTypes();
       res.json({ message: 'Achievement types seeded successfully' });
     } catch (error) {
-      console.error('Error seeding achievement types:', error);
       res.status(500).json({ error: 'Failed to seed achievement types' });
     }
   }

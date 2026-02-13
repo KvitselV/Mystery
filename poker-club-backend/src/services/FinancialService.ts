@@ -92,6 +92,10 @@ export class FinancialService {
 
 
  
+  /**
+   * Списание с депозита за участие в турнире: бай-ин (регистрация), ребай, аддон.
+   * При оплате CASH списание не выполняется (оплата на месте).
+   */
   async deductBalance(
     playerId: string,
     amount: number,
@@ -141,10 +145,14 @@ export class FinancialService {
 
 
 
+  /**
+   * Зачисление на депозит: только REFUND (возврат при отмене регистрации на турнир).
+   * Денежных призов за победу/места нет — призы назначает админ (немонетарные Reward).
+   */
   async addBalance(
     playerId: string,
     amount: number,
-    operationType: 'PRIZE' | 'REFUND',
+    operationType: 'REFUND',
     tournamentId?: string
   ): Promise<PlayerBalance> {
     const player = await this.playerProfileRepository.findOne({

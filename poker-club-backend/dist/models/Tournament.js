@@ -14,6 +14,9 @@ const typeorm_1 = require("typeorm");
 const TournamentSeries_1 = require("./TournamentSeries");
 const TournamentTable_1 = require("./TournamentTable");
 const TournamentRegistration_1 = require("./TournamentRegistration");
+const TournamentReward_1 = require("./TournamentReward");
+const BlindStructure_1 = require("./BlindStructure");
+const Club_1 = require("./Club");
 let Tournament = class Tournament {
 };
 exports.Tournament = Tournament;
@@ -34,13 +37,21 @@ __decorate([
     __metadata("design:type", String)
 ], Tournament.prototype, "status", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'int' }),
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
-], Tournament.prototype, "buyInAmount", void 0);
+], Tournament.prototype, "buyInCost", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'int' }),
     __metadata("design:type", Number)
 ], Tournament.prototype, "startingStack", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], Tournament.prototype, "addonChips", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], Tournament.prototype, "rebuyChips", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
@@ -50,18 +61,36 @@ __decorate([
     __metadata("design:type", String)
 ], Tournament.prototype, "blindStructureId", void 0);
 __decorate([
+    (0, typeorm_1.ManyToOne)(() => BlindStructure_1.BlindStructure, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'blind_structure_id' }),
+    __metadata("design:type", BlindStructure_1.BlindStructure)
+], Tournament.prototype, "blindStructure", void 0);
+__decorate([
     (0, typeorm_1.ManyToOne)(() => TournamentSeries_1.TournamentSeries, { nullable: true }),
     (0, typeorm_1.JoinColumn)({ name: 'series_id' }),
     __metadata("design:type", TournamentSeries_1.TournamentSeries)
 ], Tournament.prototype, "series", void 0);
 __decorate([
-    (0, typeorm_1.OneToMany)(() => TournamentTable_1.TournamentTable, (table) => table.tournament),
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", String)
+], Tournament.prototype, "clubId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => Club_1.Club, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'club_id' }),
+    __metadata("design:type", Club_1.Club)
+], Tournament.prototype, "club", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => TournamentTable_1.TournamentTable, (table) => table.tournament, { cascade: true }),
     __metadata("design:type", Array)
 ], Tournament.prototype, "tables", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)(() => TournamentRegistration_1.TournamentRegistration, (reg) => reg.tournament),
     __metadata("design:type", Array)
 ], Tournament.prototype, "registrations", void 0);
+__decorate([
+    (0, typeorm_1.OneToMany)(() => TournamentReward_1.TournamentReward, (tr) => tr.tournament, { cascade: true }),
+    __metadata("design:type", Array)
+], Tournament.prototype, "rewards", void 0);
 exports.Tournament = Tournament = __decorate([
     (0, typeorm_1.Entity)('tournaments')
 ], Tournament);

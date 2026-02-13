@@ -1,27 +1,17 @@
 import { Router } from 'express';
 import { StatisticsController } from '../controllers/StatisticsController';
+import { authMiddleware, requireRole } from '../middlewares/authMiddleware';
 
 const router = Router();
+router.use(authMiddleware);
 
-// Получить полную статистику пользователя
+// Доступ к статистике: только свой userId или ADMIN
 router.get('/user/:userId', StatisticsController.getFullStatistics);
-
-// Статистика финишей
 router.get('/user/:userId/finishes', StatisticsController.getFinishStatistics);
+router.get('/user/:userId/participation', StatisticsController.getParticipationChart);
+router.get('/user/:userId/last-tournament', StatisticsController.getLastTournament);
 
-// График участия
-router.get(
-  '/user/:userId/participation',
-  StatisticsController.getParticipationChart
-);
-
-// Последний турнир
-router.get(
-  '/user/:userId/last-tournament',
-  StatisticsController.getLastTournament
-);
-
-// Обновить статистику вручную (admin)
-router.post('/user/:userId/update', StatisticsController.updateStatistics);
+// Обновить статистику вручную — только ADMIN
+router.post('/user/:userId/update', requireRole(['ADMIN']), StatisticsController.updateStatistics);
 
 export default router;

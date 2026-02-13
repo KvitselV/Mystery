@@ -1,46 +1,26 @@
 import { Router } from 'express';
 import { MenuController } from '../controllers/MenuController';
+import { authMiddleware } from '../middlewares/authMiddleware';
+import { requireRole } from '../middlewares/authMiddleware';
 
 const router = Router();
 
-// === КАТЕГОРИИ ===
-
-// Получить все категории с позициями
+// Публичное чтение меню (без авторизации для гостей/кафе)
 router.get('/categories', MenuController.getAllCategoriesWithItems);
-
-// Получить список категорий
 router.get('/categories/list', MenuController.getAllCategories);
-
-// Получить категорию по ID
 router.get('/categories/:id', MenuController.getCategoryById);
-
-// Создать категорию (admin)
-router.post('/categories', MenuController.createCategory);
-
-// Обновить категорию (admin)
-router.patch('/categories/:id', MenuController.updateCategory);
-
-// Удалить категорию (admin)
-router.delete('/categories/:id', MenuController.deleteCategory);
-
-// === ПОЗИЦИИ МЕНЮ ===
-
-// Получить популярные позиции
 router.get('/items/popular', MenuController.getPopularItems);
-
-// Получить все позиции меню
 router.get('/items', MenuController.getAllItems);
-
-// Получить позицию по ID
 router.get('/items/:id', MenuController.getItemById);
 
-// Создать позицию (admin)
-router.post('/items', MenuController.createItem);
+// Запись — только с авторизацией и ролью ADMIN
+router.use(authMiddleware);
 
-// Обновить позицию (admin)
-router.patch('/items/:id', MenuController.updateItem);
-
-// Удалить позицию (admin)
-router.delete('/items/:id', MenuController.deleteItem);
+router.post('/categories', requireRole(['ADMIN']), MenuController.createCategory);
+router.patch('/categories/:id', requireRole(['ADMIN']), MenuController.updateCategory);
+router.delete('/categories/:id', requireRole(['ADMIN']), MenuController.deleteCategory);
+router.post('/items', requireRole(['ADMIN']), MenuController.createItem);
+router.patch('/items/:id', requireRole(['ADMIN']), MenuController.updateItem);
+router.delete('/items/:id', requireRole(['ADMIN']), MenuController.deleteItem);
 
 export default router;

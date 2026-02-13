@@ -7,12 +7,14 @@ exports.AuthService = void 0;
 const database_1 = require("../config/database");
 const User_1 = require("../models/User");
 const PlayerProfile_1 = require("../models/PlayerProfile");
+const PlayerBalance_1 = require("../models/PlayerBalance");
 const JwtService_1 = require("./JwtService");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 class AuthService {
     constructor() {
         this.userRepository = database_1.AppDataSource.getRepository(User_1.User);
         this.playerRepository = database_1.AppDataSource.getRepository(PlayerProfile_1.PlayerProfile);
+        this.balanceRepository = database_1.AppDataSource.getRepository(PlayerBalance_1.PlayerBalance);
         this.jwtService = new JwtService_1.JwtService();
     }
     async register(data) {
@@ -32,13 +34,20 @@ class AuthService {
             phone: data.phone,
             email: data.email,
             passwordHash,
-            role: 'PLAYER', // По умолчанию новые юзеры - игроки
+            role: 'PLAYER',
             isActive: true,
         });
         const savedUser = await this.userRepository.save(user);
-        // Создай профиль игрока
+        // Создай баланс
+        const balance = this.balanceRepository.create({
+            depositBalance: 0,
+            totalDeposited: 0,
+        });
+        const savedBalance = await this.balanceRepository.save(balance);
+        // Создай профиль игрока с балансом
         const playerProfile = this.playerRepository.create({
             user: savedUser,
+            balance: savedBalance,
             mmrValue: 0,
             rankCode: 'E',
             tournamentsCount: 0,
@@ -62,14 +71,12 @@ class AuthService {
         };
     }
     async login(data) {
-        // Найди пользователя по номеру
         const user = await this.userRepository.findOne({
             where: { phone: data.phone },
         });
         if (!user) {
             throw new Error('User not found');
         }
-        // Проверь пароль
         const isPasswordValid = await bcrypt_1.default.compare(data.password, user.passwordHash);
         if (!isPasswordValid) {
             throw new Error('Invalid password');
@@ -77,7 +84,6 @@ class AuthService {
         if (!user.isActive) {
             throw new Error('User account is inactive');
         }
-        // Генерируй токены
         const accessToken = this.jwtService.generateAccessToken(user.id, user.role);
         const refreshToken = this.jwtService.generateRefreshToken(user.id);
         return {

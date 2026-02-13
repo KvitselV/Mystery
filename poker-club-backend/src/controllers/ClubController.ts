@@ -33,8 +33,8 @@ export class ClubController {
       });
 
       res.status(201).json(club);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -58,8 +58,8 @@ export class ClubController {
       });
 
       res.json({ clubs, total });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -74,8 +74,8 @@ export class ClubController {
       const club = await clubService.getClubById(clubId);
 
       res.json(club);
-    } catch (error: any) {
-      res.status(404).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(404).json({ error: error instanceof Error ? error.message : 'Not found' });
     }
   }
 
@@ -101,8 +101,8 @@ export class ClubController {
       });
 
       res.json(club);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -121,8 +121,8 @@ export class ClubController {
       await clubService.deleteClub(clubId);
 
       res.json({ message: 'Club deleted successfully' });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -137,8 +137,8 @@ export class ClubController {
       const tables = await clubService.getClubTables(clubId);
 
       res.json({ tables });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -165,8 +165,8 @@ export class ClubController {
       );
 
       res.json(table);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -200,8 +200,8 @@ export class ClubController {
       });
 
       res.status(201).json(schedule);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -224,8 +224,8 @@ export class ClubController {
       });
 
       res.json({ schedules });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -252,8 +252,8 @@ export class ClubController {
       });
 
       res.json(schedule);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -272,8 +272,8 @@ export class ClubController {
       await clubService.deleteSchedule(scheduleId);
 
       res.json({ message: 'Schedule deleted successfully' });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 }

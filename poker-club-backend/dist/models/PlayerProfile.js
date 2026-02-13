@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PlayerProfile = void 0;
 const typeorm_1 = require("typeorm");
 const User_1 = require("./User");
+const PlayerBalance_1 = require("./PlayerBalance");
 let PlayerProfile = class PlayerProfile {
 };
 exports.PlayerProfile = PlayerProfile;
@@ -44,6 +45,27 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'float', default: 0 }),
     __metadata("design:type", Number)
 ], PlayerProfile.prototype, "averageFinish", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Number)
+], PlayerProfile.prototype, "bestFinish", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", String)
+], PlayerProfile.prototype, "favoriteTournamentId", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], PlayerProfile.prototype, "currentStreak", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], PlayerProfile.prototype, "bestStreak", void 0);
+__decorate([
+    (0, typeorm_1.OneToOne)(() => PlayerBalance_1.PlayerBalance, (balance) => balance.playerProfile, { cascade: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'balance_id' }),
+    __metadata("design:type", PlayerBalance_1.PlayerBalance)
+], PlayerProfile.prototype, "balance", void 0);
 exports.PlayerProfile = PlayerProfile = __decorate([
     (0, typeorm_1.Entity)('player_profiles')
 ], PlayerProfile);

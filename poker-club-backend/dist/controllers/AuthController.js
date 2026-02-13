@@ -21,7 +21,8 @@ class AuthController {
             res.status(201).json(result);
         }
         catch (error) {
-            res.status(400).json({ error: error.message });
+            const message = error instanceof Error ? error.message : 'Registration failed';
+            res.status(400).json({ error: message });
         }
     }
     static async login(req, res) {
@@ -34,7 +35,8 @@ class AuthController {
             res.json(result);
         }
         catch (error) {
-            res.status(401).json({ error: error.message });
+            const message = error instanceof Error ? error.message : 'Login failed';
+            res.status(401).json({ error: message });
         }
     }
     static async refresh(req, res) {
@@ -47,7 +49,8 @@ class AuthController {
             res.json(result);
         }
         catch (error) {
-            res.status(401).json({ error: error.message });
+            const message = error instanceof Error ? error.message : 'Invalid refresh token';
+            res.status(401).json({ error: message });
         }
     }
     static async getMe(req, res) {
@@ -59,7 +62,8 @@ class AuthController {
             res.json(user);
         }
         catch (error) {
-            res.status(400).json({ error: error.message });
+            const message = error instanceof Error ? error.message : 'Failed to get user';
+            res.status(400).json({ error: message });
         }
     }
 }

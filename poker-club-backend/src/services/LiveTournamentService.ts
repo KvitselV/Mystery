@@ -12,6 +12,10 @@ import { LeaderboardService } from './LeaderboardService';
 import { LiveStateService } from './LiveStateService';
 import { AchievementService } from './AchievementService';
 import { StatisticsService } from './StatisticsService';
+import { FinancialService } from './FinancialService';
+import { PlayerBill, PlayerBillStatus } from '../models/PlayerBill';
+import { Order } from '../models/Order';
+import { OrderStatus, OrderPaymentMethod } from '../models/Order';
 
 export class LiveTournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
@@ -21,12 +25,15 @@ export class LiveTournamentService {
   private resultRepository = AppDataSource.getRepository(TournamentResult);
   private blindStructureRepository = AppDataSource.getRepository(BlindStructure);
   private levelRepository = AppDataSource.getRepository(TournamentLevel);
+  private billRepository = AppDataSource.getRepository(PlayerBill);
+  private orderRepository = AppDataSource.getRepository(Order);
   private liveStateService = new LiveStateService();
   private seatingService = new SeatingService();
   private mmrService = new MMRService();
   private leaderboardService = new LeaderboardService();
   private achievementService = new AchievementService();
   private statisticsService = new StatisticsService();
+  private financialService = new FinancialService();
 
   
   async rebuy(
@@ -67,6 +74,16 @@ export class LiveTournamentService {
     });
     if (!registration) {
       throw new Error('Player is not registered for this tournament');
+    }
+
+    // Списание с депозита только при оплате DEPOSIT; при CASH счёт выставится после вылета
+    if (rebuyAmount > 0 && registration.paymentMethod === 'DEPOSIT') {
+      await this.financialService.deductBalance(
+        playerProfileId,
+        rebuyAmount,
+        'REBUY',
+        tournamentId
+      );
     }
 
     const operation = this.operationRepository.create({
@@ -125,6 +142,16 @@ export class LiveTournamentService {
     });
     if (!registration) {
       throw new Error('Player is not registered for this tournament');
+    }
+
+    // Списание с депозита только при оплате DEPOSIT; при CASH счёт выставится после вылета
+    if (amount > 0 && registration.paymentMethod === 'DEPOSIT') {
+      await this.financialService.deductBalance(
+        playerProfileId,
+        amount,
+        'ADDON',
+        tournamentId
+      );
     }
 
     const operation = this.operationRepository.create({
@@ -197,7 +224,62 @@ export class LiveTournamentService {
 
     console.log('SAVED RESULT ID:', savedResult.id);
 
+    // Для игрока с оплатой CASH выставляем счёт после вылета: вход + ребаи + аддоны + заказы в долг
+    const registration = await this.registrationRepository.findOne({
+      where: {
+        tournament: { id: tournamentId },
+        player: { id: playerProfileId },
+      },
+    });
+    if (registration && registration.paymentMethod === 'CASH') {
+      const buyInAmount = tournament.buyInCost ?? 0;
+      const rebuyOps = await this.operationRepository.find({
+        where: {
+          playerProfile: { id: playerProfileId },
+          tournament: { id: tournamentId },
+          operationType: 'REBUY',
+        },
+      });
+      const addonOps = await this.operationRepository.find({
+        where: {
+          playerProfile: { id: playerProfileId },
+          tournament: { id: tournamentId },
+          operationType: 'ADDON',
+        },
+      });
+      const rebuysAmount = rebuyOps.reduce((s, o) => s + o.amount, 0);
+      const addonsAmount = addonOps.reduce((s, o) => s + o.amount, 0);
 
+      let ordersAmount = 0;
+      if (player.user?.id) {
+        const creditOrders = await this.orderRepository.find({
+          where: {
+            userId: player.user.id,
+            tournamentId,
+            paymentMethod: OrderPaymentMethod.CREDIT,
+          },
+        });
+        ordersAmount = creditOrders
+          .filter((o) => o.status !== OrderStatus.CANCELLED)
+          .reduce((s, o) => s + o.totalAmount, 0);
+      }
+
+      const totalAmount = buyInAmount + rebuysAmount + addonsAmount + ordersAmount;
+      if (totalAmount > 0) {
+        const bill = this.billRepository.create({
+          playerProfile: player,
+          tournament,
+          amount: totalAmount,
+          buyInAmount,
+          rebuysAmount,
+          addonsAmount,
+          ordersAmount,
+          status: PlayerBillStatus.PENDING,
+        });
+        await this.billRepository.save(bill);
+        console.log(`📄 Bill created for player ${playerProfileId}: ${totalAmount}`);
+      }
+    }
 
     try {
       if (player.user?.id) {

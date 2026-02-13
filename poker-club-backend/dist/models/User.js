@@ -11,6 +11,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.User = void 0;
 const typeorm_1 = require("typeorm");
+const typeorm_2 = require("typeorm");
+const PlayerBalance_1 = require("./PlayerBalance");
 let User = class User {
 };
 exports.User = User;
@@ -54,6 +56,11 @@ __decorate([
     (0, typeorm_1.UpdateDateColumn)(),
     __metadata("design:type", Date)
 ], User.prototype, "updatedAt", void 0);
+__decorate([
+    (0, typeorm_2.OneToOne)(() => PlayerBalance_1.PlayerBalance, { cascade: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'balance_id' }),
+    __metadata("design:type", PlayerBalance_1.PlayerBalance)
+], User.prototype, "balance", void 0);
 exports.User = User = __decorate([
     (0, typeorm_1.Entity)('users')
 ], User);

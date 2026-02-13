@@ -20,6 +20,12 @@ export enum OrderStatus {
   CANCELLED = 'CANCELLED', // Отменён
 }
 
+/** Оплата с депозита или в долг (счёт после вылета для CASH-игроков) */
+export enum OrderPaymentMethod {
+  DEPOSIT = 'DEPOSIT',
+  CREDIT = 'CREDIT',
+}
+
 @Entity('orders')
 export class Order {
   @PrimaryGeneratedColumn('uuid')
@@ -48,6 +54,13 @@ export class Order {
 
   @Column({ type: 'int' })
   totalAmount: number; // Общая сумма в копейках
+
+  @Column({
+    type: 'enum',
+    enum: OrderPaymentMethod,
+    default: OrderPaymentMethod.DEPOSIT,
+  })
+  paymentMethod: OrderPaymentMethod;
 
   @Column({ type: 'text', nullable: true })
   notes?: string; // Комментарий к заказу

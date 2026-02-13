@@ -23,8 +23,8 @@ export class LeaderboardController {
           createdAt: lb.createdAt,
         })),
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -60,8 +60,8 @@ export class LeaderboardController {
           rankCode: entry.playerProfile.rankCode,
         })),
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
   /**
@@ -86,8 +86,8 @@ export class LeaderboardController {
           periodEnd: leaderboard.periodEnd,
         },
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -106,8 +106,8 @@ export class LeaderboardController {
       res.json({
         message: 'Rank MMR leaderboard updated successfully',
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -136,8 +136,8 @@ export class LeaderboardController {
           tournamentsCount: entry.tournamentsCount,
         })),
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 }

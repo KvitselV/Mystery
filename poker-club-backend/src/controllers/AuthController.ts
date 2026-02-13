@@ -23,8 +23,9 @@ export class AuthController {
       });
 
       res.status(201).json(result);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Registration failed';
+      res.status(400).json({ error: message });
     }
   }
 
@@ -39,8 +40,9 @@ export class AuthController {
       const result = await authService.login({ phone, password });
 
       res.json(result);
-    } catch (error: any) {
-      res.status(401).json({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Login failed';
+      res.status(401).json({ error: message });
     }
   }
 
@@ -55,8 +57,9 @@ export class AuthController {
       const result = await authService.refreshAccessToken(refreshToken);
 
       res.json(result);
-    } catch (error: any) {
-      res.status(401).json({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Invalid refresh token';
+      res.status(401).json({ error: message });
     }
   }
 
@@ -69,8 +72,9 @@ export class AuthController {
       const user = await authService.getUserById(req.user.userId);
 
       res.json(user);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to get user';
+      res.status(400).json({ error: message });
     }
   }
 }

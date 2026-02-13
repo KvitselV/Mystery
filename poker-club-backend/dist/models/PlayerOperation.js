@@ -24,9 +24,9 @@ __decorate([
     (0, typeorm_1.ManyToOne)(() => PlayerProfile_1.PlayerProfile),
     (0, typeorm_1.JoinColumn)({ name: 'player_id' }),
     __metadata("design:type", PlayerProfile_1.PlayerProfile)
-], PlayerOperation.prototype, "player", void 0);
+], PlayerOperation.prototype, "playerProfile", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'enum', enum: ['DEPOSIT_TOPUP', 'DEPOSIT_WITHDRAWAL', 'BUYIN', 'REBUY', 'ADDON', 'ORDER_PAYMENT', 'PRIZE'] }),
+    (0, typeorm_1.Column)({ type: 'enum', enum: ['DEPOSIT_TOPUP', 'DEPOSIT_WITHDRAWAL', 'BUYIN', 'REBUY', 'ADDON', 'ORDER_PAYMENT', 'REFUND'] }),
     __metadata("design:type", String)
 ], PlayerOperation.prototype, "operationType", void 0);
 __decorate([

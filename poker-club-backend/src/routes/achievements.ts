@@ -1,24 +1,21 @@
 import { Router } from 'express';
 import { AchievementController } from '../controllers/AchievementController';
+import { authMiddleware, requireRole } from '../middlewares/authMiddleware';
 
 const router = Router();
 
-// Получить все типы достижений
+// Публичное чтение типов достижений
 router.get('/types', AchievementController.getAllTypes);
 
-// Получить достижения пользователя
-router.get('/user/:userId', AchievementController.getUserAchievements);
+// Остальное — только для авторизованных
+router.use(authMiddleware);
 
-// Получить прогресс достижений пользователя
+// Доступ к достижениям пользователя: только свой userId или ADMIN
+router.get('/user/:userId', AchievementController.getUserAchievements);
 router.get('/user/:userId/progress', AchievementController.getUserProgress);
 
-// Проверить достижения (admin)
-router.post(
-  '/check/:userId/:tournamentId',
-  AchievementController.checkAchievements
-);
-
-// Инициализировать типы (admin, один раз)
-router.post('/seed', AchievementController.seedTypes);
+// Только ADMIN
+router.post('/check/:userId/:tournamentId', requireRole(['ADMIN']), AchievementController.checkAchievements);
+router.post('/seed', requireRole(['ADMIN']), AchievementController.seedTypes);
 
 export default router;

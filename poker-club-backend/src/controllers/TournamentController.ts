@@ -35,8 +35,8 @@ export class TournamentController {
       });
 
       res.status(201).json(tournament);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -66,8 +66,8 @@ export class TournamentController {
       });
 
       res.json({ tournaments, total });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -82,8 +82,9 @@ export class TournamentController {
         const tournament = await tournamentService.getTournamentById(tournamentId);
 
         res.json(tournament);
-    } catch (error: any) {
-        res.status(404).json({ error: error.message });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Not found';
+        res.status(404).json({ error: message });
     }
     }
 
@@ -103,8 +104,8 @@ export class TournamentController {
       await tournamentService.setTournamentRewards(id, rewards);
       const tournament = await tournamentService.getTournamentById(id);
       res.json(tournament);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 
@@ -137,8 +138,8 @@ export class TournamentController {
         );
 
         res.status(201).json(registration);
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
     }
 
@@ -161,8 +162,8 @@ export class TournamentController {
             isActive: p.isActive,
         })),
         });
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
     }
 
@@ -186,8 +187,8 @@ export class TournamentController {
         const tournament = await tournamentService.updateTournamentStatus(tournamentId, status);
 
         res.json(tournament);
-    } catch (error: any) {
-        res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
         }
     }
     /**
@@ -209,8 +210,8 @@ export class TournamentController {
       res.json({
         message: 'Unregistered successfully',
       });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 }

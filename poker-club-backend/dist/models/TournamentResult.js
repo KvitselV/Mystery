@@ -37,10 +37,6 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
-], TournamentResult.prototype, "prizeAmount", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
-    __metadata("design:type", Number)
 ], TournamentResult.prototype, "mmrGained", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'boolean', default: false }),

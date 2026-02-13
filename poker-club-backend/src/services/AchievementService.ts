@@ -213,7 +213,7 @@ export class AchievementService {
     userId: string,
     achievementCode: AchievementCode,
     tournamentId: string,
-    metadata: any
+    metadata: Record<string, unknown>
   ): Promise<AchievementInstance | null> {
     // Проверить, не выдано ли уже
     const existing = await this.achievementInstanceRepo
@@ -237,12 +237,12 @@ export class AchievementService {
       return null;
     }
 
-    // Создать экземпляр достижения
+    // Создать экземпляр достижения (metadata в БД хранится как JSON-строка)
     const instance = this.achievementInstanceRepo.create({
       userId,
       achievementType: type,
       tournamentId,
-      metadata,
+      metadata: JSON.stringify(metadata),
       unlockedAt: new Date(),
     });
 

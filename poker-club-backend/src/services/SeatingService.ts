@@ -106,9 +106,14 @@ export class SeatingService {
       }
 
       // Удалить старые места (игроков), рассадка заново
-      await this.seatRepository.delete({
-        table: { tournament: { id: tournamentId } },
-      });
+      const tableIds = existingTables.map((t) => t.id);
+      if (tableIds.length > 0) {
+        await this.seatRepository
+          .createQueryBuilder()
+          .delete()
+          .where('table_id IN (:...tableIds)', { tableIds })
+          .execute();
+      }
 
       tables = existingTables;
       // Сбросить занятость по всем столам
@@ -119,7 +124,21 @@ export class SeatingService {
       await this.tableRepository.save(tables);
     } else {
       // Турнир без клуба: создаём столы по количеству игроков
-      await this.tableRepository.delete({ tournament: { id: tournamentId } });
+      const existingTableIds = (
+        await this.tableRepository.find({ where: { tournament: { id: tournamentId } }, select: ['id'] })
+      ).map((t) => t.id);
+      if (existingTableIds.length > 0) {
+        await this.seatRepository
+          .createQueryBuilder()
+          .delete()
+          .where('table_id IN (:...ids)', { ids: existingTableIds })
+          .execute();
+      }
+      await this.tableRepository
+        .createQueryBuilder()
+        .delete()
+        .where('tournament_id = :tid', { tid: tournamentId })
+        .execute();
       const tableCount = Math.ceil(playerCount / this.maxSeatsPerTable);
       tables = [];
       for (let i = 0; i < tableCount; i++) {

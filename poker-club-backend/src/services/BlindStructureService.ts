@@ -1,3 +1,4 @@
+import { IsNull } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import { BlindStructure } from '../models/BlindStructure';
 import { TournamentLevel } from '../models/TournamentLevel';
@@ -16,6 +17,7 @@ interface CreateBlindStructureDto {
   name: string;
   description?: string;
   levels: CreateLevelDto[];
+  clubId?: string | null;
 }
 
 export class BlindStructureService {
@@ -31,6 +33,7 @@ export class BlindStructureService {
       name: data.name,
       description: data.description,
       isActive: true,
+      clubId: data.clubId ?? null,
     });
 
     const savedStructure = await this.structureRepository.save(structure);
@@ -72,27 +75,51 @@ export class BlindStructureService {
   }
 
   /**
-   * Получить все структуры
+   * Получить все структуры.
+   * clubId: для Controller — только своего клуба + глобальные (clubId=null)
+   * Без clubId (Admin): все структуры
    */
-  async getAllStructures(): Promise<BlindStructure[]> {
+  async getAllStructures(clubFilter?: string | null): Promise<BlindStructure[]> {
+    const baseWhere = { isActive: true };
+    if (clubFilter) {
+      const [clubStructures, globalStructures] = await Promise.all([
+        this.structureRepository.find({
+          where: { ...baseWhere, clubId: clubFilter },
+          relations: ['levels'],
+          order: { createdAt: 'DESC', levels: { levelNumber: 'ASC' } },
+        }),
+        this.structureRepository.find({
+          where: { ...baseWhere, clubId: IsNull() },
+          relations: ['levels'],
+          order: { createdAt: 'DESC', levels: { levelNumber: 'ASC' } },
+        }),
+      ]);
+      return [...clubStructures, ...globalStructures].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
     return this.structureRepository.find({
-      where: { isActive: true },
+      where: baseWhere,
       relations: ['levels'],
       order: { createdAt: 'DESC', levels: { levelNumber: 'ASC' } },
     });
   }
 
-  /**
-   * Добавить уровень к структуре
-   */
-  async addLevel(structureId: string, levelData: CreateLevelDto): Promise<TournamentLevel> {
+  async ensureCanModify(structureId: string, managedClubId?: string | null): Promise<BlindStructure> {
+    const structure = await this.structureRepository.findOne({ where: { id: structureId } });
+    if (!structure) throw new Error('Blind structure not found');
+    if (managedClubId && structure.clubId !== managedClubId) {
+      throw new Error('Forbidden: structure belongs to another club');
+    }
+    return structure;
+  }
+
+  async addLevel(structureId: string, levelData: CreateLevelDto, managedClubId?: string | null): Promise<TournamentLevel> {
+    await this.ensureCanModify(structureId, managedClubId);
     const structure = await this.structureRepository.findOne({
       where: { id: structureId },
     });
-
-    if (!structure) {
-      throw new Error('Blind structure not found');
-    }
+    if (!structure) throw new Error('Blind structure not found');
 
     const level = this.levelRepository.create({
       blindStructure: structure,
@@ -140,20 +167,9 @@ export class BlindStructureService {
     return this.levelRepository.save(level);
   }
 
-  /**
-   * Деактивировать структуру
-   */
-  async deactivateStructure(id: string): Promise<BlindStructure> {
-    const structure = await this.structureRepository.findOne({
-      where: { id },
-    });
-
-    if (!structure) {
-      throw new Error('Blind structure not found');
-    }
-
+  async deactivateStructure(id: string, managedClubId?: string | null): Promise<BlindStructure> {
+    const structure = await this.ensureCanModify(id, managedClubId);
     structure.isActive = false;
-
     return this.structureRepository.save(structure);
   }
 

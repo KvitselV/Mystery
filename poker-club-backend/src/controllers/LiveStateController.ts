@@ -1,8 +1,10 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { LiveStateService } from '../services/LiveStateService';
+import { TournamentService } from '../services/TournamentService';
 
 const liveStateService = new LiveStateService();
+const tournamentService = new TournamentService();
 
 export class LiveStateController {
   /**
@@ -43,11 +45,9 @@ export class LiveStateController {
    */
   static async pauseTournament(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
       const liveState = await liveStateService.pauseTournament(tournamentId);
 
@@ -70,11 +70,9 @@ export class LiveStateController {
    */
   static async resumeTournament(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
       const liveState = await liveStateService.resumeTournament(tournamentId);
 
@@ -97,11 +95,9 @@ export class LiveStateController {
    */
   static async recalculateStats(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
       const liveState = await liveStateService.recalculateStats(tournamentId);
 
@@ -124,11 +120,9 @@ export class LiveStateController {
    */
   static async updateLevelTime(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
       const { remainingSeconds } = req.body;
 
       if (remainingSeconds === undefined) {

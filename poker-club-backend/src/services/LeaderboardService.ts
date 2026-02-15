@@ -22,8 +22,12 @@ export class LeaderboardService {
     periodEnd?: Date,
     seriesId?: string
   ): Promise<Leaderboard> {
+    const where: Record<string, unknown> = { type };
+    if (seriesId) where.seriesId = seriesId;
+    else where.name = name;
+
     let leaderboard = await this.leaderboardRepository.findOne({
-      where: { name, type },
+      where: where as never,
     });
 
     if (!leaderboard) {
@@ -220,7 +224,7 @@ export class LeaderboardService {
   async updateLeaderboardsAfterTournament(tournamentId: string): Promise<void> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
-      relations: ['registrations'],
+      relations: ['registrations', 'series'],
     });
 
     if (!tournament) {
@@ -234,9 +238,29 @@ export class LeaderboardService {
 
     const totalPlayers = tournament.registrations.length;
 
-    // 1. Обновить сезонный рейтинг
-    const seasonalLeaderboard = await this.createSeasonalLeaderboard();
+    // 1. Обновить рейтинг серии (если турнир в серии)
+    if (tournament.series?.id) {
+      const seriesLb = await this.getOrCreateLeaderboard(
+        tournament.series.name,
+        'TOURNAMENT_SERIES',
+        tournament.series.periodStart,
+        tournament.series.periodEnd,
+        tournament.series.id
+      );
+      for (const result of results) {
+        const points = this.calculatePoints(result.finishPosition, totalPlayers);
+        await this.updateLeaderboardEntry(
+          seriesLb.id,
+          result.player.id,
+          result.finishPosition,
+          totalPlayers,
+          points
+        );
+      }
+    }
 
+    // 2. Обновить сезонный рейтинг
+    const seasonalLeaderboard = await this.createSeasonalLeaderboard();
     for (const result of results) {
       const points = this.calculatePoints(result.finishPosition, totalPlayers);
       await this.updateLeaderboardEntry(
@@ -248,7 +272,7 @@ export class LeaderboardService {
       );
     }
 
-    // 2. Обновить рейтинг по ММР
+    // 3. Обновить рейтинг по ММР
     await this.updateRankMMRLeaderboard();
 
     console.log(`✅ Updated leaderboards after tournament ${tournamentId}`);

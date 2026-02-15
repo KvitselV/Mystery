@@ -1,18 +1,18 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { LiveTournamentService } from '../services/LiveTournamentService';
+import { TournamentService } from '../services/TournamentService';
 
 const liveTournamentService = new LiveTournamentService();
+const tournamentService = new TournamentService();
 
 export class LiveTournamentController {
 
   static async rebuy(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
       const playerId = req.params.playerId as string;
       const { amount } = req.body;
 
@@ -39,11 +39,9 @@ export class LiveTournamentController {
 
   static async addon(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
       const playerId = req.params.playerId as string;
       const { amount } = req.body;
 
@@ -71,17 +69,11 @@ export class LiveTournamentController {
     }
   }
 
-  /**
-   * POST /tournaments/:id/player/:playerId/eliminate - Выбытие игрока
-   * Только для администраторов
-   */
   static async eliminatePlayer(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
       const playerId = req.params.playerId as string;
       const { finishPosition } = req.body;
 
@@ -115,11 +107,9 @@ export class LiveTournamentController {
    */
   static async moveToNextLevel(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
       const { tournament, currentLevel } = await liveTournamentService.moveToNextLevel(tournamentId);
 
@@ -204,11 +194,9 @@ export class LiveTournamentController {
    */
   static async finishTournament(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
       await liveTournamentService.finishTournament(tournamentId);
 

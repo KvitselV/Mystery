@@ -3,7 +3,7 @@ import { AppDataSource } from './config/database';
 import { httpServer } from './app';
 import { connectRedis } from "./config/redis";
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 
 async function bootstrap() {

@@ -216,13 +216,84 @@ export class TournamentService {
     });
   }
 
-  /**
-   * Изменить статус турнира
-   */
+  async ensureTournamentBelongsToClub(tournamentId: string, managedClubId?: string | null): Promise<Tournament> {
+    const tournament = await this.tournamentRepository.findOne({ where: { id: tournamentId } });
+    if (!tournament) throw new Error('Tournament not found');
+    if (managedClubId && tournament.clubId !== managedClubId) {
+      throw new Error('Forbidden: tournament belongs to another club');
+    }
+    return tournament;
+  }
+
+  async updateTournament(
+    tournamentId: string,
+    data: Partial<{
+      name: string;
+      seriesId: string | null;
+      clubId: string | null;
+      startTime: Date;
+      buyInCost: number;
+      startingStack: number;
+      addonChips: number;
+      rebuyChips: number;
+      blindStructureId: string | null;
+    }>,
+    managedClubId?: string | null
+  ): Promise<Tournament> {
+    await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+    });
+    if (!tournament) throw new Error('Tournament not found');
+
+    if (data.name != null) tournament.name = data.name;
+    if (data.startTime != null) tournament.startTime = data.startTime;
+    if (data.buyInCost != null) tournament.buyInCost = data.buyInCost;
+    if (data.startingStack != null) tournament.startingStack = data.startingStack;
+    if (data.addonChips != null) tournament.addonChips = data.addonChips;
+    if (data.rebuyChips != null) tournament.rebuyChips = data.rebuyChips;
+    if (data.blindStructureId != null) tournament.blindStructureId = data.blindStructureId;
+    if (data.clubId != null) tournament.clubId = data.clubId;
+
+    if (data.seriesId !== undefined) {
+      if (data.seriesId) {
+        const series = await this.seriesRepository.findOne({ where: { id: data.seriesId } });
+        if (series) tournament.series = series;
+      } else {
+        (tournament as { series?: TournamentSeries | null }).series = null;
+      }
+    }
+
+    if (data.clubId !== undefined && data.clubId) {
+      const club = await this.clubRepository.findOne({ where: { id: data.clubId } });
+      (tournament as { club?: Club | null }).club = club ?? null;
+    } else if (data.clubId === null) {
+      (tournament as { club?: Club | null }).club = null;
+    }
+
+    return this.tournamentRepository.save(tournament);
+  }
+
+  async deleteTournament(tournamentId: string, managedClubId?: string | null, options?: { force?: boolean }): Promise<void> {
+    if (!options?.force) {
+      await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+    }
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+    });
+    if (!tournament) throw new Error('Tournament not found');
+    if (!options?.force && tournament.status !== 'REG_OPEN' && tournament.status !== 'ARCHIVED') {
+      throw new Error('Can only delete tournaments in REG_OPEN or ARCHIVED status');
+    }
+    await this.tournamentRepository.remove(tournament);
+  }
+
   async updateTournamentStatus(
     tournamentId: string,
-    status: 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED'
+    status: 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED',
+    managedClubId?: string | null
   ): Promise<Tournament> {
+    await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
     });

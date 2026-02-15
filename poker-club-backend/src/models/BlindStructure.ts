@@ -4,8 +4,11 @@ import {
   Column,
   OneToMany,
   CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { TournamentLevel } from './TournamentLevel';
+import { Club } from './Club';
 
 @Entity('blind_structures')
 export class BlindStructure {
@@ -20,6 +23,13 @@ export class BlindStructure {
 
   @Column({ type: 'boolean', default: true })
   isActive!: boolean; // Активна ли структура
+
+  @Column({ type: 'uuid', nullable: true })
+  clubId: string | null; // null = глобальная (админ), иначе привязка к клубу
+
+  @ManyToOne(() => Club, { nullable: true })
+  @JoinColumn({ name: 'club_id' })
+  club: Club | null;
 
   @OneToMany(() => TournamentLevel, (level) => level.blindStructure, {
     cascade: true,

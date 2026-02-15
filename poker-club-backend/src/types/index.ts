@@ -14,6 +14,7 @@ export interface AuthResponse {
     lastName: string;
     phone: string;
     role: string;
+    managedClubId?: string | null;
   };
 }
 

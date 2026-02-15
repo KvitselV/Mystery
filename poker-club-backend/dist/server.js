@@ -4,7 +4,7 @@ require("reflect-metadata");
 const database_1 = require("./config/database");
 const app_1 = require("./app");
 const redis_1 = require("./config/redis");
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 async function bootstrap() {
     try {
         await database_1.AppDataSource.initialize();

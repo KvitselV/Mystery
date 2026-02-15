@@ -2,22 +2,18 @@ import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { SeatingService } from '../services/SeatingService';
 import { LiveStateService } from '../services/LiveStateService';
+import { TournamentService } from '../services/TournamentService';
 
 const seatingService = new SeatingService();
 const liveStateService = new LiveStateService();
+const tournamentService = new TournamentService();
 
 export class SeatingController {
-  /**
-   * POST /tournaments/:id/tables/init-from-club - Создать столы турнира из столов клуба
-   * Только для администраторов. Вызывать при запуске турнира (турнир должен быть привязан к клубу).
-   */
   static async initTablesFromClub(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
       const result = await seatingService.initializeTablesFromClub(tournamentId);
 
@@ -30,17 +26,11 @@ export class SeatingController {
     }
   }
 
-  /**
-   * POST /tournaments/:id/seating/auto - Автоматическая рассадка
-   * Только для администраторов
-   */
   static async autoSeating(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
       const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
       const result = await seatingService.autoSeating(tournamentId);
 
@@ -55,16 +45,11 @@ export class SeatingController {
     }
   }
 
-  /**
-   * POST /tournaments/:id/seating/manual - Ручная пересадка игрока
-   * Только для администраторов
-   */
   static async manualReseating(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
+      const tournamentId = req.params.id as string;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
       const { playerId, newTableId, newSeatNumber } = req.body;
 
       if (!playerId || !newTableId || !newSeatNumber) {

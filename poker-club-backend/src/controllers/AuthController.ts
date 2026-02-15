@@ -77,4 +77,50 @@ export class AuthController {
       res.status(400).json({ error: message });
     }
   }
+
+  static async promoteToAdmin(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+      const result = await authService.promoteToAdmin(req.user.userId);
+      if (!result) return res.status(403).json({ error: 'Promotion not allowed' });
+      res.json(result);
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed' });
+    }
+  }
+
+  static async assignControllerToClub(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Admin only' });
+      const { userId, clubId } = req.body;
+      if (!userId || !clubId) return res.status(400).json({ error: 'userId and clubId required' });
+      const result = await authService.assignControllerToClub(userId, clubId);
+      res.json(result);
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed' });
+    }
+  }
+
+  static async getUsers(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Admin only' });
+      const users = await authService.getAllUsers();
+      res.json({ users });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed' });
+    }
+  }
+
+  static async promoteToController(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Admin only' });
+      const { userId, clubId } = req.body;
+      if (!userId || !clubId) return res.status(400).json({ error: 'userId and clubId required' });
+      const result = await authService.promoteToController(req.user.userId, userId, clubId);
+      if (!result) return res.status(400).json({ error: 'Promotion failed' });
+      res.json(result);
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed' });
+    }
+  }
 }

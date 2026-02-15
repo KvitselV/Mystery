@@ -1,20 +1,14 @@
 import { Router } from 'express';
 import { SeatingController } from '../controllers/SeatingController';
-import { authMiddleware } from '../middlewares/authMiddleware';
+import { authMiddleware, requireAdminOrController } from '../middlewares/authMiddleware';
 
 const router = Router();
 
-// Все маршруты требуют авторизации
 router.use(authMiddleware);
 
-// Инициализация столов турнира из столов клуба (только ADMIN)
-router.post('/:id/tables/init-from-club', SeatingController.initTablesFromClub);
-
-// Автоматическая рассадка (только ADMIN)
-router.post('/:id/seating/auto', SeatingController.autoSeating);
-
-// Ручная пересадка (только ADMIN)
-router.post('/:id/seating/manual', SeatingController.manualReseating);
+router.post('/:id/tables/init-from-club', requireAdminOrController(), SeatingController.initTablesFromClub);
+router.post('/:id/seating/auto', requireAdminOrController(), SeatingController.autoSeating);
+router.post('/:id/seating/manual', requireAdminOrController(), SeatingController.manualReseating);
 
 // Получить все столы турнира (доступно всем)
 router.get('/:id/tables', SeatingController.getTournamentTables);

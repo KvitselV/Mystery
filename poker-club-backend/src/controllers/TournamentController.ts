@@ -11,11 +11,8 @@ export class TournamentController {
 
   static async createTournament(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
-      const { name, seriesId, clubId, startTime, buyInCost, startingStack, addonChips, rebuyChips, blindStructureId, rewards } = req.body;
+      const clubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : req.body.clubId;
+      const { name, seriesId, startTime, buyInCost, startingStack, addonChips, rebuyChips, blindStructureId, rewards } = req.body;
 
       if (!name || !startTime || !buyInCost || !startingStack) {
         return res.status(400).json({ error: 'Missing required fields' });
@@ -24,7 +21,7 @@ export class TournamentController {
       const tournament = await tournamentService.createTournament({
         name,
         seriesId,
-        clubId,
+        clubId: req.user?.role === 'CONTROLLER' ? req.user.managedClubId ?? undefined : req.body.clubId,
         startTime: new Date(startTime),
         buyInCost,
         startingStack,
@@ -88,15 +85,11 @@ export class TournamentController {
     }
     }
 
-  /**
-   * PATCH /tournaments/:id/rewards - Обновить награды турнира (ADMIN)
-   */
   static async updateTournamentRewards(req: AuthRequest, res: Response) {
     try {
-      if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
       const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.ensureTournamentBelongsToClub(id, managedClubId);
       const { rewards } = req.body;
       if (!Array.isArray(rewards)) {
         return res.status(400).json({ error: 'rewards must be an array of { rewardId, place }' });
@@ -156,6 +149,7 @@ export class TournamentController {
         res.json({
         players: players.map((p) => ({
             id: p.id,
+            playerId: p.player?.id,
             playerName: `${p.player.user.firstName} ${p.player.user.lastName}`,
             registeredAt: p.registeredAt,
             paymentMethod: p.paymentMethod,
@@ -172,26 +166,56 @@ export class TournamentController {
      */
     static async updateTournamentStatus(req: AuthRequest, res: Response) {
     try {
-        if (!req.user || req.user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Forbidden' });
-        }
-
         const tournamentIdRaw = req.params.id;
         const tournamentId = Array.isArray(tournamentIdRaw) ? tournamentIdRaw[0] : tournamentIdRaw;
         const { status } = req.body;
+        const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
 
         if (!status) {
         return res.status(400).json({ error: 'Status is required' });
         }
 
-        const tournament = await tournamentService.updateTournamentStatus(tournamentId, status);
+        const tournament = await tournamentService.updateTournamentStatus(tournamentId, status, managedClubId);
 
         res.json(tournament);
     } catch (error: unknown) {
         res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
         }
     }
-    /**
+  static async updateTournament(req: AuthRequest, res: Response) {
+    try {
+      const id = (req.params.id as string) || '';
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      const body = req.body;
+      const tournament = await tournamentService.updateTournament(id, {
+        name: body.name,
+        seriesId: body.seriesId,
+        clubId: body.clubId,
+        startTime: body.startTime ? new Date(body.startTime) : undefined,
+        buyInCost: body.buyInCost,
+        startingStack: body.startingStack,
+        addonChips: body.addonChips,
+        rebuyChips: body.rebuyChips,
+        blindStructureId: body.blindStructureId,
+      }, managedClubId);
+      res.json(tournament);
+    } catch (e: unknown) {
+      res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
+    }
+  }
+
+  static async deleteTournament(req: AuthRequest, res: Response) {
+    try {
+      const id = (req.params.id as string) || '';
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      await tournamentService.deleteTournament(id, managedClubId);
+      res.json({ message: 'Tournament deleted' });
+    } catch (e: unknown) {
+      res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
+    }
+  }
+
+  /**
    * DELETE /tournaments/:id/register - Отменить регистрацию
    */
   static async unregisterFromTournament(req: AuthRequest, res: Response) {

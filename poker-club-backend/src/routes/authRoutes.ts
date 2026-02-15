@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
-import { authMiddleware } from '../middlewares/authMiddleware';
+import { authMiddleware, requireAdmin } from '../middlewares/authMiddleware';
 
 const router = Router();
 
@@ -11,5 +11,10 @@ router.post('/refresh', AuthController.refresh);
 
 // Защищённые маршруты
 router.get('/me', authMiddleware, AuthController.getMe);
+router.post('/promote-me', authMiddleware, AuthController.promoteToAdmin);
+
+router.get('/users', authMiddleware, requireAdmin(), AuthController.getUsers);
+router.post('/assign-controller', authMiddleware, requireAdmin(), AuthController.assignControllerToClub);
+router.post('/promote-controller', authMiddleware, requireAdmin(), AuthController.promoteToController);
 
 export default router;

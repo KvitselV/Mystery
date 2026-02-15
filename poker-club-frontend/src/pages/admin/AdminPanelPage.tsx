@@ -1,0 +1,1006 @@
+import { useState, useEffect } from 'react';
+import { Routes, Route, NavLink } from 'react-router-dom';
+import {
+  blindStructuresApi,
+  clubsApi,
+  menuApi,
+  leaderboardsApi,
+  tournamentSeriesApi,
+  tournamentsApi,
+  authApi,
+  type BlindStructure,
+  type Club,
+  type ClubSchedule,
+  type MenuCategory,
+  type MenuItem,
+  type CreateLevelDto,
+  type TournamentSeries,
+  type Tournament,
+  type UpdateTournamentDto,
+  type User,
+} from '../../api';
+import { useClub } from '../../contexts/ClubContext';
+
+const DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+export default function AdminPanelPage() {
+  const { refreshClubs } = useClub();
+  return (
+    <div className="flex gap-6">
+      <nav className="w-56 shrink-0 space-y-1">
+        <NavLink to="/admin" end className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Обзор
+        </NavLink>
+        <NavLink to="/admin/clubs" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Клубы
+        </NavLink>
+        <NavLink to="/admin/series" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Турнирные серии
+        </NavLink>
+        <NavLink to="/admin/tournaments" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Турниры
+        </NavLink>
+        <NavLink to="/admin/blinds" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Структуры блайндов
+        </NavLink>
+        <NavLink to="/admin/menu" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Меню
+        </NavLink>
+        <NavLink to="/admin/seasons" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Рейтинги и сезоны
+        </NavLink>
+        <NavLink to="/admin/users" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          Пользователи
+        </NavLink>
+        <NavLink to="/admin/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+          TV
+        </NavLink>
+      </nav>
+      <div className="flex-1 glass-card p-6">
+        <Routes>
+          <Route path="/" element={<AdminHome />} />
+          <Route path="/clubs" element={<AdminClubs onRefresh={refreshClubs} />} />
+          <Route path="/series" element={<AdminSeries />} />
+          <Route path="/tournaments" element={<AdminTournaments />} />
+          <Route path="/blinds" element={<AdminBlinds />} />
+          <Route path="/menu" element={<AdminMenu />} />
+          <Route path="/seasons" element={<AdminSeasons />} />
+          <Route path="/users" element={<AdminUsers />} />
+          <Route path="/tv" element={<AdminTV />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
+
+function AdminHome() {
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Админ панель</h2>
+      <p className="text-slate-400">Выберите раздел в меню для управления данными системы.</p>
+    </div>
+  );
+}
+
+function AdminClubs({ onRefresh }: { onRefresh: () => Promise<void> }) {
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [schedulesClubId, setSchedulesClubId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', desc: '', address: '', phone: '', tableCount: 5 });
+
+  const load = () => clubsApi.list().then((r) => setClubs(r.data?.clubs ?? [])).catch(() => setClubs([])).finally(() => setLoading(false));
+
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!form.name.trim() || form.tableCount < 1) return;
+    try {
+      await clubsApi.create({ name: form.name.trim(), description: form.desc || undefined, address: form.address || undefined, phone: form.phone || undefined, tableCount: form.tableCount });
+      setShowForm(false);
+      setForm({ name: '', desc: '', address: '', phone: '', tableCount: 5 });
+      load();
+      onRefresh();
+    } catch {}
+  };
+
+  const update = async () => {
+    if (!editId) return;
+    try {
+      await clubsApi.update(editId, { name: form.name.trim(), description: form.desc || undefined, address: form.address || undefined, phone: form.phone || undefined });
+      setEditId(null);
+      load();
+      onRefresh();
+    } catch {}
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Удалить клуб?')) return;
+    try {
+      await clubsApi.delete(id);
+      load();
+      onRefresh();
+    } catch {}
+  };
+
+  const startEdit = (c: Club) => {
+    setEditId(c.id);
+    setForm({ name: c.name, desc: c.description ?? '', address: c.address ?? '', phone: c.phone ?? '', tableCount: c.tableCount ?? 5 });
+  };
+
+  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Клубы</h2>
+      <button onClick={() => { setShowForm(!showForm); setEditId(null); setSchedulesClubId(null); }} className="glass-btn px-4 py-2 rounded-xl mb-4">
+        {showForm ? 'Отмена' : '+ Новый клуб'}
+      </button>
+
+      {(showForm || editId) && (
+        <div className="glass-card p-4 mb-6 space-y-4">
+          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Описание" value={form.desc} onChange={(e) => setForm((p) => ({ ...p, desc: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Адрес" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Телефон" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          {!editId && (
+            <input type="number" placeholder="Кол-во столов *" value={form.tableCount} onChange={(e) => setForm((p) => ({ ...p, tableCount: parseInt(e.target.value) || 1 }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          )}
+          {editId ? <button onClick={update} className="glass-btn px-4 py-2 rounded-xl">Сохранить</button> : <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>}
+        </div>
+      )}
+
+      {schedulesClubId && <AdminClubSchedules clubId={schedulesClubId} onClose={() => setSchedulesClubId(null)} clubName={clubs.find((c) => c.id === schedulesClubId)?.name ?? ''} />}
+
+      <div className="space-y-2">
+        {clubs.map((c) => (
+          <div key={c.id} className="flex justify-between items-center glass-card p-3">
+            <div>
+              <span className="text-white">{c.name}</span>
+              <span className="text-slate-500 text-sm ml-2">({c.tableCount} столов)</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setSchedulesClubId(c.id)} className="text-slate-300 text-sm">Расписание</button>
+              <button onClick={() => startEdit(c)} className="text-cyan-400 text-sm">Изменить</button>
+              <button onClick={() => remove(c.id)} className="text-red-400 text-sm">Удалить</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminClubSchedules({ clubId, onClose, clubName }: { clubId: string; onClose: () => void; clubName: string }) {
+  const [schedules, setSchedules] = useState<ClubSchedule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState({ dayOfWeek: 1, startTime: '18:00', endTime: '23:00', eventType: '', description: '' });
+
+  const load = () => clubsApi.getSchedules(clubId).then((r) => setSchedules(r.data?.schedules ?? [])).catch(() => setSchedules([])).finally(() => setLoading(false));
+
+  useEffect(() => { load(); }, [clubId]);
+
+  const toTime = (t: string) => (t && t.length === 5 ? `${t}:00` : t || '18:00:00');
+
+  const create = async () => {
+    try {
+      await clubsApi.addSchedule(clubId, { dayOfWeek: form.dayOfWeek, startTime: toTime(form.startTime), endTime: toTime(form.endTime), eventType: form.eventType || undefined, description: form.description || undefined });
+      setShowForm(false);
+      setForm({ dayOfWeek: 1, startTime: '18:00', endTime: '23:00', eventType: '', description: '' });
+      load();
+    } catch {}
+  };
+
+  const update = async () => {
+    if (!editId) return;
+    try {
+      await clubsApi.updateSchedule(clubId, editId, { dayOfWeek: form.dayOfWeek, startTime: toTime(form.startTime), endTime: toTime(form.endTime), eventType: form.eventType || undefined, description: form.description || undefined });
+      setEditId(null);
+      load();
+    } catch {}
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Удалить расписание?')) return;
+    try {
+      await clubsApi.deleteSchedule(clubId, id);
+      load();
+    } catch {}
+  };
+
+  const startEdit = (s: ClubSchedule) => {
+    setEditId(s.id);
+    const fmt = (t: string | undefined) => (t ? (t.length > 5 ? t.slice(0, 5) : t) : '18:00');
+    setForm({ dayOfWeek: s.dayOfWeek, startTime: fmt(s.startTime), endTime: fmt(s.endTime), eventType: s.eventType ?? '', description: s.description ?? '' });
+  };
+
+  return (
+    <div className="glass-card p-4 mb-6 border border-cyan-500/30">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-white font-medium">Расписание: {clubName}</h3>
+        <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕ Закрыть</button>
+      </div>
+      <button onClick={() => { setShowForm(!showForm); setEditId(null); }} className="glass-btn px-4 py-2 rounded-xl mb-4 text-sm">
+        {showForm ? 'Отмена' : '+ Добавить'}
+      </button>
+      {(showForm || editId) && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <select value={form.dayOfWeek} onChange={(e) => setForm((p) => ({ ...p, dayOfWeek: parseInt(e.target.value) }))} className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm">
+            {[0, 1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>{DAY_NAMES[d]}</option>)}
+          </select>
+          <input type="time" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm" />
+          <input type="time" value={form.endTime} onChange={(e) => setForm((p) => ({ ...p, endTime: e.target.value }))} className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm" />
+          <input placeholder="Событие" value={form.eventType} onChange={(e) => setForm((p) => ({ ...p, eventType: e.target.value }))} className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm w-32" />
+          {editId ? <button onClick={update} className="glass-btn px-3 py-2 rounded-xl text-sm">Сохранить</button> : <button onClick={create} className="glass-btn px-3 py-2 rounded-xl text-sm">Добавить</button>}
+        </div>
+      )}
+      {loading ? <p className="text-slate-500 text-sm">Загрузка...</p> : (
+        <div className="space-y-1">
+          {schedules.map((s) => (
+            <div key={s.id} className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-slate-300 text-sm">{DAY_NAMES[s.dayOfWeek]} {s.startTime}–{s.endTime} {s.eventType && `· ${s.eventType}`}</span>
+              <div className="flex gap-2">
+                <button onClick={() => startEdit(s)} className="text-cyan-400 text-xs">Изменить</button>
+                <button onClick={() => remove(s.id)} className="text-red-400 text-xs">Удалить</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminSeries() {
+  const [series, setSeries] = useState<TournamentSeries[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [structures, setStructures] = useState<BlindStructure[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([1, 2, 3, 4, 5, 6]);
+  const [clubId, setClubId] = useState('');
+  const [defaultStartTime, setDefaultStartTime] = useState('19:00');
+  const [defaultBuyIn, setDefaultBuyIn] = useState(3000);
+  const [defaultStartingStack, setDefaultStartingStack] = useState(10000);
+  const [defaultBlindStructureId, setDefaultBlindStructureId] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [sRes, cRes, bRes] = await Promise.all([tournamentSeriesApi.list(), clubsApi.list(), blindStructuresApi.list()]);
+      setSeries(sRes.data?.series ?? []);
+      setClubs(cRes.data?.clubs ?? []);
+      setStructures(bRes.data?.structures ?? []);
+    } catch {
+      setSeries([]);
+      setClubs([]);
+      setStructures([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const toggleDay = (d: number) => setDaysOfWeek((p) => (p.includes(d) ? p.filter((x) => x !== d) : [...p, d].sort((a, b) => a - b)));
+
+  const create = async () => {
+    if (!name.trim() || !periodStart || !periodEnd || !clubId) return;
+    try {
+      await tournamentSeriesApi.create({
+        name: name.trim(),
+        periodStart,
+        periodEnd,
+        daysOfWeek,
+        clubId,
+        defaultStartTime,
+        defaultBuyIn,
+        defaultStartingStack,
+        defaultBlindStructureId: defaultBlindStructureId || undefined,
+      });
+      setShowForm(false);
+      setName('');
+      setPeriodStart('');
+      setPeriodEnd('');
+      setDaysOfWeek([1, 2, 3, 4, 5, 6]);
+      setClubId('');
+      setDefaultStartTime('19:00');
+      setDefaultBuyIn(3000);
+      setDefaultStartingStack(10000);
+      setDefaultBlindStructureId('');
+      load();
+    } catch {}
+  };
+
+  const update = async () => {
+    if (!editId || !name.trim() || !periodStart || !periodEnd) return;
+    try {
+      await tournamentSeriesApi.update(editId, { name: name.trim(), periodStart, periodEnd, daysOfWeek });
+      setEditId(null);
+      load();
+    } catch {}
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Удалить серию?')) return;
+    try {
+      await tournamentSeriesApi.delete(id);
+      load();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    }
+  };
+
+  const startEdit = (s: TournamentSeries) => {
+    setEditId(s.id);
+    setName(s.name);
+    setPeriodStart(s.periodStart?.slice(0, 10) ?? '');
+    setPeriodEnd(s.periodEnd?.slice(0, 10) ?? '');
+    const days = s.daysOfWeek ? (typeof s.daysOfWeek === 'string' ? s.daysOfWeek.split(',').map(Number) : s.daysOfWeek) : [1, 2, 3, 4, 5, 6];
+    setDaysOfWeek(days);
+  };
+
+  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Турнирные серии</h2>
+      <button onClick={() => { setShowForm(!showForm); setEditId(null); }} className="glass-btn px-4 py-2 rounded-xl mb-4">
+        {showForm ? 'Отмена' : '+ Новая серия'}
+      </button>
+
+      {(showForm || editId) && (
+        <div className="glass-card p-4 mb-6 space-y-4">
+          <input placeholder="Название серии *" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          {!editId && (
+            <>
+              <div>
+                <label className="text-slate-400 text-sm">Клуб *</label>
+                <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" required>
+                  <option value="">— Выберите клуб —</option>
+                  {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <p className="text-slate-500 text-sm">Турниры создаются автоматически по дням недели от даты начала до даты финала.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-slate-400 text-sm">Время старта</label>
+                  <input type="time" value={defaultStartTime} onChange={(e) => setDefaultStartTime(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                </div>
+                <div>
+                  <label className="text-slate-400 text-sm">Бай-ин (₽)</label>
+                  <input type="number" value={defaultBuyIn || ''} onChange={(e) => setDefaultBuyIn(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                </div>
+                <div>
+                  <label className="text-slate-400 text-sm">Стартовый стек</label>
+                  <input type="number" value={defaultStartingStack || ''} onChange={(e) => setDefaultStartingStack(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                </div>
+                <div>
+                  <label className="text-slate-400 text-sm">Структура блайндов</label>
+                  <select value={defaultBlindStructureId} onChange={(e) => setDefaultBlindStructureId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+                    <option value="">—</option>
+                    {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+          <div className="flex gap-4">
+            <div><label className="text-slate-400 text-sm">Дата начала</label><input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
+            <div><label className="text-slate-400 text-sm">Дата финала</label><input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
+          </div>
+          <div>
+            <label className="text-slate-400 text-sm block mb-2">Дни недели</label>
+            <div className="flex gap-2">
+              {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                <button key={d} onClick={() => toggleDay(d)} className={`px-3 py-1 rounded-lg text-sm ${daysOfWeek.includes(d) ? 'glass-btn' : 'bg-white/5 text-slate-500'}`}>{DAY_NAMES[d]}</button>
+              ))}
+            </div>
+          </div>
+          {editId ? <button onClick={update} className="glass-btn px-4 py-2 rounded-xl">Сохранить</button> : <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {series.map((s) => (
+          <div key={s.id} className="flex justify-between items-center glass-card p-3">
+            <div>
+              <span className="text-white">{s.name}</span>
+              <span className="text-slate-500 text-sm ml-2">{s.periodStart?.slice(0, 10)} — {s.periodEnd?.slice(0, 10)}</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => startEdit(s)} className="text-cyan-400 text-sm">Изменить</button>
+              <button onClick={() => remove(s.id)} className="text-red-400 text-sm">Удалить</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminTournaments() {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [series, setSeries] = useState<TournamentSeries[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [structures, setStructures] = useState<BlindStructure[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', seriesId: '', clubId: '', startTime: '', buyInCost: 3000, startingStack: 10000, addonChips: 0, rebuyChips: 0, blindStructureId: '' });
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [tRes, sRes, cRes, bRes] = await Promise.all([
+        tournamentsApi.list({ limit: 200 }),
+        tournamentSeriesApi.list(),
+        clubsApi.list(),
+        blindStructuresApi.list(),
+      ]);
+      setTournaments(tRes.data?.tournaments ?? []);
+      setSeries(sRes.data?.series ?? []);
+      setClubs(cRes.data?.clubs ?? []);
+      setStructures(bRes.data?.structures ?? []);
+    } catch {
+      setTournaments([]);
+      setSeries([]);
+      setClubs([]);
+      setStructures([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!form.name.trim() || !form.startTime || !form.buyInCost || !form.startingStack) return;
+    try {
+      await tournamentsApi.create({
+        name: form.name.trim(),
+        startTime: form.startTime,
+        buyInCost: form.buyInCost,
+        startingStack: form.startingStack,
+        seriesId: form.seriesId || undefined,
+        clubId: form.clubId || undefined,
+        addonChips: form.addonChips,
+        rebuyChips: form.rebuyChips,
+        blindStructureId: form.blindStructureId || undefined,
+      });
+      setShowForm(false);
+      setForm({ name: '', seriesId: '', clubId: '', startTime: '', buyInCost: 3000, startingStack: 10000, addonChips: 0, rebuyChips: 0, blindStructureId: '' });
+      load();
+    } catch {}
+  };
+
+  const update = async () => {
+    if (!editId) return;
+    try {
+      const data: UpdateTournamentDto = {
+        name: form.name.trim(),
+        startTime: form.startTime,
+        buyInCost: form.buyInCost,
+        startingStack: form.startingStack,
+        seriesId: form.seriesId ? form.seriesId : null,
+        clubId: form.clubId ? form.clubId : null,
+        addonChips: form.addonChips,
+        rebuyChips: form.rebuyChips,
+        blindStructureId: form.blindStructureId || undefined,
+      };
+      await tournamentsApi.update(editId, data);
+      setEditId(null);
+      load();
+    } catch {}
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm('Удалить турнир?')) return;
+    try {
+      await tournamentsApi.delete(id);
+      load();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    }
+  };
+
+  const startEdit = (t: Tournament) => {
+    setEditId(t.id);
+    setForm({
+      name: t.name,
+      seriesId: t.seriesId ?? '',
+      clubId: t.clubId ?? '',
+      startTime: t.startTime?.slice(0, 16) ?? '',
+      buyInCost: t.buyInCost ?? 0,
+      startingStack: t.startingStack ?? 0,
+      addonChips: t.addonChips ?? 0,
+      rebuyChips: t.rebuyChips ?? 0,
+      blindStructureId: t.blindStructureId ?? '',
+    });
+  };
+
+  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Турниры</h2>
+      <button onClick={() => { setShowForm(!showForm); setEditId(null); }} className="glass-btn px-4 py-2 rounded-xl mb-4">
+        {showForm ? 'Отмена' : '+ Новый турнир'}
+      </button>
+
+      {(showForm || editId) && (
+        <div className="glass-card p-4 mb-6 space-y-4 max-w-xl">
+          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-slate-400 text-sm">Серия</label>
+              <select value={form.seriesId} onChange={(e) => setForm((p) => ({ ...p, seriesId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+                <option value="">—</option>
+                {series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-slate-400 text-sm">Клуб</label>
+              <select value={form.clubId} onChange={(e) => setForm((p) => ({ ...p, clubId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+                <option value="">—</option>
+                {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-slate-400 text-sm">Начало</label>
+            <input type="datetime-local" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div className="flex gap-4">
+            <input type="number" placeholder="Бай-ин" value={form.buyInCost || ''} onChange={(e) => setForm((p) => ({ ...p, buyInCost: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="number" placeholder="Стартовый стек" value={form.startingStack || ''} onChange={(e) => setForm((p) => ({ ...p, startingStack: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="number" placeholder="Аддон" value={form.addonChips || ''} onChange={(e) => setForm((p) => ({ ...p, addonChips: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="number" placeholder="Ребай" value={form.rebuyChips || ''} onChange={(e) => setForm((p) => ({ ...p, rebuyChips: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div>
+            <label className="text-slate-400 text-sm">Структура блайндов</label>
+            <select value={form.blindStructureId} onChange={(e) => setForm((p) => ({ ...p, blindStructureId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+              <option value="">—</option>
+              {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          {editId ? <button onClick={update} className="glass-btn px-4 py-2 rounded-xl">Сохранить</button> : <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {tournaments.map((t) => (
+          <div key={t.id} className="flex justify-between items-center glass-card p-3">
+            <div>
+              <span className="text-white">{t.name}</span>
+              <span className="text-slate-500 text-sm ml-2">{t.startTime?.slice(0, 16)} · {t.status}</span>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => startEdit(t)} className="text-cyan-400 text-sm">Изменить</button>
+              <button onClick={() => remove(t.id)} className="text-red-400 text-sm">Удалить</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminBlinds() {
+  const [structures, setStructures] = useState<(BlindStructure & { levelsCount?: number })[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [clubId, setClubId] = useState('');
+  const [levels, setLevels] = useState<CreateLevelDto[]>([{ levelNumber: 1, smallBlind: 25, bigBlind: 50, durationMinutes: 15 }]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [bRes, cRes] = await Promise.all([blindStructuresApi.list(), clubsApi.list()]);
+      setStructures(bRes.data?.structures ?? []);
+      setClubs(cRes.data?.clubs ?? []);
+    } catch {
+      setStructures([]);
+      setClubs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const addLevel = () => setLevels((p) => [...p, { levelNumber: p.length + 1, smallBlind: p[p.length - 1]?.bigBlind ?? 100, bigBlind: (p[p.length - 1]?.bigBlind ?? 100) * 2, durationMinutes: 15 }]);
+  const removeLevel = (i: number) => setLevels((p) => p.filter((_, j) => j !== i));
+
+  const create = async () => {
+    if (!name.trim() || levels.length === 0) return;
+    const levelsToSend = levels.map((l, i) => ({ ...l, levelNumber: i + 1 }));
+    try {
+      await blindStructuresApi.create({ name: name.trim(), description: desc || undefined, levels: levelsToSend, clubId: clubId || undefined });
+      setShowForm(false);
+      setName('');
+      setDesc('');
+      setClubId('');
+      setLevels([{ levelNumber: 1, smallBlind: 25, bigBlind: 50, durationMinutes: 15 }]);
+      load();
+    } catch {}
+  };
+
+  const deactivate = async (id: string) => {
+    if (!confirm('Деактивировать структуру?')) return;
+    try {
+      await blindStructuresApi.deactivate(id);
+      load();
+    } catch {}
+  };
+
+  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Структуры блайндов</h2>
+      <button onClick={() => setShowForm(!showForm)} className="glass-btn px-4 py-2 rounded-xl mb-4">
+        {showForm ? 'Отмена' : '+ Новая структура'}
+      </button>
+
+      {showForm && (
+        <div className="glass-card p-4 mb-6 space-y-4">
+          <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <div>
+            <label className="text-slate-400 text-sm">Клуб</label>
+            <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+              <option value="">Глобальная</option>
+              {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-2"><span className="text-slate-400">Уровни</span><button onClick={addLevel} className="text-cyan-400 text-sm">+ Уровень</button></div>
+            {levels.map((l, i) => (
+              <div key={i} className="flex gap-2 items-center mb-2">
+                <input type="number" placeholder="SB" value={l.smallBlind} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], smallBlind: parseInt(e.target.value) || 0 }; return n; })} className="w-20 px-2 py-1 rounded bg-white/5 text-white" />
+                <input type="number" placeholder="BB" value={l.bigBlind} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], bigBlind: parseInt(e.target.value) || 0 }; return n; })} className="w-20 px-2 py-1 rounded bg-white/5 text-white" />
+                <input type="number" placeholder="Мин" value={l.durationMinutes} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], durationMinutes: parseInt(e.target.value) || 15 }; return n; })} className="w-16 px-2 py-1 rounded bg-white/5 text-white" />
+                <button onClick={() => removeLevel(i)} className="text-red-400 text-sm">✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {structures.map((s) => (
+          <div key={s.id} className="flex justify-between items-center glass-card p-3">
+            <span className="text-white">{s.name}</span>
+            <button onClick={() => deactivate(s.id)} className="text-red-400 text-sm">Деактивировать</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminMenu() {
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [catForm, setCatForm] = useState(false);
+  const [itemForm, setItemForm] = useState(false);
+  const [catEditId, setCatEditId] = useState<string | null>(null);
+  const [itemEditId, setItemEditId] = useState<string | null>(null);
+  const [catName, setCatName] = useState('');
+  const [itemName, setItemName] = useState('');
+  const [itemPrice, setItemPrice] = useState(100);
+  const [itemCategoryId, setItemCategoryId] = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [catRes, itemRes] = await Promise.all([menuApi.getCategoriesList(), menuApi.getItems()]);
+      const cats = Array.isArray(catRes.data) ? catRes.data : (catRes.data as { categories?: MenuCategory[] })?.categories ?? [];
+      setCategories(cats);
+      const rawItems = Array.isArray(itemRes.data) ? itemRes.data : (itemRes.data as { items?: MenuItem[] })?.items ?? [];
+      setItems(rawItems);
+      if (cats.length && !itemCategoryId) setItemCategoryId(cats[0].id);
+    } catch {
+      setCategories([]);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const createCat = async () => {
+    if (!catName.trim()) return;
+    try {
+      await menuApi.createCategory({ name: catName.trim() });
+      setCatForm(false);
+      setCatName('');
+      load();
+    } catch {}
+  };
+
+  const updateCat = async () => {
+    if (!catEditId || !catName.trim()) return;
+    try {
+      await menuApi.updateCategory(catEditId, { name: catName.trim() });
+      setCatEditId(null);
+      setCatName('');
+      load();
+    } catch {}
+  };
+
+  const createItem = async () => {
+    if (!itemName.trim() || !itemCategoryId) return;
+    try {
+      await menuApi.createItem({ name: itemName.trim(), price: itemPrice * 100, categoryId: itemCategoryId });
+      setItemForm(false);
+      setItemName('');
+      setItemPrice(100);
+      load();
+    } catch {}
+  };
+
+  const updateItem = async () => {
+    if (!itemEditId || !itemName.trim() || !itemCategoryId) return;
+    try {
+      await menuApi.updateItem(itemEditId, { name: itemName.trim(), price: itemPrice * 100, categoryId: itemCategoryId });
+      setItemEditId(null);
+      setItemName('');
+      setItemPrice(100);
+      load();
+    } catch {}
+  };
+
+  const delCat = async (id: string) => {
+    if (!confirm('Удалить категорию?')) return;
+    try {
+      await menuApi.deleteCategory(id);
+      load();
+    } catch {}
+  };
+
+  const delItem = async (id: string) => {
+    if (!confirm('Удалить позицию?')) return;
+    try {
+      await menuApi.deleteItem(id);
+      load();
+    } catch {}
+  };
+
+  const startEditCat = (c: MenuCategory) => {
+    setCatEditId(c.id);
+    setCatName(c.name);
+    setCatForm(false);
+  };
+
+  const startEditItem = (i: MenuItem) => {
+    setItemEditId(i.id);
+    setItemName(i.name);
+    setItemPrice(Math.round(i.price / 100));
+    setItemCategoryId(i.categoryId ?? categories[0]?.id ?? '');
+    setItemForm(false);
+  };
+
+  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Меню</h2>
+
+      <div className="mb-6">
+        <h3 className="text-white font-medium mb-2">Категории</h3>
+        <button onClick={() => { setCatForm(!catForm); setCatEditId(null); }} className="glass-btn px-4 py-2 rounded-xl mb-2">
+          {catForm ? 'Отмена' : '+ Категория'}
+        </button>
+        {(catForm || catEditId) && (
+          <div className="flex gap-2 mt-2">
+            <input placeholder="Название" value={catName} onChange={(e) => setCatName(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            {catEditId ? <button onClick={updateCat} className="glass-btn px-4 py-2 rounded-xl">Сохранить</button> : <button onClick={createCat} className="glass-btn px-4 py-2 rounded-xl">Создать</button>}
+          </div>
+        )}
+        <div className="space-y-1 mt-2">
+          {categories.map((c) => (
+            <div key={c.id} className="flex justify-between items-center glass-card p-2">
+              <span className="text-slate-300">{c.name}</span>
+              <div className="flex gap-2">
+                <button onClick={() => startEditCat(c)} className="text-cyan-400 text-sm">Изменить</button>
+                <button onClick={() => delCat(c.id)} className="text-red-400 text-sm">Удалить</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-white font-medium mb-2">Позиции</h3>
+        <button onClick={() => { setItemForm(!itemForm); setItemEditId(null); }} className="glass-btn px-4 py-2 rounded-xl mb-2">
+          {itemForm ? 'Отмена' : '+ Позиция'}
+        </button>
+        {(itemForm || itemEditId) && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            <input placeholder="Название" value={itemName} onChange={(e) => setItemName(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="number" placeholder="Цена (руб)" value={itemPrice} onChange={(e) => setItemPrice(parseInt(e.target.value) || 0)} className="w-24 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <select value={itemCategoryId} onChange={(e) => setItemCategoryId(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {itemEditId ? <button onClick={updateItem} className="glass-btn px-4 py-2 rounded-xl">Сохранить</button> : <button onClick={createItem} className="glass-btn px-4 py-2 rounded-xl">Создать</button>}
+          </div>
+        )}
+        <div className="space-y-1 mt-2">
+          {items.map((i) => (
+            <div key={i.id} className="flex justify-between items-center glass-card p-2">
+              <span className="text-slate-300">{i.name} — {(i.price / 100).toFixed(0)} ₽</span>
+              <div className="flex gap-2">
+                <button onClick={() => startEditItem(i)} className="text-cyan-400 text-sm">Изменить</button>
+                <button onClick={() => delItem(i.id)} className="text-red-400 text-sm">Удалить</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminSeasons() {
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const createSeasonal = async () => {
+    setLoading(true);
+    setMsg('');
+    try {
+      await leaderboardsApi.createSeasonal();
+      setMsg('Сезонный рейтинг создан');
+    } catch (e: unknown) {
+      setMsg((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateMmr = async () => {
+    setLoading(true);
+    setMsg('');
+    try {
+      await leaderboardsApi.updateRankMmr();
+      setMsg('Рейтинг MMR обновлён');
+    } catch (e: unknown) {
+      setMsg((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Рейтинги и сезоны</h2>
+      <p className="text-slate-400 mb-4">Создание сезонного рейтинга для текущего месяца и обновление рейтинга MMR.</p>
+      <div className="flex gap-4">
+        <button onClick={createSeasonal} disabled={loading} className="glass-btn px-4 py-2 rounded-xl">
+          Создать сезонный рейтинг
+        </button>
+        <button onClick={updateMmr} disabled={loading} className="glass-btn px-4 py-2 rounded-xl">
+          Обновить рейтинг MMR
+        </button>
+      </div>
+      {msg && <p className="mt-4 text-cyan-400">{msg}</p>}
+    </div>
+  );
+}
+
+function AdminUsers() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [assigning, setAssigning] = useState<string | null>(null);
+  const [promoteClubId, setPromoteClubId] = useState('');
+
+  const loadUsers = async () => {
+    try {
+      const res = await authApi.getUsers();
+      setUsers(res.data?.users ?? []);
+    } catch {
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    clubsApi.list().then((r) => setClubs(r.data?.clubs ?? [])).catch(() => setClubs([]));
+    loadUsers();
+  }, []);
+
+  const assignController = async (userId: string, clubId: string) => {
+    if (!clubId) return;
+    setAssigning(userId);
+    try {
+      await authApi.assignControllerToClub(userId, clubId);
+      loadUsers();
+    } catch {}
+    setAssigning(null);
+  };
+
+  const promoteToController = async (userId: string, clubId: string) => {
+    if (!clubId) return;
+    setAssigning(userId);
+    try {
+      await authApi.promoteToController(userId, clubId);
+      loadUsers();
+    } catch {}
+    setAssigning(null);
+  };
+
+  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Пользователи</h2>
+      <p className="text-slate-400 mb-4">Назначение контролёров клубам и повышение игроков до контролёров.</p>
+      {users.length === 0 ? (
+        <p className="text-slate-500">Нет пользователей.</p>
+      ) : (
+        <div className="space-y-2">
+          {users.map((u) => (
+            <div key={u.id} className="flex justify-between items-center glass-card p-3">
+              <div>
+                <span className="text-white">{u.firstName} {u.lastName}</span>
+                <span className="text-slate-500 text-sm ml-2">{u.phone}</span>
+                <span className="text-cyan-400 text-sm ml-2">{u.role}</span>
+                {u.managedClub && <span className="text-slate-400 text-sm ml-2">→ {u.managedClub.name}</span>}
+              </div>
+              {u.role === 'PLAYER' && (
+                <div className="flex gap-2 items-center">
+                  <select value={promoteClubId} onChange={(e) => setPromoteClubId(e.target.value)} className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+                    <option value="">Клуб</option>
+                    {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button onClick={() => promoteToController(u.id, promoteClubId)} disabled={!promoteClubId || assigning === u.id} className="text-cyan-400 text-sm">
+                    Сделать контролёром
+                  </button>
+                </div>
+              )}
+              {u.role === 'CONTROLLER' && !u.managedClubId && (
+                <div className="flex gap-2 items-center">
+                  <select value={promoteClubId} onChange={(e) => setPromoteClubId(e.target.value)} className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+                    <option value="">Клуб</option>
+                    {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button onClick={() => assignController(u.id, promoteClubId)} disabled={!promoteClubId || assigning === u.id} className="text-cyan-400 text-sm">
+                    Назначить клуб
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminTV() {
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Настройки TV</h2>
+      <p className="text-slate-400 mb-4">Настройка отображения на TV. API для сохранения настроек планируется.</p>
+      <p className="text-slate-500 text-sm">Страница TV: <a href="/tv" className="text-cyan-400">/tv</a></p>
+    </div>
+  );
+}

@@ -1,6 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, JoinColumn, ManyToOne } from 'typeorm';
 import { OneToOne } from 'typeorm';
 import { PlayerBalance } from './PlayerBalance';
+import { Club } from './Club';
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -21,8 +23,15 @@ export class User {
   @Column({ type: 'varchar', length: 255 })
   passwordHash: string;
 
-  @Column({ type: 'enum', enum: ['ADMIN', 'PLAYER', 'WAITER', 'TV'], default: 'PLAYER' })
-  role: 'ADMIN' | 'PLAYER' | 'WAITER' | 'TV';
+  @Column({ type: 'enum', enum: ['ADMIN', 'CONTROLLER', 'PLAYER', 'WAITER', 'TV'], default: 'PLAYER' })
+  role: 'ADMIN' | 'CONTROLLER' | 'PLAYER' | 'WAITER' | 'TV';
+
+  @Column({ type: 'uuid', nullable: true })
+  managedClubId: string | null;
+
+  @ManyToOne(() => Club, { nullable: true })
+  @JoinColumn({ name: 'managed_club_id' })
+  managedClub: Club | null;
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;

@@ -9,7 +9,6 @@ export class AuthController {
     try {
       const { name, clubCardNumber, phone, password } = req.body;
 
-      // Базовая валидация
       if (!name || !clubCardNumber || !phone || !password) {
         return res.status(400).json({ error: 'Обязательные поля: имя, номер клубной карты, телефон, пароль' });
       }
@@ -20,6 +19,10 @@ export class AuthController {
         phone,
         password,
       });
+
+      (req.session as { userId?: string; role?: string }).userId = result.user.id;
+      (req.session as { role?: string }).role = result.user.role;
+      await new Promise<void>((res, rej) => req.session.save((err) => (err ? rej(err) : res())));
 
       res.status(201).json(result);
     } catch (error: unknown) {
@@ -38,6 +41,11 @@ export class AuthController {
 
       const result = await authService.login({ phone, password });
 
+      (req.session as { userId?: string; role?: string; managedClubId?: string | null }).userId = result.user.id;
+      (req.session as { role?: string }).role = result.user.role;
+      (req.session as { managedClubId?: string | null }).managedClubId = result.user.managedClubId ?? null;
+      await new Promise<void>((res, rej) => req.session.save((err) => (err ? rej(err) : res())));
+
       res.json(result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Login failed';
@@ -45,21 +53,8 @@ export class AuthController {
     }
   }
 
-  static async refresh(req: Request, res: Response) {
-    try {
-      const { refreshToken } = req.body;
-
-      if (!refreshToken) {
-        return res.status(400).json({ error: 'Refresh token is required' });
-      }
-
-      const result = await authService.refreshAccessToken(refreshToken);
-
-      res.json(result);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Invalid refresh token';
-      res.status(401).json({ error: message });
-    }
+  static async logout(req: Request, res: Response) {
+    req.session.destroy(() => res.json({ ok: true }));
   }
 
   static async getMe(req: AuthRequest, res: Response) {
@@ -82,6 +77,8 @@ export class AuthController {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
       const result = await authService.promoteToAdmin(req.user.userId);
       if (!result) return res.status(403).json({ error: 'Promotion not allowed' });
+      (req.session as { role?: string }).role = 'ADMIN';
+      await new Promise<void>((res, rej) => req.session.save((err) => (err ? rej(err) : res())));
       res.json(result);
     } catch (error: unknown) {
       res.status(400).json({ error: error instanceof Error ? error.message : 'Failed' });

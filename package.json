@@ -1,5 +1,10 @@
 {
   "dependencies": {
+    "bullmq": "^5.69.2",
+    "connect-redis": "^9.0.0",
+    "cookie": "^1.1.1",
+    "cookie-signature": "^1.2.2",
+    "express-session": "^1.19.0",
     "jsonwebtoken": "^9.0.3",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.28"
@@ -8,5 +13,4 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/pg": "^8.16.0"
   }
- 
 }

@@ -2,7 +2,6 @@ import { AppDataSource } from '../config/database';
 import { User } from '../models/User';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { PlayerBalance } from '../models/PlayerBalance';
-import { JwtService } from './JwtService';
 import bcrypt from 'bcrypt';
 import { RegisterDto, LoginDto, AuthResponse } from '../types';
 
@@ -10,7 +9,6 @@ export class AuthService {
   private userRepository = AppDataSource.getRepository(User);
   private playerRepository = AppDataSource.getRepository(PlayerProfile);
   private balanceRepository = AppDataSource.getRepository(PlayerBalance);
-  private jwtService = new JwtService();
 
   async register(data: RegisterDto): Promise<AuthResponse> {
     // Провери, что пользователь с таким номером не существует
@@ -64,13 +62,7 @@ export class AuthService {
 
     await this.playerRepository.save(playerProfile);
 
-    // Генерируй токены
-    const accessToken = this.jwtService.generateAccessToken(savedUser.id, savedUser.role);
-    const refreshToken = this.jwtService.generateRefreshToken(savedUser.id);
-
     return {
-      accessToken,
-      refreshToken,
       user: {
         id: savedUser.id,
         name: savedUser.name,
@@ -136,39 +128,17 @@ export class AuthService {
       throw new Error('User account is inactive');
     }
 
-    const accessToken = this.jwtService.generateAccessToken(user.id, user.role);
-    const refreshToken = this.jwtService.generateRefreshToken(user.id);
-
+    const managedClubId = user.role === 'CONTROLLER' ? user.managedClubId ?? null : undefined;
     return {
-      accessToken,
-      refreshToken,
       user: {
         id: user.id,
         name: user.name,
         clubCardNumber: user.clubCardNumber,
         phone: user.phone,
         role: user.role,
+        ...(managedClubId !== undefined && { managedClubId }),
       },
     };
-  }
-
-  async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
-    try {
-      const payload = this.jwtService.verifyRefreshToken(refreshToken);
-      const user = await this.userRepository.findOne({
-        where: { id: payload.userId },
-      });
-
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      const newAccessToken = this.jwtService.generateAccessToken(user.id, user.role);
-
-      return { accessToken: newAccessToken };
-    } catch (error) {
-      throw new Error('Failed to refresh token');
-    }
   }
 
   async getUserById(userId: string) {
@@ -213,11 +183,7 @@ export class AuthService {
     target.role = 'CONTROLLER';
     target.managedClubId = clubId;
     await this.userRepository.save(target);
-    const accessToken = this.jwtService.generateAccessToken(target.id, target.role);
-    const refreshToken = this.jwtService.generateRefreshToken(target.id);
     return {
-      accessToken,
-      refreshToken,
       user: { id: target.id, name: target.name, clubCardNumber: target.clubCardNumber, phone: target.phone, role: target.role, managedClubId: clubId },
     };
   }
@@ -230,11 +196,7 @@ export class AuthService {
     if (!user) return null;
     user.role = 'ADMIN';
     await this.userRepository.save(user);
-    const accessToken = this.jwtService.generateAccessToken(user.id, user.role);
-    const refreshToken = this.jwtService.generateRefreshToken(user.id);
     return {
-      accessToken,
-      refreshToken,
       user: { id: user.id, name: user.name, clubCardNumber: user.clubCardNumber, phone: user.phone, role: user.role },
     };
   }

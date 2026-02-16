@@ -14,6 +14,8 @@ import { LeaderboardService } from './LeaderboardService';
 import { LiveStateService } from './LiveStateService';
 import { AchievementService } from './AchievementService';
 import { StatisticsService } from './StatisticsService';
+import { tournamentQueue } from '../config/queues';
+
 export class LiveTournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
   private playerRepository = AppDataSource.getRepository(PlayerProfile);
@@ -246,31 +248,9 @@ export class LiveTournamentService {
       savedResult = await this.resultRepository.save(result);
     }
 
-    try {
-      if (player.user?.id) {
-        console.log(`📊 Updating statistics for player ${player.user.id}...`);
-        await this.statisticsService.updatePlayerStatistics(
-          player.user.id,
-          tournamentId
-        );
-
-        console.log(`🏆 Checking achievements for player ${player.user.id}...`);
-        const grantedAchievements =
-          await this.achievementService.checkAndGrantAchievements(
-            player.user.id,
-            tournamentId
-          );
-
-        if (grantedAchievements.length > 0) {
-          console.log(
-            `🎉 Player ${player.user.id} earned ${grantedAchievements.length} achievement(s):`,
-            grantedAchievements.map((a) => a.achievementType?.code || 'unknown')
-          );
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error updating statistics/achievements:', error);
-      // Не прерываем выполнение, просто логируем ошибку
+    if (player.user?.id) {
+      await tournamentQueue.add('update-stats', { type: 'UPDATE_STATS', userId: player.user.id, tournamentId });
+      await tournamentQueue.add('check-achievements', { type: 'CHECK_ACHIEVEMENTS', userId: player.user.id, tournamentId });
     }
 
     return savedResult;
@@ -574,77 +554,43 @@ export class LiveTournamentService {
     // 2. Удалить live state
     await this.liveStateService.deleteLiveState(tournamentId);
 
-    // 3. Обновить MMR и лидерборды
+    // 3. Добавить тяжёлые задачи в очередь (MMR, лидерборды, статистика, достижения)
+    await tournamentQueue.add('finish-tournament', { type: 'FINISH_TOURNAMENT', tournamentId });
+
+    console.log(`✅ Tournament ${tournamentId} finished, background jobs queued`);
+  }
+
+  /**
+   * Вызывается воркером для выполнения тяжёлых операций после завершения турнира
+   */
+  async processFinishTournamentJobs(tournamentId: string): Promise<void> {
+    console.log(`📊 Processing finish jobs for tournament ${tournamentId}...`);
+
     await this.mmrService.recalculateTournamentMMR(tournamentId);
-    await this.leaderboardService.updateLeaderboardsAfterTournament(
-      tournamentId
-    );
+    await this.leaderboardService.updateLeaderboardsAfterTournament(tournamentId);
 
+    const results = await this.resultRepository
+      .createQueryBuilder('result')
+      .leftJoinAndSelect('result.player', 'player')
+      .leftJoinAndSelect('player.user', 'user')
+      .where('result.tournamentId = :tournamentId', { tournamentId })
+      .getMany();
 
-    try {
-      console.log(
-        `📊 Updating statistics and achievements for all players...`
-      );
+    for (const result of results) {
+      try {
+        const userId = result.player?.user?.id;
+        if (!userId) continue;
 
-      // Получить все результаты турнира
-      const results = await this.resultRepository
-        .createQueryBuilder('result')
-        .leftJoinAndSelect('result.player', 'player')
-        .leftJoinAndSelect('player.user', 'user')
-        .where('result.tournamentId = :tournamentId', { tournamentId })
-        .getMany();
-
-      console.log(`Found ${results.length} results to process`);
-
-      // Обработать каждого игрока
-      for (const result of results) {
-        try {
-          const userId = result.player?.user?.id;
-
-          if (!userId) {
-            console.warn(
-              `⚠️ Skipping result ${result.id}: no user ID found`
-            );
-            continue;
-          }
-
-          // Обновить статистику
-          await this.statisticsService.updatePlayerStatistics(
-            userId,
-            tournamentId
-          );
-
-          // Проверить достижения
-          const grantedAchievements =
-            await this.achievementService.checkAndGrantAchievements(
-              userId,
-              tournamentId
-            );
-
-          if (grantedAchievements.length > 0) {
-            console.log(
-              `🏆 Player ${userId} earned ${grantedAchievements.length} achievement(s):`,
-              grantedAchievements.map(
-                (a) => a.achievementType?.code || 'unknown'
-              )
-            );
-          }
-        } catch (error) {
-          console.error(
-            `❌ Error processing player ${result.player?.id}:`,
-            error
-          );
+        await this.statisticsService.updatePlayerStatistics(userId, tournamentId);
+        const granted = await this.achievementService.checkAndGrantAchievements(userId, tournamentId);
+        if (granted.length > 0) {
+          console.log(`🏆 Player ${userId} earned ${granted.length} achievement(s)`);
         }
+      } catch (error) {
+        console.error(`❌ Error processing player ${result.player?.id}:`, error);
       }
-
-      console.log('✅ All statistics and achievements updated');
-    } catch (error) {
-      console.error('❌ Error in statistics/achievements update:', error);
     }
-    
 
-    console.log(
-      `✅ Tournament ${tournamentId} completed: MMR and leaderboards updated`
-    );
+    console.log(`✅ Tournament ${tournamentId} background jobs completed`);
   }
 }

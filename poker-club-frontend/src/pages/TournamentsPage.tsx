@@ -87,14 +87,12 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
 
   // WebSocket: при смене рассадки в другой вкладке — сразу обновить
   useEffect(() => {
-    if (!live?.id || waiter) {
+    if (!live?.id || waiter || !user) {
       setSocketConnected(false);
       return;
     }
-    const token = localStorage.getItem('accessToken');
-    if (!token) return;
     const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    const socket = io(socketUrl, { auth: { token } });
+    const socket = io(socketUrl, { withCredentials: true });
     setSocketConnected(socket.connected);
     socket.on('connect', () => setSocketConnected(true));
     socket.on('disconnect', () => setSocketConnected(false));
@@ -106,7 +104,7 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
       socket.emit('leave_tournament', live.id);
       socket.disconnect();
     };
-  }, [live?.id, waiter]);
+  }, [live?.id, waiter, user]);
 
   // Фоновое обновление: 15s при подключённом сокете, 4s при отключении (fallback)
   useEffect(() => {

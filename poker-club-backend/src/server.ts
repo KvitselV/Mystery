@@ -4,6 +4,7 @@ import { httpServer } from './app';
 import { connectRedis } from "./config/redis";
 import { startTournamentLevelTicker } from './services/TournamentLevelTicker';
 import { startTournamentStatusSync } from './services/TournamentStatusSync';
+import { startTournamentWorker } from './workers/tournamentWorker';
 
 const PORT = process.env.PORT || 3000;
 
@@ -23,6 +24,9 @@ async function bootstrap() {
 
     startTournamentStatusSync();
     console.log('📅 Tournament status sync started (hourly)');
+
+    startTournamentWorker();
+    console.log('📦 Tournament job worker started');
 
     httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);

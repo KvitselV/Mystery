@@ -1,9 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Tournament } from './Tournament';
 import { PlayerProfile } from './PlayerProfile';
 
 @Entity('tournament_results')
-@Unique(['tournament', 'player'])
 export class TournamentResult {
   @PrimaryGeneratedColumn('uuid')
   id: string;

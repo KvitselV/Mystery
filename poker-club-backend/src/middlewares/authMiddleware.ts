@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { JwtService } from '../services/JwtService';
 import { AppDataSource } from '../config/database';
 import { User } from '../models/User';
 
@@ -11,32 +10,27 @@ export interface AuthRequest extends Request {
   };
 }
 
-const jwtService = new JwtService();
 const userRepository = AppDataSource.getRepository(User);
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
+  const sid = req.session?.userId;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  if (!sid) {
+    return res.status(401).json({ error: 'Unauthorized: no session' });
   }
 
-  const token = authHeader.slice(7);
+  req.user = {
+    userId: req.session!.userId!,
+    role: req.session!.role!,
+    managedClubId: req.session!.managedClubId ?? null,
+  };
 
-  try {
-    const payload = jwtService.verifyAccessToken(token);
-    req.user = {
-      userId: payload.userId,
-      role: payload.role,
-    };
-    if (payload.role === 'CONTROLLER') {
-      const u = await userRepository.findOne({ where: { id: payload.userId }, select: ['managedClubId'] });
-      req.user.managedClubId = u?.managedClubId ?? null;
-    }
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+  if (req.user.role === 'CONTROLLER') {
+    const u = await userRepository.findOne({ where: { id: req.user.userId }, select: ['managedClubId'] });
+    req.user.managedClubId = u?.managedClubId ?? null;
   }
+
+  next();
 };
 
 export const requireRole = (roles: string[]) => {

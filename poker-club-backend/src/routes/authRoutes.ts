@@ -7,7 +7,7 @@ const router = Router();
 // Публичные маршруты
 router.post('/register', AuthController.register);
 router.post('/login', AuthController.login);
-router.post('/refresh', AuthController.refresh);
+router.post('/logout', AuthController.logout);
 
 // Защищённые маршруты
 router.get('/me', authMiddleware, AuthController.getMe);

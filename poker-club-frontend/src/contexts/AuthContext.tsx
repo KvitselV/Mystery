@@ -34,35 +34,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
     refreshUser().finally(() => setLoading(false));
   }, [refreshUser]);
 
   const login = async (phone: string, password: string) => {
     const { data } = await authApi.login(phone, password);
-    localStorage.setItem('accessToken', data.accessToken);
     setUser(data.user);
   };
 
   const register = async (data: { name: string; clubCardNumber: string; phone: string; password: string }) => {
     const { data: res } = await authApi.register(data);
-    localStorage.setItem('accessToken', res.accessToken);
     setUser(res.user);
   };
 
   const promoteToAdmin = async () => {
     const { data } = await authApi.promoteToAdmin();
-    localStorage.setItem('accessToken', data.accessToken);
     setUser(data.user);
   };
 
-  const logout = () => {
-    localStorage.removeItem('accessToken');
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } finally {
+      setUser(null);
+    }
   };
 
   const value: AuthContextType = {

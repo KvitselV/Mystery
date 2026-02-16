@@ -1,8 +1,10 @@
+import { parse } from 'cookie';
+import * as cookieSignature from 'cookie-signature';
 import { Server as SocketServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
-import { JwtService } from './services/JwtService';
+import { sessionStore, sessionSecret } from './config/session';
 
-const jwtService = new JwtService();
+const COOKIE_NAME = 'poker.sid';
 
 export function initializeWebSocket(httpServer: HTTPServer) {
   const io = new SocketServer(httpServer, {
@@ -18,22 +20,31 @@ export function initializeWebSocket(httpServer: HTTPServer) {
     },
   });
 
-  // Middleware для аутентификации
   io.use((socket, next) => {
-    const token = socket.handshake.auth.token;
-
-    if (!token) {
-      return next(new Error('Authentication error: No token provided'));
+    const cookieHeader = socket.handshake.headers.cookie;
+    if (!cookieHeader) {
+      return next(new Error('Authentication error: No cookie'));
     }
 
-    try {
-      const payload = jwtService.verifyAccessToken(token);
-      socket.data.userId = payload.userId;
-      socket.data.role = payload.role;
+    const parsed = parse(cookieHeader);
+    const raw = parsed[COOKIE_NAME];
+    if (!raw) {
+      return next(new Error('Authentication error: No session cookie'));
+    }
+
+    const sessionId = cookieSignature.unsign(raw, sessionSecret);
+    if (!sessionId) {
+      return next(new Error('Authentication error: Invalid session'));
+    }
+
+    sessionStore.get(sessionId, (err, session) => {
+      if (err || !session?.userId) {
+        return next(new Error('Authentication error: Invalid or expired session'));
+      }
+      socket.data.userId = session.userId;
+      socket.data.role = session.role;
       next();
-    } catch (error) {
-      next(new Error('Authentication error: Invalid token'));
-    }
+    });
   });
 
   io.on('connection', (socket) => {

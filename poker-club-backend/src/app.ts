@@ -1,5 +1,6 @@
 import express from 'express';
 import { createServer } from 'http';
+import { sessionMiddleware } from './config/session';
 import authRoutes from './routes/authRoutes';
 import financialRoutes from './routes/financialRoutes';
 import tournamentRoutes from './routes/tournamentRoutes';
@@ -44,8 +45,7 @@ const corsMiddleware = (req: express.Request, res: express.Response, next: expre
 
 app.use(corsMiddleware);
 app.use(express.json());
-
-
+app.use(sessionMiddleware);
 
 // Routes
 app.use('/auth', authRoutes);

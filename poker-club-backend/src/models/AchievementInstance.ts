@@ -40,7 +40,7 @@ export class AchievementInstance {
   @JoinColumn({ name: 'achievementTypeId' })
   achievementType: AchievementType;
 
-  @ManyToOne(() => Tournament, { nullable: true })
+  @ManyToOne(() => Tournament, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'tournamentId' })
   tournament?: Tournament;
 }

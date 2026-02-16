@@ -1,9 +1,14 @@
-import { useState, useEffect } from 'react';
-import { tournamentsApi, liveStateApi, seatingApi, liveTournamentApi, type Tournament, type LiveState, type TournamentTable, type TournamentPlayer } from '../api';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
+import { tournamentsApi, liveStateApi, seatingApi, liveTournamentApi, type Tournament, type LiveState, type TournamentTable, type TournamentPlayer, type TournamentPlayerBalance } from '../api';
+import { AdminReportModal } from '../components/AdminReportModal';
+import { PlayerResultsModal } from '../components/PlayerResultsModal';
 import { useClub } from '../contexts/ClubContext';
 import { useAuth } from '../contexts/AuthContext';
 import { format, addDays, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { TVTimerBlock } from '../components/TVTimerBlock';
 
 interface TournamentsPageProps {
   waiter?: boolean;
@@ -20,10 +25,13 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
   const [scheduleWeek, setScheduleWeek] = useState<{ date: Date; tournaments: Tournament[] }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [reportTarget, setReportTarget] = useState<Tournament | null>(null);
+  const [resultsTarget, setResultsTarget] = useState<Tournament | null>(null);
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
+      const isInitialLoad = refreshKey === 0;
+      if (isInitialLoad) setLoading(true);
       try {
         const clubId = selectedClub?.id;
         const { data } = await tournamentsApi.list({ clubId, limit: 50 });
@@ -47,8 +55,11 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
           setTables([]);
         }
 
-        const regOpen = list.filter((t) => t.status === 'REG_OPEN').slice(0, 3);
-        setUpcoming(regOpen);
+        const upcomingList = list
+          .filter((t) => t.status === 'REG_OPEN' || t.status === 'ANNOUNCED')
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+          .slice(0, 3);
+        setUpcoming(upcomingList);
 
         const days: { date: Date; tournaments: Tournament[] }[] = [];
         for (let i = 0; i < 7; i++) {
@@ -72,7 +83,52 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
     })();
   }, [selectedClub?.id, waiter, refreshKey]);
 
-  if (loading) return <div className="text-cyan-400 animate-pulse">Загрузка...</div>;
+  const [socketConnected, setSocketConnected] = useState(false);
+
+  // WebSocket: при смене рассадки в другой вкладке — сразу обновить
+  useEffect(() => {
+    if (!live?.id || waiter) {
+      setSocketConnected(false);
+      return;
+    }
+    const token = localStorage.getItem('accessToken');
+    if (!token) return;
+    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    const socket = io(socketUrl, { auth: { token } });
+    setSocketConnected(socket.connected);
+    socket.on('connect', () => setSocketConnected(true));
+    socket.on('disconnect', () => setSocketConnected(false));
+    socket.on('connect_error', () => setSocketConnected(false));
+    socket.emit('join_tournament', live.id);
+    socket.on('seating_change', () => setRefreshKey((k) => k + 1));
+    return () => {
+      setSocketConnected(false);
+      socket.emit('leave_tournament', live.id);
+      socket.disconnect();
+    };
+  }, [live?.id, waiter]);
+
+  // Фоновое обновление: 15s при подключённом сокете, 4s при отключении (fallback)
+  useEffect(() => {
+    if (!live?.id) return;
+    const refreshLive = async () => {
+      try {
+        const [lsRes, tsRes] = await Promise.all([
+          liveStateApi.get(live.id),
+          seatingApi.getTables(live.id),
+        ]);
+        setLiveState(lsRes.data.liveState);
+        setTables(tsRes.data.tables || []);
+      } catch {
+        // игнорируем ошибки фонового обновления
+      }
+    };
+    const intervalMs = waiter ? 15000 : socketConnected ? 15000 : 4000;
+    const id = setInterval(refreshLive, intervalMs);
+    return () => clearInterval(id);
+  }, [live?.id, waiter, socketConnected]);
+
+  if (loading) return <div className="text-amber-400 animate-pulse">Загрузка...</div>;
 
   if (waiter) {
     return (
@@ -81,7 +137,7 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
         {live ? (
           <WaiterPlayersList tournamentId={live.id} tournamentName={live.name} />
         ) : (
-          <p className="text-slate-400">Нет активного турнира</p>
+          <p className="text-zinc-400">Нет активного турнира</p>
         )}
       </div>
     );
@@ -108,21 +164,39 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           {scheduleWeek.map((day) => (
             <div key={day.date.toISOString()} className="glass-card p-4">
-              <div className="text-cyan-400 font-medium mb-2">
+              <div className="text-amber-400 font-medium mb-2">
                 {format(day.date, 'EEE, d MMM', { locale: ru })}
               </div>
               <div className="space-y-2">
                 {day.tournaments.length === 0 && (
-                  <p className="text-slate-500 text-sm">Нет турниров</p>
+                  <p className="text-zinc-500 text-sm">Нет турниров</p>
                 )}
                 {day.tournaments.map((t) => (
-                  <TournamentScheduleItem key={t.id} tournament={t} isAdmin={!!isControllerOrAdmin} onRefresh={() => setRefreshKey((k) => k + 1)} />
+                  <TournamentScheduleItem
+                    key={t.id}
+                    tournament={t}
+                    isAdmin={!!isControllerOrAdmin}
+                    onRefresh={() => setRefreshKey((k) => k + 1)}
+                    onReportClick={isControllerOrAdmin ? setReportTarget : undefined}
+                    onResultsClick={setResultsTarget}
+                  />
                 ))}
               </div>
             </div>
           ))}
         </div>
       </section>
+
+      {reportTarget && (
+        <AdminReportModal
+          tournament={reportTarget}
+          onClose={() => setReportTarget(null)}
+          onSaved={() => { setReportTarget(null); setRefreshKey((k) => k + 1); }}
+        />
+      )}
+      {resultsTarget && (
+        <PlayerResultsModal tournament={resultsTarget} onClose={() => setResultsTarget(null)} />
+      )}
     </div>
   );
 }
@@ -139,7 +213,7 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
 
   const displayT = fullTournament || t;
 
-  if (!t) return <div className="glass-card p-6"><p className="text-slate-400">Нет предстоящих турниров</p></div>;
+  if (!t) return <div className="glass-card p-6"><p className="text-zinc-400">Нет предстоящих турниров</p></div>;
 
   const start = new Date(displayT.startTime);
   const now = new Date();
@@ -161,12 +235,23 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
     if (!displayT.id || displayT.status !== 'REG_OPEN') return;
     setStarting(true);
     try {
-      await tournamentsApi.updateStatus(displayT.id, 'RUNNING');
+      await tournamentsApi.updateStatus(displayT.id, 'LATE_REG');
       onRefresh?.();
-      window.location.reload();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка';
       alert(msg);
+    } finally {
+      setStarting(false);
+    }
+  };
+  const handleOpenReg = async () => {
+    if (!displayT.id || displayT.status !== 'ANNOUNCED') return;
+    setStarting(true);
+    try {
+      await tournamentsApi.updateStatus(displayT.id, 'REG_OPEN');
+      onRefresh?.();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
     } finally {
       setStarting(false);
     }
@@ -175,18 +260,18 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
   return (
     <div className="glass-card p-6 space-y-4">
       <h2 className="text-2xl font-bold text-white">Предстоящий турнир</h2>
-      <div className="text-cyan-400">{displayT.name}</div>
+      <div className="text-amber-400">{displayT.name}</div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div><span className="text-slate-500">До начала:</span> {diffH}ч {diffM}м</div>
-        <div><span className="text-slate-500">Зарегистрировано:</span> {displayT.registrations?.length ?? 0}</div>
-        <div><span className="text-slate-500">Стартовый стек:</span> {displayT.startingStack}</div>
-        <div><span className="text-slate-500">Блайнды:</span> см. структуру</div>
+        <div><span className="text-zinc-500">До начала:</span> {diffH}ч {diffM}м</div>
+        <div><span className="text-zinc-500">Зарегистрировано:</span> {displayT.registrations?.length ?? 0}</div>
+        <div><span className="text-zinc-500">Стартовый стек:</span> {displayT.startingStack}</div>
+        <div><span className="text-zinc-500">Блайнды:</span> см. структуру</div>
       </div>
       {displayT.blindStructure?.levels && (
         <div>
           <h3 className="text-white font-medium mb-2">Структура блайндов</h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-slate-300">
+            <table className="w-full text-sm text-zinc-300">
               <thead>
                 <tr><th className="text-left">Ур.</th><th className="text-left">SB</th><th className="text-left">BB</th><th className="text-left">Анте</th><th className="text-left">Мин</th></tr>
               </thead>
@@ -200,12 +285,22 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <button onClick={handleRegister} disabled={reg} className="glass-btn px-6 py-2 rounded-xl">
-          {reg ? 'Вы зарегистрированы' : 'Зарегистрироваться'}
+        <button
+          onClick={handleRegister}
+          disabled={reg || displayT.status === 'ANNOUNCED'}
+          className="glass-btn px-6 py-2 rounded-xl"
+          title={displayT.status === 'ANNOUNCED' ? 'Регистрация откроется позже' : undefined}
+        >
+          {reg ? 'Вы зарегистрированы' : displayT.status === 'ANNOUNCED' ? 'Регистрация ещё не открыта' : 'Зарегистрироваться'}
         </button>
         {isAdmin && displayT.status === 'REG_OPEN' && (
-          <button onClick={handleStart} disabled={starting} className="glass-btn px-6 py-2 rounded-xl text-cyan-400 border-cyan-500/50">
+          <button onClick={handleStart} disabled={starting} className="glass-btn px-6 py-2 rounded-xl text-amber-400 border-amber-500/50">
             {starting ? 'Запуск...' : 'Начать турнир'}
+          </button>
+        )}
+        {isAdmin && displayT.status === 'ANNOUNCED' && (
+          <button onClick={handleOpenReg} disabled={starting} className="glass-btn px-6 py-2 rounded-xl text-emerald-400 border-emerald-500/50">
+            {starting ? '...' : 'Открыть регистрацию'}
           </button>
         )}
       </div>
@@ -213,15 +308,26 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
   );
 }
 
-function TournamentScheduleItem({ tournament, isAdmin, onRefresh }: { tournament: Tournament; isAdmin?: boolean; onRefresh?: () => void }) {
+function TournamentScheduleItem({
+  tournament,
+  isAdmin,
+  onRefresh,
+  onReportClick,
+  onResultsClick,
+}: {
+  tournament: Tournament;
+  isAdmin?: boolean;
+  onRefresh?: () => void;
+  onReportClick?: (t: Tournament) => void;
+  onResultsClick?: (t: Tournament) => void;
+}) {
   const [starting, setStarting] = useState(false);
   const handleStart = async () => {
     if (tournament.status !== 'REG_OPEN') return;
     setStarting(true);
     try {
-      await tournamentsApi.updateStatus(tournament.id, 'RUNNING');
+      await tournamentsApi.updateStatus(tournament.id, 'LATE_REG');
       onRefresh?.();
-      window.location.reload();
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка';
       alert(msg);
@@ -229,13 +335,45 @@ function TournamentScheduleItem({ tournament, isAdmin, onRefresh }: { tournament
       setStarting(false);
     }
   };
+  const handleOpenReg = async () => {
+    if (tournament.status !== 'ANNOUNCED') return;
+    setStarting(true);
+    try {
+      await tournamentsApi.updateStatus(tournament.id, 'REG_OPEN');
+      onRefresh?.();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    } finally {
+      setStarting(false);
+    }
+  };
+  const isArchived = tournament.status === 'ARCHIVED' || tournament.status === 'FINISHED';
   return (
-    <div className="flex items-center justify-between gap-2 text-sm text-slate-300 group">
+    <div className="flex items-center justify-between gap-2 text-sm text-zinc-300 group">
       <span>{tournament.name} — {format(new Date(tournament.startTime), 'HH:mm')}</span>
+      {isAdmin && tournament.status === 'ANNOUNCED' && (
+        <button onClick={handleOpenReg} disabled={starting} className="shrink-0 glass-btn px-2 py-1 rounded-lg text-xs text-emerald-400">
+          {starting ? '...' : 'Открыть регистрацию'}
+        </button>
+      )}
       {isAdmin && tournament.status === 'REG_OPEN' && (
-        <button onClick={handleStart} disabled={starting} className="shrink-0 glass-btn px-2 py-1 rounded-lg text-xs text-cyan-400">
+        <button onClick={handleStart} disabled={starting} className="shrink-0 glass-btn px-2 py-1 rounded-lg text-xs text-amber-400">
           {starting ? '...' : 'Начать'}
         </button>
+      )}
+      {isArchived && (
+        <span className="flex gap-1 shrink-0">
+          {onReportClick && (
+            <button onClick={() => onReportClick(tournament)} className="glass-btn px-2 py-1 rounded-lg text-xs text-zinc-400 hover:text-white">
+              Отчёт
+            </button>
+          )}
+          {onResultsClick && (
+            <button onClick={() => onResultsClick(tournament)} className="glass-btn px-2 py-1 rounded-lg text-xs text-zinc-400 hover:text-white">
+              Результаты
+            </button>
+          )}
+        </span>
       )}
     </div>
   );
@@ -254,46 +392,32 @@ function LiveTournamentBlock({
   isAdmin: boolean;
   onRefresh?: () => void;
 }) {
-  const [showAdminModal, setShowAdminModal] = useState(false);
-
+  const navigate = useNavigate();
   return (
     <div className="space-y-6">
       <div className="glass-card p-6">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-cyan-400">{tournament.name}</h2>
-            <p className="text-slate-400">Live</p>
+            <h2 className="text-2xl font-bold text-amber-400">{tournament.name}</h2>
+            <p className="text-zinc-400">Live</p>
           </div>
           {isAdmin && (
-            <button onClick={() => setShowAdminModal(true)} className="glass-btn px-4 py-2 rounded-xl text-sm">
+            <button
+              onClick={() => navigate('/tournaments/manage')}
+              className="glass-btn px-4 py-2 rounded-xl text-sm"
+            >
               Управление турниром
             </button>
           )}
         </div>
         {liveState && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 text-slate-300">
-            <div><span className="text-slate-500">Уровень:</span> {liveState.currentLevelNumber}</div>
-            <div><span className="text-slate-500">Время уровня:</span> {Math.floor((liveState.levelRemainingTimeSeconds || 0) / 60)} мин</div>
-            <div><span className="text-slate-500">Играет:</span> {liveState.playersCount}</div>
-            <div><span className="text-slate-500">Ср. стек:</span> {liveState.averageStack ?? 0}</div>
-            <div><span className="text-slate-500">Входов:</span> {liveState.entriesCount ?? liveState.playersCount}</div>
-          </div>
+          <TVTimerBlock liveState={liveState} onRefresh={onRefresh} embedded />
         )}
       </div>
 
-      {isAdmin && showAdminModal && (
-        <AdminTournamentModal
-          tournament={tournament}
-          liveState={liveState}
-          tables={tables}
-          onClose={() => setShowAdminModal(false)}
-          onRefresh={() => { onRefresh?.(); window.location.reload(); }}
-        />
-      )}
-
       <div>
         <h3 className="text-lg font-bold text-white mb-4">Столы</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {tables.map((table) => (
             <Table2D key={table.id} table={table} showAdmin={false} tournamentId={tournament.id} />
           ))}
@@ -303,18 +427,29 @@ function LiveTournamentBlock({
   );
 }
 
+const DRAG_PLAYER_KEY = 'tournament/playerId';
+const TOUCH_DRAG_THRESHOLD = 10;
+
 function Table2D({
   table,
   showAdmin,
   tournamentId,
   onPlayerClick,
   onEmptySeatClick,
+  onEmptySeatDrop,
+  onTouchDragStart,
+  onTouchDragMove,
+  onTouchDragEnd,
 }: {
   table: TournamentTable;
   showAdmin: boolean;
   tournamentId: string;
   onPlayerClick?: (seat: { id: string; seatNumber: number; playerId?: string; playerName?: string; status?: string }) => void;
   onEmptySeatClick?: (tableId: string, seatNumber: number) => void;
+  onEmptySeatDrop?: (tableId: string, seatNumber: number, playerId: string) => void;
+  onTouchDragStart?: (playerId: string, playerName: string) => (e: React.TouchEvent) => void;
+  onTouchDragMove?: (e: React.TouchEvent) => void;
+  onTouchDragEnd?: (e: React.TouchEvent) => void;
 }) {
   const seats = table.seats || [];
   const maxSeats = table.maxSeats || 9;
@@ -322,11 +457,11 @@ function Table2D({
   const seatByNumber = Object.fromEntries(seats.map((s) => [s.seatNumber, s]));
 
   return (
-    <div className="glass-card p-4 relative">
-      <div className="absolute top-2 left-2 text-cyan-400 font-bold">Стол {table.tableNumber}</div>
+    <div className="glass-card p-5 relative min-w-0">
+      <div className="absolute top-3 left-3 text-amber-400 font-bold text-lg">Стол {table.tableNumber}</div>
       <div
-        className="w-full max-w-[200px] mx-auto my-6 relative rounded-2xl border-2 border-cyan-500/30 bg-slate-800/50"
-        style={{ aspectRatio: '2.44 / 1.2' }}
+        className="w-full max-w-[min(320px,100%)] mx-auto my-8 relative rounded-2xl border-2 border-amber-500/30 bg-zinc-800/50"
+        style={{ aspectRatio: '2.44 / 1.2', minHeight: 120 }}
       >
         {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seatNum) => {
           const seat = seatByNumber[seatNum];
@@ -335,7 +470,9 @@ function Table2D({
           const isEliminated = seat?.status === 'ELIMINATED';
           const canClickOccupied = showAdmin && isOccupied && !isEliminated;
           const canClickEmpty = showAdmin && !isOccupied && !!onEmptySeatClick;
+          const canDrop = showAdmin && !isOccupied && !!onEmptySeatDrop;
           const canClick = canClickOccupied || canClickEmpty;
+          const canDragOccupied = showAdmin && isOccupied && !isEliminated && !!onEmptySeatDrop;
           return (
             <div
               key={seat?.id ?? `empty-${seatNum}`}
@@ -344,18 +481,39 @@ function Table2D({
                 if (isOccupied && seat) onPlayerClick?.(seat);
                 else onEmptySeatClick?.(table.id, seatNum);
               }}
-              className={`absolute w-12 h-12 -translate-x-1/2 -translate-y-1/2 rounded flex items-center justify-center text-xs ${canClick ? 'cursor-pointer hover:border-2 hover:border-cyan-400' : ''} ${isOccupied ? 'glass-card border border-cyan-500/40' : 'border border-dashed border-slate-500/50 bg-slate-800/30 hover:bg-slate-700/40'}`}
+              draggable={canDragOccupied}
+              onDragStart={canDragOccupied && seat?.playerId ? (e) => {
+                e.dataTransfer.setData(DRAG_PLAYER_KEY, seat.playerId!);
+                e.dataTransfer.effectAllowed = 'move';
+              } : undefined}
+              onDragOver={canDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
+              onDrop={canDrop ? (e) => {
+                e.preventDefault();
+                const playerId = e.dataTransfer.getData(DRAG_PLAYER_KEY);
+                if (playerId) onEmptySeatDrop?.(table.id, seatNum, playerId);
+              } : undefined}
+              {...(canDrop && { 'data-droptarget': true, 'data-table-id': table.id, 'data-seat-number': seatNum })}
+              {...(canDragOccupied && seat?.playerId && onTouchDragStart && onTouchDragMove && onTouchDragEnd && {
+                onTouchStart: onTouchDragStart(seat.playerId, seat.playerName || 'Игрок'),
+                onTouchMove: onTouchDragMove,
+                onTouchEnd: onTouchDragEnd,
+              })}
+              className={`absolute w-10 h-10 -translate-x-1/2 -translate-y-1/2 rounded-lg flex flex-col items-center justify-center text-xs shrink-0 ${canClick || canDrop ? 'cursor-pointer hover:border-2 hover:border-amber-400' : ''} ${canDragOccupied ? 'cursor-grab active:cursor-grabbing' : ''} ${(canDragOccupied || canDrop) ? 'touch-none' : ''} ${isOccupied ? 'glass-card border border-amber-500/40' : 'border border-dashed border-zinc-500/50 bg-zinc-800/30 hover:bg-zinc-700/40'}`}
               style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
             >
               {isOccupied ? (
                 <>
-                  <span className="text-cyan-300 font-medium truncate max-w-full px-1 text-[10px] leading-tight">
-                    {seat.playerName || 'Гость'}
+                  <span className="text-amber-300 font-medium truncate max-w-full px-1 text-[11px] leading-tight">
+                    {seat.clubCardNumber || seat.playerName || 'Гость'}
                   </span>
-                  {isEliminated && <span className="absolute -top-0.5 -right-0.5 text-red-400 text-[8px]">✕</span>}
+                  <span className="absolute -top-0.5 -left-0.5 text-zinc-500 text-[9px]">{seatNum}</span>
+                  {isEliminated && <span className="absolute -top-0.5 -right-0.5 text-red-400 text-[9px]">✕</span>}
                 </>
               ) : (
-                <span className={canClickEmpty ? 'text-cyan-500/70 text-lg' : 'text-slate-500 text-lg'}>+</span>
+                <span className={`flex flex-col items-center leading-tight ${canClickEmpty ? 'text-amber-500/70' : 'text-zinc-500'}`}>
+                  <span className="text-base">+</span>
+                  <span className="text-[11px] opacity-80">{seatNum}</span>
+                </span>
               )}
             </div>
           );
@@ -368,43 +526,67 @@ function Table2D({
 function PlayerActionsModal({
   seat,
   tournamentId,
+  tournament,
+  liveState,
+  rebuyCount: rebuyCountProp = 0,
   onClose,
   onDone,
 }: {
   seat: { id: string; playerId?: string; playerName?: string };
   tournamentId: string;
+  tournament?: { buyInCost?: number; addonChips?: number; addonCost?: number; rebuyChips?: number; rebuyCost?: number; maxRebuys?: number; status?: string };
+  liveState?: { currentLevel?: { isBreak?: boolean; breakType?: string | null } | null } | null;
+  rebuyCount?: number;
   onClose: () => void;
   onDone: () => void;
 }) {
+  const [rebuyCountFetched, setRebuyCountFetched] = useState<number | null>(null);
+  useEffect(() => {
+    if (!seat.playerId) return;
+    liveTournamentApi.getPlayerBalances(tournamentId)
+      .then((r) => {
+        const b = r.data.balances?.find((x) => x.playerId === seat.playerId);
+        setRebuyCountFetched(b?.rebuyCount ?? 0);
+      })
+      .catch(() => setRebuyCountFetched(0));
+  }, [tournamentId, seat.playerId]);
+
+  const rebuyCost = tournament?.rebuyCost ?? tournament?.buyInCost ?? 0;
+  const rebuyChips = tournament?.rebuyChips ?? 0;
+  const maxRebuys = tournament?.maxRebuys ?? 0;
+  const rebuyCount = rebuyCountFetched !== null ? rebuyCountFetched : rebuyCountProp;
+  const isLateReg = tournament?.status === 'LATE_REG';
+  const canRebuy = isLateReg && (maxRebuys === 0 || rebuyCount < maxRebuys);
+  const addonChips = tournament?.addonChips ?? 0;
+  const addonCost = tournament?.addonCost ?? tournament?.buyInCost ?? 0;
+  const isAddonBreak =
+    liveState?.currentLevel?.isBreak &&
+    (liveState?.currentLevel?.breakType === 'ADDON' || liveState?.currentLevel?.breakType === 'END_LATE_REG_AND_ADDON');
+
   const [loading, setLoading] = useState(false);
-  const [finishPosition, setFinishPosition] = useState('');
-  const [addonAmount, setAddonAmount] = useState('');
   const playerId = seat.playerId!;
 
   const rebuy = async () => {
     setLoading(true);
     try {
-      await liveTournamentApi.rebuy(tournamentId, playerId);
+      await liveTournamentApi.rebuy(tournamentId, playerId, rebuyCost || undefined);
       onDone();
     } catch {}
     setLoading(false);
   };
   const addon = async () => {
-    const amt = parseInt(addonAmount, 10);
-    if (isNaN(amt) || amt <= 0) return;
+    if (addonCost < 0) return;
     setLoading(true);
     try {
-      await liveTournamentApi.addon(tournamentId, playerId, amt);
+      await liveTournamentApi.addon(tournamentId, playerId, addonCost);
       onDone();
     } catch {}
     setLoading(false);
   };
   const eliminate = async () => {
-    const pos = parseInt(finishPosition, 10);
-    if (isNaN(pos) || pos < 1) return;
     setLoading(true);
     try {
-      await liveTournamentApi.eliminate(tournamentId, playerId, pos);
+      await liveTournamentApi.eliminate(tournamentId, playerId);
       onDone();
     } catch {}
     setLoading(false);
@@ -415,86 +597,408 @@ function PlayerActionsModal({
       <div className="glass-card p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-bold text-white mb-2">{seat.playerName || 'Игрок'}</h3>
         <div className="space-y-3">
-          <button onClick={rebuy} disabled={loading} className="w-full glass-btn py-2 rounded-xl">Ребай</button>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              placeholder="Сумма аддона"
-              value={addonAmount}
-              onChange={(e) => setAddonAmount(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-            />
-            <button onClick={addon} disabled={loading} className="glass-btn px-4 py-2 rounded-xl">Аддон</button>
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              placeholder="Место вылета"
-              value={finishPosition}
-              onChange={(e) => setFinishPosition(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"
-            />
-            <button onClick={eliminate} disabled={loading} className="glass-btn px-4 py-2 rounded-xl">Вылетел</button>
-          </div>
+          {canRebuy && (
+            <button onClick={rebuy} disabled={loading} className="w-full glass-btn py-2 rounded-xl">
+              Ребай {(rebuyCost > 0 || rebuyChips > 0) && ` (${rebuyCost} ₽, +${rebuyChips} ф.)`}
+            </button>
+          )}
+          {isAddonBreak && (
+            <button onClick={addon} disabled={loading} className="w-full glass-btn py-2 rounded-xl">
+              Аддон {(addonCost > 0 || addonChips > 0) && ` (${addonCost} ₽, +${addonChips} ф.)`}
+            </button>
+          )}
+          <button onClick={eliminate} disabled={loading} className="w-full glass-btn py-2 rounded-xl text-red-400">
+            Вылетел
+          </button>
         </div>
-        <button onClick={onClose} className="mt-4 w-full text-slate-400 hover:text-white">Закрыть</button>
+        <button onClick={onClose} className="mt-4 w-full text-zinc-400 hover:text-white">Закрыть</button>
       </div>
     </div>
   );
 }
 
+function PaymentModalFull({
+  tournamentId,
+  player,
+  onClose,
+  onDone,
+}: {
+  tournamentId: string;
+  player: TournamentPlayerBalance;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const amount = player.balance;
+  const rubles = amount >= 100 ? amount / 100 : amount;
+  const rublesStr = Number.isInteger(rubles) ? String(Math.round(rubles)) : rubles.toFixed(2);
+
+  const [loading, setLoading] = useState(false);
+  const [split, setSplit] = useState(false);
+  const [payMethod, setPayMethod] = useState<'cash' | 'noncash'>('cash');
+  const [cashRubles, setCashRubles] = useState(rublesStr);
+  const [nonCashRubles, setNonCashRubles] = useState('');
+
+  useEffect(() => {
+    const amt = player.balance;
+    const r = amt >= 100 ? amt / 100 : amt;
+    const str = Number.isInteger(r) ? String(Math.round(r)) : r.toFixed(2);
+    setCashRubles(str);
+    setNonCashRubles('');
+  }, [player.playerId, player.balance]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cash = split ? parseFloat(cashRubles) || 0 : (payMethod === 'cash' ? parseFloat(cashRubles) || parseFloat(nonCashRubles) || 0 : 0);
+    const nonCash = split ? parseFloat(nonCashRubles) || 0 : (payMethod === 'noncash' ? parseFloat(nonCashRubles) || parseFloat(cashRubles) || 0 : 0);
+    const total = cash + nonCash;
+    if (total <= 0) {
+      alert('Введите сумму оплаты');
+      return;
+    }
+    setLoading(true);
+    try {
+      await liveTournamentApi.recordPayment(tournamentId, player.playerId, cash, nonCash);
+      onDone();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка';
+      alert(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="glass-card p-6 max-w-sm w-full mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-white">Оплата</h3>
+        <p className="text-zinc-400">{player.playerName}</p>
+        <p className="text-amber-400 text-xl font-bold">К оплате: {rubles} ₽</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <label className="flex items-center gap-3 text-zinc-300 cursor-pointer hover:text-amber-200/90 transition-colors">
+            <input type="checkbox" checked={split} onChange={(e) => setSplit(e.target.checked)} className="glass-checkbox shrink-0" />
+            Разделить оплату (нал + безнал)
+          </label>
+          {split ? (
+            <div className="space-y-2">
+              <label className="block text-zinc-400 text-sm">Наличные (₽)</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={cashRubles}
+                onChange={(e) => setCashRubles(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl bg-white/5 border border-amber-900/30 text-white"
+                placeholder="0"
+              />
+              <label className="block text-zinc-400 text-sm">Безнал (₽)</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={nonCashRubles}
+                onChange={(e) => setNonCashRubles(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl bg-white/5 border border-amber-900/30 text-white"
+                placeholder="0"
+              />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="block text-zinc-400 text-sm">Сумма (₽)</label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={payMethod === 'cash' ? cashRubles : nonCashRubles}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (payMethod === 'cash') {
+                    setCashRubles(v);
+                    setNonCashRubles('');
+                  } else {
+                    setNonCashRubles(v);
+                    setCashRubles('');
+                  }
+                }}
+                className="w-full px-4 py-2 rounded-xl bg-white/5 border border-amber-900/30 text-white"
+                placeholder={String(rubles)}
+              />
+              <div className="flex gap-6">
+                <label className="flex items-center gap-3 text-zinc-400 text-sm cursor-pointer hover:text-amber-200/90 transition-colors">
+                  <input
+                    type="radio"
+                    name="payMethod"
+                    checked={payMethod === 'cash'}
+                    onChange={() => { setPayMethod('cash'); setCashRubles(nonCashRubles || String(rubles)); setNonCashRubles(''); }}
+                    className="glass-radio shrink-0"
+                  />
+                  Наличные
+                </label>
+                <label className="flex items-center gap-3 text-zinc-400 text-sm cursor-pointer hover:text-amber-200/90 transition-colors">
+                  <input
+                    type="radio"
+                    name="payMethod"
+                    checked={payMethod === 'noncash'}
+                    onChange={() => { setPayMethod('noncash'); setNonCashRubles(cashRubles || String(rubles)); setCashRubles(''); }}
+                    className="glass-radio shrink-0"
+                  />
+                  Безнал
+                </label>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button type="submit" disabled={loading} className="flex-1 glass-btn py-2 rounded-xl">
+              {loading ? '...' : 'Оплатить'}
+            </button>
+            <button type="button" onClick={onClose} className="px-4 py-2 text-zinc-400 hover:text-white">
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+type NeedInputMove = { tableId: string; tableNumber: number; countToMove: number; players: { playerId: string; playerName: string; seatNumber: number }[] };
+
+function AutoSeatModal({
+  needInput,
+  onConfirm,
+  onCancel,
+}: {
+  needInput: { moves: NeedInputMove[] };
+  onConfirm: (moves: { tableId: string; utgSeatNumber?: number; playerIds?: string[] }[]) => void;
+  onCancel: () => void;
+}) {
+  const [modeByTable, setModeByTable] = useState<Record<string, 'utg' | 'volunteer'>>({});
+  const [utgByTable, setUtgByTable] = useState<Record<string, number>>({});
+  const [selectedByTable, setSelectedByTable] = useState<Record<string, Set<string>>>({});
+
+  const buildMoves = () => {
+    return needInput.moves.map((m) => {
+      if (modeByTable[m.tableId] === 'volunteer') {
+        const sel = selectedByTable[m.tableId];
+        const ids = (sel ? Array.from(sel) : []).slice(0, m.countToMove);
+        return { tableId: m.tableId, playerIds: ids };
+      }
+      const utg = utgByTable[m.tableId];
+      return { tableId: m.tableId, utgSeatNumber: utg };
+    });
+  };
+
+  const canSubmit = needInput.moves.every((m) => {
+    if (modeByTable[m.tableId] === 'volunteer') {
+      const sel = selectedByTable[m.tableId];
+      return sel && sel.size >= m.countToMove;
+    }
+    const utg = utgByTable[m.tableId];
+    return utg != null && utg >= 1 && m.players.some((p) => p.seatNumber === utg);
+  });
+
+  const toggleVolunteer = (tableId: string, playerId: string, countToMove: number) => {
+    setSelectedByTable((prev) => {
+      const next = { ...prev };
+      const set = new Set(next[tableId] ?? []);
+      if (set.has(playerId)) {
+        set.delete(playerId);
+      } else if (set.size < countToMove) {
+        set.add(playerId);
+      }
+      next[tableId] = set;
+      return next;
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onCancel}>
+      <div className="glass-card max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-amber-400">Авторассадка: выбрать игроков для пересадки</h3>
+        <p className="text-zinc-400 text-sm">Нужно пересадить игроков для равномерного распределения. Укажите UTG-бокс или отметьте добровольцев.</p>
+        {needInput.moves.map((m) => (
+          <div key={m.tableId} className="border border-zinc-600 rounded-xl p-4 space-y-3">
+            <div className="font-medium text-white">Стол {m.tableNumber} — пересадить {m.countToMove} чел.</div>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={(modeByTable[m.tableId] ?? 'utg') === 'utg'}
+                  onChange={() => setModeByTable((p) => ({ ...p, [m.tableId]: 'utg' }))}
+                />
+                <span className="text-zinc-300">UTG-бокс:</span>
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={9}
+                placeholder="№"
+                className="w-16 bg-zinc-800 rounded px-2 py-1 text-white"
+                value={utgByTable[m.tableId] ?? ''}
+                onChange={(e) => setUtgByTable((p) => ({ ...p, [m.tableId]: parseInt(e.target.value, 10) || 0 }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="radio"
+                id={`vol-${m.tableId}`}
+                checked={modeByTable[m.tableId] === 'volunteer'}
+                onChange={() => setModeByTable((p) => ({ ...p, [m.tableId]: 'volunteer' }))}
+              />
+              <label htmlFor={`vol-${m.tableId}`} className="text-zinc-300 cursor-pointer">Добровольцы (отметьте {m.countToMove}):</label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {m.players.map((p) => (
+                <label key={p.playerId} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={(selectedByTable[m.tableId] ?? new Set()).has(p.playerId)}
+                    onChange={() => toggleVolunteer(m.tableId, p.playerId, m.countToMove)}
+                    disabled={modeByTable[m.tableId] !== 'volunteer'}
+                  />
+                  <span className="text-zinc-200">{p.playerName} ({p.seatNumber})</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="flex gap-2 justify-end">
+          <button onClick={onCancel} className="glass-btn px-4 py-2 rounded-xl text-sm text-zinc-400">Отмена</button>
+          <button
+            onClick={() => canSubmit && onConfirm(buildMoves())}
+            disabled={!canSubmit}
+            className="glass-btn px-4 py-2 rounded-xl text-sm bg-amber-600 hover:bg-amber-500 disabled:opacity-50"
+          >
+            Выполнить
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Позиции по окружности: 1-й бокс на 60°, последний на -240°, остальные равномерно между ними.
+ * (0° = справа, углы по часовой стрелке; зазор сверху — место дилера)
+ */
 function generatePokerSeatPositions(n: number): { x: number; y: number }[] {
-  const r = 42;
   const cx = 50;
   const cy = 50;
+  const r = 50;
+  const startDeg = 60;
+  const endDeg = -240;
+  const arcDeg = startDeg - endDeg; // 300°
+  const step = n > 1 ? arcDeg / (n - 1) : 0;
   const out: { x: number; y: number }[] = [];
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * 2 * Math.PI - Math.PI / 2;
-    out.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+    const deg = startDeg - i * step;
+    const a = (deg * Math.PI) / 180;
+    out.push({
+      x: cx + r * Math.cos(a),
+      y: cy - r * Math.sin(a), // минус: Y вниз, переворот по вертикали
+    });
   }
   return out;
 }
 
-function AdminTournamentModal({
+export function AdminTournamentPanel({
   tournament,
   liveState,
   tables,
-  onClose,
   onRefresh,
+  onRefreshTables,
+  isAdmin = false,
 }: {
   tournament: Tournament;
   liveState: LiveState | null;
   tables: TournamentTable[];
-  onClose: () => void;
   onRefresh: () => void;
+  onRefreshTables?: () => Promise<void>;
+  isAdmin?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+  const [balances, setBalances] = useState<TournamentPlayerBalance[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<{ playerId: string; playerName: string } | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<TournamentPlayerBalance | null>(null);
   const [emptySeatTarget, setEmptySeatTarget] = useState<{ tableId: string; tableNumber: number; seatNumber: number } | null>(null);
+  const [rebuyReturnTarget, setRebuyReturnTarget] = useState<{ playerId: string; playerName: string } | null>(null);
+  const [orderTarget, setOrderTarget] = useState<{ playerId: string; playerName: string } | null>(null);
+  const [guestModalOpen, setGuestModalOpen] = useState(false);
+  const [byCardModalOpen, setByCardModalOpen] = useState(false);
+  const [autoSeatNeedInput, setAutoSeatNeedInput] = useState<{
+    moves: { tableId: string; tableNumber: number; countToMove: number; players: { playerId: string; playerName: string; seatNumber: number }[] }[];
+  } | null>(null);
 
+  const refreshPlayers = () =>
+    tournamentsApi.getPlayers(tournament.id)
+      .then((r) => setPlayers(r.data.players ?? []))
+      .catch(() => setPlayers([]));
   useEffect(() => {
-    tournamentsApi.getPlayers(tournament.id).then((r) => setPlayers(r.data.players ?? [])).catch(() => setPlayers([]));
+    refreshPlayers();
+  }, [tournament.id]);
+
+  const refreshBalances = () =>
+    liveTournamentApi.getPlayerBalances(tournament.id)
+      .then((r) => setBalances(r.data.balances ?? []))
+      .catch(() => setBalances([]));
+  useEffect(() => {
+    refreshBalances();
   }, [tournament.id]);
 
   const seatedPlayers = tables.flatMap((t) =>
     (t.seats ?? [])
       .filter((s) => s.isOccupied && s.playerId && s.status !== 'ELIMINATED')
-      .map((s) => ({ playerId: s.playerId!, playerName: s.playerName || 'Игрок' }))
+      .map((s) => ({ playerId: s.playerId!, playerName: s.playerName || 'Игрок', clubCardNumber: s.clubCardNumber }))
   );
   const uniqueSeated = Array.from(new Map(seatedPlayers.map((p) => [p.playerId, p])).values());
+  const seatedPlayerIds = new Set(uniqueSeated.map((p) => p.playerId));
+  const playersNotSeated = players.filter((p) => !seatedPlayerIds.has(p.playerId ?? ''));
+  const activeUnseated = playersNotSeated.filter((p) => p.isActive !== false);
+  const eliminatedPlayers = playersNotSeated.filter((p) => p.isActive === false);
+  const seatableUnseated = activeUnseated.filter(
+    (p) => p.playerId && p.isArrived !== false
+  );
+  const isAddonBreak =
+    liveState?.currentLevel?.isBreak &&
+    (liveState?.currentLevel?.breakType === 'ADDON' || liveState?.currentLevel?.breakType === 'END_LATE_REG_AND_ADDON');
 
   const doAction = async (fn: () => Promise<unknown>) => {
     setLoading(true);
     try {
       await fn();
       onRefresh();
+      await Promise.all([
+        refreshBalances(),
+        refreshPlayers(),
+        onRefreshTables?.(),
+      ]);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка';
       alert(msg);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAutoSeating = async (moves?: { tableId: string; utgSeatNumber?: number; playerIds?: string[] }[]) => {
+    setLoading(true);
+    setAutoSeatNeedInput(null);
+    try {
+      await seatingApi.autoSeating(tournament.id, moves ? { moves } : undefined);
+      onRefresh();
+      refreshBalances();
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number; data?: { needInput?: { moves: { tableId: string; tableNumber: number; countToMove: number; players: { playerId: string; playerName: string; seatNumber: number }[] }[] }; error?: string } } };
+      if (err.response?.status === 409 && err.response?.data?.needInput) {
+        setAutoSeatNeedInput(err.response.data.needInput);
+        return;
+      }
+      const msg = err.response?.data?.error ?? 'Ошибка';
+      alert(msg);
+    } finally {
+      setLoading(false);
+    }
+    refreshPlayers();
   };
 
   const handleSeatClick = (seat: { playerId?: string; playerName?: string }) => {
@@ -506,48 +1010,166 @@ function AdminTournamentModal({
     setEmptySeatTarget(table ? { tableId, tableNumber: table.tableNumber, seatNumber } : null);
   };
 
-  const handleMovePlayer = async (playerId: string) => {
-    if (!emptySeatTarget) return;
+  const handleSeatOrMovePlayer = async (playerId: string, target: { tableId: string; seatNumber: number }) => {
     await doAction(() =>
-      seatingApi.manualSeating(tournament.id, { playerId, newTableId: emptySeatTarget.tableId, newSeatNumber: emptySeatTarget.seatNumber })
+      seatingApi.manualSeating(tournament.id, { playerId, newTableId: target.tableId, newSeatNumber: target.seatNumber })
     );
     setEmptySeatTarget(null);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="min-h-screen p-4 flex items-start justify-center" onClick={(e) => e.stopPropagation()}>
-        <div className="glass-card p-6 max-w-6xl w-full space-y-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h2 className="text-2xl font-bold text-cyan-400">Управление турниром</h2>
-              <p className="text-slate-400">{tournament.name}</p>
-              {liveState && (
-                <div className="flex gap-4 mt-2 text-sm text-slate-300">
-                  <span>Уровень: {liveState.currentLevelNumber}</span>
-                  <span>Играет: {liveState.playersCount}</span>
-                  <span>Ср. стек: {liveState.averageStack ?? 0}</span>
-                </div>
-              )}
-            </div>
-            <button onClick={onClose} className="glass-btn px-4 py-2 rounded-xl text-sm">Закрыть</button>
-          </div>
+  const handleReturnEliminated = async (playerId: string, tableId: string, seatNumber: number) => {
+    await doAction(() =>
+      liveTournamentApi.returnEliminated(tournament.id, playerId, tableId, seatNumber)
+    );
+    setRebuyReturnTarget(null);
+  };
 
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => doAction(() => seatingApi.initFromClub(tournament.id))} disabled={loading} className="glass-btn px-4 py-2 rounded-xl text-sm">Создать столы</button>
-            <button onClick={() => doAction(() => seatingApi.autoSeating(tournament.id))} disabled={loading} className="glass-btn px-4 py-2 rounded-xl text-sm">Авторассадка</button>
-            <button onClick={() => doAction(() => liveStateApi.pause(tournament.id))} disabled={loading || liveState?.isPaused} className="glass-btn px-4 py-2 rounded-xl text-sm">Пауза</button>
-            <button onClick={() => doAction(() => liveStateApi.resume(tournament.id))} disabled={loading || !liveState?.isPaused} className="glass-btn px-4 py-2 rounded-xl text-sm">Возобновить</button>
-            <button onClick={() => doAction(() => liveTournamentApi.nextLevel(tournament.id))} disabled={loading} className="glass-btn px-4 py-2 rounded-xl text-sm">Следующий уровень</button>
-            <button className="glass-btn px-4 py-2 rounded-xl text-sm text-slate-400" title="Требуется API">+ Гость</button>
+  const handleMovePlayer = (playerId: string) => {
+    if (!emptySeatTarget) return;
+    handleSeatOrMovePlayer(playerId, { tableId: emptySeatTarget.tableId, seatNumber: emptySeatTarget.seatNumber });
+  };
+
+  const touchDragRef = useRef<{ playerId: string; playerName: string; startX: number; startY: number; isDragging: boolean } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ x: number; y: number; playerName: string } | null>(null);
+  const setPreviewRef = useRef(setDragPreview);
+  setPreviewRef.current = setDragPreview;
+
+  const touchDragStart = useCallback((playerId: string, playerName: string) => (e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
+    const t = e.touches[0];
+    touchDragRef.current = { playerId, playerName, startX: t.clientX, startY: t.clientY, isDragging: false };
+
+    const onMove = (ev: TouchEvent) => {
+      if (!touchDragRef.current || ev.touches.length === 0) return;
+      const dx = ev.touches[0].clientX - touchDragRef.current.startX;
+      const dy = ev.touches[0].clientY - touchDragRef.current.startY;
+      if (Math.sqrt(dx * dx + dy * dy) > TOUCH_DRAG_THRESHOLD) {
+        touchDragRef.current.isDragging = true;
+        setPreviewRef.current({ x: ev.touches[0].clientX, y: ev.touches[0].clientY, playerName: touchDragRef.current.playerName });
+      }
+      if (touchDragRef.current.isDragging) {
+        setPreviewRef.current({ x: ev.touches[0].clientX, y: ev.touches[0].clientY, playerName: touchDragRef.current.playerName });
+        ev.preventDefault();
+      }
+    };
+    const cleanup = () => {
+      document.removeEventListener('touchmove', onMove, { passive: false });
+      document.removeEventListener('touchend', onEnd, { passive: false });
+      document.removeEventListener('touchcancel', onEnd, { passive: false });
+      setPreviewRef.current(null);
+    };
+    const onEnd = (ev: TouchEvent) => {
+      cleanup();
+      const state = touchDragRef.current;
+      touchDragRef.current = null;
+      if (!state || !state.isDragging) return;
+      ev.preventDefault();
+      const touch = ev.changedTouches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const dropZone = el?.closest('[data-droptarget]');
+      if (dropZone) {
+        const tableId = dropZone.getAttribute('data-table-id');
+        const seatNum = dropZone.getAttribute('data-seat-number');
+        if (tableId && seatNum) handleSeatOrMovePlayer(state.playerId, { tableId, seatNumber: parseInt(seatNum, 10) });
+      }
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd, { passive: false });
+    document.addEventListener('touchcancel', onEnd, { passive: false });
+  }, [handleSeatOrMovePlayer]);
+
+  const touchDragMove = useCallback(() => {}, []); // не используется — preventDefault через document
+  const touchDragEnd = useCallback(() => {}, []); // обработка в document touchend
+
+  return (
+    <div className="glass-card p-6 space-y-6 relative">
+      {dragPreview && (
+        <div
+          className="fixed z-[9999] pointer-events-none -translate-x-1/2"
+          style={{ left: dragPreview.x, top: dragPreview.y  }}
+        >
+          <div className="glass-card px-4 py-2 flex items-center gap-2 border-2 border-amber-500/60 shadow-lg shadow-amber-900/30">
+            <svg className="w-6 h-6 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span className="text-amber-300 font-medium text-sm whitespace-nowrap max-w-[120px] truncate">{dragPreview.playerName}</span>
           </div>
+        </div>
+      )}
+      <div>
+        <h2 className="text-xl font-bold text-amber-400">Управление турниром</h2>
+        <p className="text-zinc-400 mb-4">{tournament.name}</p>
+        {liveState && (
+          <>
+            <TVTimerBlock liveState={liveState} onRefresh={onRefresh} embedded />
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+              <button
+                onClick={() => doAction(() => liveTournamentApi.prevLevel(tournament.id))}
+                disabled={loading || (liveState?.currentLevelNumber ?? 1) <= 1}
+                className="glass-btn p-2 rounded-xl text-sm"
+                title="Предыдущий уровень"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <button
+                onClick={() => doAction(() => (liveState?.isPaused ? liveStateApi.resume(tournament.id) : liveStateApi.pause(tournament.id)))}
+                disabled={loading}
+                className="glass-btn p-2 rounded-xl text-sm"
+                title={liveState?.isPaused ? 'Возобновить' : 'Пауза'}
+              >
+                {liveState.isPaused ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z"/></svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+                )}
+              </button>
+              <button
+                onClick={() => doAction(() => liveTournamentApi.nextLevel(tournament.id))}
+                disabled={loading}
+                className="glass-btn p-2 rounded-xl text-sm"
+                title="Следующий уровень"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => handleAutoSeating()} disabled={loading} className="glass-btn px-4 py-2 rounded-xl text-sm">Авторассадка</button>
+        {autoSeatNeedInput && (
+          <AutoSeatModal
+            needInput={autoSeatNeedInput}
+            onConfirm={(moves) => { setAutoSeatNeedInput(null); handleAutoSeating(moves); }}
+            onCancel={() => setAutoSeatNeedInput(null)}
+          />
+        )}
+        <button
+          onClick={() => doAction(() => liveTournamentApi.finish(tournament.id))}
+          disabled={loading || (!isAdmin && (liveState?.playersCount ?? 0) !== 1)}
+          title={!isAdmin && (liveState?.playersCount ?? 0) !== 1 ? 'Контроллер может завершить турнир только когда остался один игрок' : undefined}
+          className="glass-btn px-4 py-2 rounded-xl text-sm text-amber-500 hover:text-amber-400"
+        >
+          Завершить турнир
+        </button>
+        <button onClick={() => setGuestModalOpen(true)} className="glass-btn px-4 py-2 rounded-xl text-sm text-emerald-400 hover:text-emerald-300" title="Зарегистрировать гостя и записать на турнир">
+          + Гость
+        </button>
+        <button onClick={() => setByCardModalOpen(true)} className="glass-btn px-4 py-2 rounded-xl text-sm text-emerald-400 hover:text-emerald-300" title="Записать по номеру клубной карты">
+          + По карте
+        </button>
+      </div>
 
           <div>
             <h3 className="text-lg font-bold text-white mb-4">Столы</h3>
             {tables.length === 0 ? (
-              <p className="text-slate-400 text-sm">Нет столов. Нажмите «Создать столы» (турнир в клубе) или «Авторассадка».</p>
+              <p className="text-zinc-400 text-sm">Нет столов. Нажмите «Авторассадка» для рассадки игроков.</p>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {tables.map((table) => (
                   <Table2D
                     key={table.id}
@@ -556,6 +1178,10 @@ function AdminTournamentModal({
                     tournamentId={tournament.id}
                     onPlayerClick={handleSeatClick}
                     onEmptySeatClick={handleEmptySeatClick}
+                    onEmptySeatDrop={(tableId, seatNumber, playerId) => handleSeatOrMovePlayer(playerId, { tableId, seatNumber })}
+                    onTouchDragStart={touchDragStart}
+                    onTouchDragMove={touchDragMove}
+                    onTouchDragEnd={touchDragEnd}
                   />
                 ))}
               </div>
@@ -563,63 +1189,494 @@ function AdminTournamentModal({
           </div>
 
           <div>
-            <h3 className="text-lg font-bold text-white mb-4">Игроки</h3>
+            <h3 className="text-lg font-bold text-white mb-4">Игроки (без стола)</h3>
+            <p className="text-zinc-500 text-sm mb-2">Только те, кто ещё не рассажен. Серые — ожидают прихода в клуб.</p>
+            <p className="text-zinc-500 text-xs mb-1">Перетащите карточку на плюс стола, чтобы посадить.</p>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-              {players.filter((p) => p.isActive).map((p) => (
-                <div key={p.id} className="glass-card p-3 flex flex-col gap-2">
-                  <span className="text-cyan-300 text-sm truncate">{p.playerName}</span>
-                  <div className="flex flex-wrap gap-1">
-                    {p.playerId && (
-                      <>
-                        <button onClick={() => doAction(() => liveTournamentApi.rebuy(tournament.id, p.playerId!))} disabled={loading} className="glass-btn px-2 py-1 rounded text-xs">Ребай</button>
-                        <button onClick={() => p.playerId && setSelectedPlayer({ playerId: p.playerId, playerName: p.playerName })} disabled={loading} className="glass-btn px-2 py-1 rounded text-xs">Аддон</button>
-                        <button onClick={() => p.playerId && setSelectedPlayer({ playerId: p.playerId, playerName: p.playerName })} disabled={loading} className="glass-btn px-2 py-1 rounded text-xs text-red-400">Вылет</button>
-                      </>
-                    )}
+              {activeUnseated.map((p) => {
+                const bal = balances.find((b) => b.playerId === (p.playerId ?? p.id));
+                const amount = bal?.balance ?? 0;
+                const rubles = amount >= 100 ? (amount / 100).toFixed(0) : String(amount);
+                const arrived = p.isArrived !== false;
+                const canDrag = p.playerId && p.isActive !== false && arrived;
+                return (
+                  <div
+                    key={p.id}
+                    draggable={canDrag}
+                    onDragStart={canDrag ? (e) => {
+                      e.dataTransfer.setData(DRAG_PLAYER_KEY, p.playerId!);
+                      e.dataTransfer.effectAllowed = 'move';
+                    } : undefined}
+                    onTouchStart={canDrag ? touchDragStart(p.playerId!, p.playerName) : undefined}
+                    onTouchMove={canDrag ? touchDragMove : undefined}
+                    onTouchEnd={canDrag ? touchDragEnd : undefined}
+                    className={`glass-card p-3 flex flex-col gap-2 ${!arrived ? 'opacity-70 bg-zinc-800/50' : ''} ${canDrag ? 'cursor-grab active:cursor-grabbing touch-none' : ''}`}
+                  >
+                    <div className="flex justify-between items-start gap-1">
+                      <div className="min-w-0 flex-1">
+                        <span className={`block text-sm font-medium ${arrived ? 'text-amber-300' : 'text-zinc-400'}`}>
+                          {p.playerName ? `${p.playerName}${p.clubCardNumber ? ` (${p.clubCardNumber})` : ''}` : (p.clubCardNumber || 'Игрок')}
+                        </span>
+                        {((bal?.rebuyCount ?? 0) > 0 || (bal?.addonCount ?? 0) > 0) && (
+                          <span className="text-zinc-500 text-xs">
+                            {(bal?.rebuyCount ?? 0) > 0 && `${bal!.rebuyCount} реб.`}
+                            {(bal?.rebuyCount ?? 0) > 0 && (bal?.addonCount ?? 0) > 0 && ', '}
+                            {(bal?.addonCount ?? 0) > 0 && `${bal!.addonCount} адд.`}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-zinc-400 text-xs shrink-0">{rubles} ₽</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {!arrived && (
+                        <button
+                          onClick={() => doAction(() => tournamentsApi.markPlayerArrived(tournament.id, p.id))}
+                          disabled={loading}
+                          className="glass-btn px-2 py-1 rounded text-xs text-emerald-400 hover:text-emerald-300"
+                          title="Игрок прибыл в клуб"
+                        >
+                          Прибыл
+                        </button>
+                      )}
+                      {p.playerId && arrived && (
+                        <>
+                          {p.isActive && (
+                            <>
+                              {tournament.status === 'LATE_REG' && ((tournament.maxRebuys ?? 0) === 0 || (bal?.rebuyCount ?? 0) < (tournament.maxRebuys ?? 0)) ? (
+                                <button onClick={() => doAction(() => liveTournamentApi.rebuy(tournament.id, p.playerId!))} disabled={loading} className="glass-btn px-2 py-1 rounded text-xs">Ребай</button>
+                              ) : null}
+                              {isAddonBreak && (
+                                <button onClick={() => p.playerId && setSelectedPlayer({ playerId: p.playerId, playerName: p.playerName })} disabled={loading} className="glass-btn px-2 py-1 rounded text-xs">Аддон</button>
+                              )}
+                              <button onClick={() => p.playerId && setSelectedPlayer({ playerId: p.playerId, playerName: p.playerName })} disabled={loading} className="glass-btn px-2 py-1 rounded text-xs text-red-400">Вылет</button>
+                            </>
+                          )}
+                          {amount > 0 && bal && (
+                            <button
+                              onClick={() => setPaymentTarget(bal)}
+                              disabled={loading}
+                              className="glass-btn px-2 py-1 rounded text-xs text-amber-400"
+                            >
+                              Оплата
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+            {activeUnseated.length === 0 && eliminatedPlayers.length === 0 && (
+              <p className="text-zinc-400 text-sm">Все игроки рассажены или нет зарегистрированных.</p>
+            )}
+          </div>
+
+          {eliminatedPlayers.length > 0 && (
+            <div>
+              <h3 className="text-lg font-bold text-red-400/90 mb-4">Вылетевшие игроки</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {eliminatedPlayers.map((p) => {
+                  const bal = balances.find((b) => b.playerId === (p.playerId ?? p.id));
+                  const amount = bal?.balance ?? 0;
+                  const rubles = amount >= 100 ? (amount / 100).toFixed(0) : String(amount);
+                  const maxRebuys = tournament.maxRebuys ?? 0;
+                  const rebuyCount = bal?.rebuyCount ?? 0;
+                  const canReturn = tournament.status === 'LATE_REG' && (maxRebuys === 0 || rebuyCount < maxRebuys);
+                  return (
+                    <div
+                      key={p.id}
+                      className="glass-card p-3 flex flex-col gap-2 border border-red-500/20 bg-zinc-800/60"
+                    >
+                      <div className="flex justify-between items-start gap-1">
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium text-zinc-400">
+                            {p.playerName ? `${p.playerName}${p.clubCardNumber ? ` (${p.clubCardNumber})` : ''}` : (p.clubCardNumber || 'Игрок')}
+                          </span>
+                          {((bal?.rebuyCount ?? 0) > 0 || (bal?.addonCount ?? 0) > 0) && (
+                            <span className="text-zinc-500 text-xs">
+                              {(bal?.rebuyCount ?? 0) > 0 && `${bal!.rebuyCount} реб.`}
+                              {(bal?.rebuyCount ?? 0) > 0 && (bal?.addonCount ?? 0) > 0 && ', '}
+                              {(bal?.addonCount ?? 0) > 0 && `${bal!.addonCount} адд.`}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-zinc-400 text-xs shrink-0">{rubles} ₽</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {canReturn && p.playerId && (
+                          <button
+                            onClick={() => setRebuyReturnTarget({ playerId: p.playerId!, playerName: p.playerName || 'Игрок' })}
+                            disabled={loading}
+                            className="glass-btn px-2 py-1 rounded text-xs text-emerald-400 hover:text-emerald-300"
+                            title="Вернуть в турнир (ребай + выбор стола)"
+                          >
+                            Ребай
+                          </button>
+                        )}
+                        {amount > 0 && bal && (
+                          <button
+                            onClick={() => setPaymentTarget(bal)}
+                            disabled={loading}
+                            className="glass-btn px-2 py-1 rounded text-xs text-amber-400"
+                          >
+                            Оплата
+                          </button>
+                        )}
+                        {p.playerId && (
+                          <button
+                            onClick={() => setOrderTarget({ playerId: p.playerId!, playerName: p.playerName || 'Игрок' })}
+                            disabled={loading}
+                            className="glass-btn px-2 py-1 rounded text-xs text-zinc-300"
+                            title="Принять заказ"
+                          >
+                            Заказ
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-lg font-bold text-white mb-4">Игроки за столами</h3>
+            {uniqueSeated.length === 0 ? (
+              <p className="text-zinc-400 text-sm">Нет рассаженных игроков. Нажмите «Авторассадка» для рассадки.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {uniqueSeated.map((p) => {
+                  const bal = balances.find((b) => b.playerId === p.playerId);
+                  return (
+                    <div key={p.playerId} className="glass-card p-3">
+                      <span className="text-amber-300 text-sm font-medium block">
+                        {p.playerName ? `${p.playerName}${p.clubCardNumber ? ` (${p.clubCardNumber})` : ''}` : (p.clubCardNumber || 'Игрок')}
+                      </span>
+                      {((bal?.rebuyCount ?? 0) > 0 || (bal?.addonCount ?? 0) > 0) && (
+                        <span className="text-zinc-500 text-xs block">
+                          {(bal?.rebuyCount ?? 0) > 0 && `${bal!.rebuyCount} реб.`}
+                          {(bal?.rebuyCount ?? 0) > 0 && (bal?.addonCount ?? 0) > 0 && ', '}
+                          {(bal?.addonCount ?? 0) > 0 && `${bal!.addonCount} адд.`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {selectedPlayer && (
             <PlayerActionsModal
               seat={{ id: '', playerId: selectedPlayer.playerId, playerName: selectedPlayer.playerName }}
               tournamentId={tournament.id}
+              tournament={{ buyInCost: tournament.buyInCost, addonChips: tournament.addonChips, addonCost: tournament.addonCost, rebuyChips: tournament.rebuyChips, rebuyCost: tournament.rebuyCost, maxRebuys: tournament.maxRebuys, status: tournament.status }}
+              liveState={liveState}
+              rebuyCount={balances.find((b) => b.playerId === selectedPlayer.playerId)?.rebuyCount ?? 0}
               onClose={() => setSelectedPlayer(null)}
-              onDone={() => { setSelectedPlayer(null); onRefresh(); }}
+              onDone={async () => {
+                setSelectedPlayer(null);
+                onRefresh();
+                await Promise.all([refreshBalances(), refreshPlayers(), onRefreshTables?.()]);
+              }}
             />
           )}
 
-          {emptySeatTarget && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setEmptySeatTarget(null)}>
-              <div className="glass-card p-6 max-w-sm w-full space-y-4" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-lg font-bold text-white">
-                  Пересадить на стол {emptySeatTarget.tableNumber}, место {emptySeatTarget.seatNumber}
-                </h3>
-                {uniqueSeated.length === 0 ? (
-                  <p className="text-slate-400 text-sm">Нет игроков за столами для пересадки</p>
-                ) : (
-                  <div className="max-h-60 overflow-y-auto space-y-2">
-                    {uniqueSeated.map((p) => (
+          {rebuyReturnTarget && (() => {
+            const emptySlots = tables.flatMap((t) => {
+              const seatByNum = Object.fromEntries((t.seats ?? []).map((s) => [s.seatNumber, s]));
+              const maxSeats = t.maxSeats ?? 9;
+              return Array.from({ length: maxSeats }, (_, i) => i + 1)
+                .filter((sn) => !(seatByNum[sn]?.isOccupied))
+                .map((sn) => ({ tableId: t.id, tableNumber: t.tableNumber, seatNumber: sn }));
+            });
+            return (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setRebuyReturnTarget(null)} role="dialog" aria-modal="true">
+                <div className="glass-card p-6 max-w-sm w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+                  <h3 className="text-lg font-bold text-white">
+                    Ребай — посадить {rebuyReturnTarget.playerName}
+                  </h3>
+                  <p className="text-zinc-400 text-sm">Выберите стол и место:</p>
+                  <div className="max-h-72 overflow-y-auto space-y-2">
+                    {emptySlots.map(({ tableId, tableNumber, seatNumber }) => (
                       <button
-                        key={p.playerId}
-                        onClick={() => handleMovePlayer(p.playerId)}
+                        key={`${tableId}-${seatNumber}`}
+                        onClick={() => handleReturnEliminated(rebuyReturnTarget.playerId, tableId, seatNumber)}
                         disabled={loading}
-                        className="w-full glass-btn py-2 rounded-xl text-left px-4 text-cyan-300"
+                        className="w-full glass-btn py-2 rounded-xl text-left px-4 text-emerald-300/90"
                       >
-                        {p.playerName}
+                        Стол {tableNumber}, место {seatNumber}
                       </button>
                     ))}
                   </div>
+                  {emptySlots.length === 0 && tables.length > 0 && (
+                    <p className="text-zinc-500 text-sm">Нет свободных мест. Создайте стол или освободите место.</p>
+                  )}
+                  <button type="button" onClick={() => setRebuyReturnTarget(null)} className="w-full text-zinc-400 hover:text-white">
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {emptySeatTarget && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setEmptySeatTarget(null)} role="dialog" aria-modal="true">
+              <div className="glass-card p-6 max-w-sm w-full space-y-4" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-bold text-white">
+                  Посадить / пересадить на стол {emptySeatTarget.tableNumber}, место {emptySeatTarget.seatNumber}
+                </h3>
+                {(uniqueSeated.length === 0 && seatableUnseated.length === 0) ? (
+                  <p className="text-zinc-400 text-sm">Нет игроков для рассадки</p>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto space-y-3">
+                    {uniqueSeated.length > 0 && (
+                      <>
+                        <p className="text-zinc-500 text-xs font-medium">Пересадить с другого стола</p>
+                        {uniqueSeated.map((p) => (
+                          <button
+                            key={p.playerId}
+                            onClick={() => handleMovePlayer(p.playerId!)}
+                            disabled={loading}
+                            className="w-full glass-btn py-2 rounded-xl text-left px-4 text-amber-300"
+                          >
+                            {p.playerName}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {seatableUnseated.length > 0 && (
+                      <>
+                        <p className="text-zinc-500 text-xs font-medium mt-2">Посадить (не за столом)</p>
+                        {seatableUnseated.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => handleMovePlayer(p.playerId!)}
+                            disabled={loading}
+                            className="w-full glass-btn py-2 rounded-xl text-left px-4 text-emerald-300/90"
+                          >
+                            {p.playerName}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
                 )}
-                <button onClick={() => setEmptySeatTarget(null)} className="w-full text-slate-400 hover:text-white">
+                <button type="button" onClick={() => setEmptySeatTarget(null)} className="w-full text-zinc-400 hover:text-white">
                   Отмена
                 </button>
               </div>
             </div>
           )}
-        </div>
+
+          {paymentTarget && (
+            <PaymentModalFull
+              tournamentId={tournament.id}
+              player={paymentTarget}
+              onClose={() => setPaymentTarget(null)}
+              onDone={() => {
+                setPaymentTarget(null);
+                refreshBalances();
+                onRefresh();
+              }}
+            />
+          )}
+
+          {orderTarget && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setOrderTarget(null)} role="dialog" aria-modal="true">
+              <div className="glass-card p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-bold text-white mb-2">Заказ — {orderTarget.playerName}</h3>
+                <OrderForm
+                  playerId={orderTarget.playerId}
+                  tournamentId={tournament.id}
+                  onClose={() => setOrderTarget(null)}
+                  onOrder={() => { setOrderTarget(null); }}
+                />
+              </div>
+            </div>
+          )}
+
+          {guestModalOpen && (
+            <GuestRegistrationModal
+              tournamentId={tournament.id}
+              onClose={() => setGuestModalOpen(false)}
+              onSuccess={() => {
+                setGuestModalOpen(false);
+                onRefresh();
+                refreshPlayers();
+                refreshBalances();
+              }}
+              disabled={loading}
+            />
+          )}
+
+          {byCardModalOpen && (
+            <RegisterByCardModal
+              tournamentId={tournament.id}
+              onClose={() => setByCardModalOpen(false)}
+              onSuccess={() => {
+                setByCardModalOpen(false);
+                onRefresh();
+                refreshPlayers();
+                refreshBalances();
+              }}
+              disabled={loading}
+            />
+          )}
+    </div>
+  );
+}
+
+function GuestRegistrationModal({
+  tournamentId,
+  onClose,
+  onSuccess,
+  disabled,
+}: {
+  tournamentId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+  disabled?: boolean;
+}) {
+  const [name, setName] = useState('');
+  const [clubCardNumber, setClubCardNumber] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await tournamentsApi.registerGuest(tournamentId, { name, clubCardNumber, phone, password });
+      onSuccess();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка регистрации';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="glass-card p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-amber-400 mb-4">+ Гость — регистрация и запись на турнир</h3>
+        <p className="text-zinc-400 text-sm mb-4">Создать аккаунт и сразу записать на турнир. Для новых посетителей клуба.</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Имя"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-amber-900/30 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            required
+          />
+          <input
+            type="text"
+            placeholder="Номер клубной карты"
+            value={clubCardNumber}
+            onChange={(e) => setClubCardNumber(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-amber-900/30 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            required
+          />
+          <input
+            type="tel"
+            placeholder="Телефон"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-amber-900/30 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Пароль"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-amber-900/30 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            required
+          />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={disabled || submitting}
+              className="flex-1 glass-btn py-3 rounded-xl font-medium text-emerald-400 hover:text-emerald-300"
+            >
+              {submitting ? 'Регистрация…' : 'Зарегистрировать и записать'}
+            </button>
+            <button type="button" onClick={onClose} className="px-4 py-3 text-zinc-400 hover:text-white">
+              Отмена
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function RegisterByCardModal({
+  tournamentId,
+  onClose,
+  onSuccess,
+  disabled,
+}: {
+  tournamentId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+  disabled?: boolean;
+}) {
+  const [clubCardNumber, setClubCardNumber] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await tournamentsApi.registerByCard(tournamentId, clubCardNumber.trim());
+      onSuccess();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="glass-card p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-amber-400 mb-4">+ По карте — записать на турнир</h3>
+        <p className="text-zinc-400 text-sm mb-4">Введите номер клубной карты игрока, который уже есть в системе.</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Номер клубной карты"
+            value={clubCardNumber}
+            onChange={(e) => setClubCardNumber(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-amber-900/30 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+            required
+          />
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={disabled || submitting}
+              className="flex-1 glass-btn py-3 rounded-xl font-medium text-emerald-400 hover:text-emerald-300"
+            >
+              {submitting ? 'Запись…' : 'Записать'}
+            </button>
+            <button type="button" onClick={onClose} className="px-4 py-3 text-zinc-400 hover:text-white">
+              Отмена
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -645,7 +1702,7 @@ function OrderCard({ playerName, playerId, tournamentId, onOrder }: { playerName
   const [open, setOpen] = useState(false);
   return (
     <div className="glass-card p-4">
-      <button onClick={() => setOpen(!open)} className="w-full text-left text-cyan-300 font-medium">
+      <button onClick={() => setOpen(!open)} className="w-full text-left text-amber-300 font-medium">
         {playerName}
       </button>
       {open && <OrderForm playerId={playerId} tournamentId={tournamentId} onClose={() => setOpen(false)} onOrder={onOrder} />}
@@ -655,10 +1712,10 @@ function OrderCard({ playerName, playerId, tournamentId, onOrder }: { playerName
 
 function OrderForm({ onClose, onOrder }: { playerId: string; tournamentId: string; onClose: () => void; onOrder: () => void }) {
   return (
-    <div className="mt-2 text-sm text-slate-400">
+    <div className="mt-2 text-sm text-zinc-400">
       <p>Принять заказ — выбор из меню (интеграция с menu/orders API)</p>
-      <button onClick={() => { onOrder(); onClose(); }} className="text-cyan-400 mt-2 mr-2">Оформить</button>
-      <button onClick={onClose} className="text-cyan-400 mt-2">Закрыть</button>
+      <button onClick={() => { onOrder(); onClose(); }} className="text-amber-400 mt-2 mr-2">Оформить</button>
+      <button onClick={onClose} className="text-amber-400 mt-2">Закрыть</button>
     </div>
   );
 }

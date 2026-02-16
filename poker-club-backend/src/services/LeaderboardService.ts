@@ -238,6 +238,13 @@ export class LeaderboardService {
 
     const totalPlayers = tournament.registrations.length;
 
+    // Сохраняем очки в TournamentResult и обновляем рейтинги
+    for (const result of results) {
+      const points = this.calculatePoints(result.finishPosition, totalPlayers);
+      result.points = points;
+      await this.resultRepository.save(result);
+    }
+
     // 1. Обновить рейтинг серии (если турнир в серии)
     if (tournament.series?.id) {
       const seriesLb = await this.getOrCreateLeaderboard(
@@ -248,13 +255,12 @@ export class LeaderboardService {
         tournament.series.id
       );
       for (const result of results) {
-        const points = this.calculatePoints(result.finishPosition, totalPlayers);
         await this.updateLeaderboardEntry(
           seriesLb.id,
           result.player.id,
           result.finishPosition,
           totalPlayers,
-          points
+          result.points
         );
       }
     }
@@ -262,13 +268,12 @@ export class LeaderboardService {
     // 2. Обновить сезонный рейтинг
     const seasonalLeaderboard = await this.createSeasonalLeaderboard();
     for (const result of results) {
-      const points = this.calculatePoints(result.finishPosition, totalPlayers);
       await this.updateLeaderboardEntry(
         seasonalLeaderboard.id,
         result.player.id,
         result.finishPosition,
         totalPlayers,
-        points
+        result.points
       );
     }
 

@@ -4,21 +4,16 @@ const express_1 = require("express");
 const LiveTournamentController_1 = require("../controllers/LiveTournamentController");
 const authMiddleware_1 = require("../middlewares/authMiddleware");
 const router = (0, express_1.Router)();
-// Все маршруты требуют авторизации
 router.use(authMiddleware_1.authMiddleware);
-// Ребай (только ADMIN)
-router.post('/:id/player/:playerId/rebuy', LiveTournamentController_1.LiveTournamentController.rebuy);
-// Аддон (только ADMIN)
-router.post('/:id/player/:playerId/addon', LiveTournamentController_1.LiveTournamentController.addon);
-// Выбытие игрока (только ADMIN)
-router.post('/:id/player/:playerId/eliminate', LiveTournamentController_1.LiveTournamentController.eliminatePlayer);
-// Перейти на следующий уровень (только ADMIN)
-router.patch('/:id/level/next', LiveTournamentController_1.LiveTournamentController.moveToNextLevel);
-// Получить текущий уровень (доступно всем)
+router.post('/:id/player/:playerId/rebuy', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.rebuy);
+router.post('/:id/player/:playerId/addon', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.addon);
+router.post('/:id/player/:playerId/eliminate', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.eliminatePlayer);
+router.patch('/:id/level/next', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.moveToNextLevel);
+router.patch('/:id/level/prev', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.moveToPrevLevel);
 router.get('/:id/level/current', LiveTournamentController_1.LiveTournamentController.getCurrentLevel);
-// История операций игрока (доступно всем)
+router.get('/:id/player-balances', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.getPlayerBalances);
+router.post('/:id/player/:playerId/pay', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.recordPayment);
 router.get('/:id/player/:playerId/operations', LiveTournamentController_1.LiveTournamentController.getPlayerOperations);
-// Завершить турнир (только ADMIN)
-router.post('/:id/finish', LiveTournamentController_1.LiveTournamentController.finishTournament);
+router.post('/:id/finish', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.finishTournament);
 exports.default = router;
 //# sourceMappingURL=liveTournamentRoutes.js.map

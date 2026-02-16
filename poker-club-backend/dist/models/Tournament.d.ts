@@ -12,7 +12,11 @@ export declare class Tournament {
     buyInCost: number;
     startingStack: number;
     addonChips: number;
+    addonCost: number;
     rebuyChips: number;
+    rebuyCost: number;
+    maxRebuys: number;
+    maxAddons: number;
     currentLevelNumber: number;
     blindStructureId: string;
     blindStructure?: BlindStructure;

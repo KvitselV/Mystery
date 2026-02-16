@@ -27,8 +27,9 @@ export class OrderService {
     tableNumber?: number;
     paymentMethod?: OrderPaymentMethod;
   }): Promise<Order> {
-    const paymentMethod = data.paymentMethod ?? OrderPaymentMethod.DEPOSIT;
-    const isCredit = paymentMethod === OrderPaymentMethod.CREDIT;
+    // В турнире все заказы идут в счёт (оплата при выходе)
+    const isCredit = !!data.tournamentId || data.paymentMethod === OrderPaymentMethod.CREDIT;
+    const paymentMethod = isCredit ? OrderPaymentMethod.CREDIT : (data.paymentMethod ?? OrderPaymentMethod.DEPOSIT);
 
     return AppDataSource.transaction(async (manager) => {
       const orderRepo = manager.getRepository(Order);
@@ -89,7 +90,7 @@ export class OrderService {
         tournamentId: data.tournamentId,
         status: OrderStatus.PENDING,
         totalAmount,
-        paymentMethod,
+        paymentMethod: paymentMethod as OrderPaymentMethod,
         notes: data.notes,
         tableNumber: data.tableNumber,
       });

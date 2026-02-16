@@ -24,6 +24,10 @@ export class TournamentRegistration {
   @Column({ type: 'boolean', default: false })
   isActive: boolean;
 
+  /** Игрок прибыл в клуб (отмечено управляющим). Самостоятельная регистрация = false, пока не нажали "Прибыл". */
+  @Column({ type: 'boolean', default: true })
+  isArrived: boolean;
+
   @Column({ type: 'int', default: 0 })
   currentStack: number;
 }

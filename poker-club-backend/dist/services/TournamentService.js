@@ -8,18 +8,30 @@ const TournamentRegistration_1 = require("../models/TournamentRegistration");
 const TournamentReward_1 = require("../models/TournamentReward");
 const Reward_1 = require("../models/Reward");
 const PlayerProfile_1 = require("../models/PlayerProfile");
+const PlayerOperation_1 = require("../models/PlayerOperation");
+const PlayerBill_1 = require("../models/PlayerBill");
+const Order_1 = require("../models/Order");
+const AchievementInstance_1 = require("../models/AchievementInstance");
 const FinancialService_1 = require("./FinancialService");
 const Club_1 = require("../models/Club");
+const SeatingService_1 = require("./SeatingService");
+const LiveStateService_1 = require("./LiveStateService");
 class TournamentService {
     constructor() {
         this.tournamentRepository = database_1.AppDataSource.getRepository(Tournament_1.Tournament);
         this.seriesRepository = database_1.AppDataSource.getRepository(TournamentSeries_1.TournamentSeries);
+        this.seatingService = new SeatingService_1.SeatingService();
+        this.liveStateService = new LiveStateService_1.LiveStateService();
         this.registrationRepository = database_1.AppDataSource.getRepository(TournamentRegistration_1.TournamentRegistration);
         this.tournamentRewardRepository = database_1.AppDataSource.getRepository(TournamentReward_1.TournamentReward);
         this.rewardRepository = database_1.AppDataSource.getRepository(Reward_1.Reward);
         this.playerRepository = database_1.AppDataSource.getRepository(PlayerProfile_1.PlayerProfile);
         this.clubRepository = database_1.AppDataSource.getRepository(Club_1.Club);
         this.financialService = new FinancialService_1.FinancialService();
+        this.playerOperationRepository = database_1.AppDataSource.getRepository(PlayerOperation_1.PlayerOperation);
+        this.playerBillRepository = database_1.AppDataSource.getRepository(PlayerBill_1.PlayerBill);
+        this.orderRepository = database_1.AppDataSource.getRepository(Order_1.Order);
+        this.achievementInstanceRepository = database_1.AppDataSource.getRepository(AchievementInstance_1.AchievementInstance);
     }
     /**
      * Создать турнир
@@ -43,7 +55,11 @@ class TournamentService {
             buyInCost: data.buyInCost,
             startingStack: data.startingStack,
             addonChips: data.addonChips ?? 0,
+            addonCost: data.addonCost ?? 0,
             rebuyChips: data.rebuyChips ?? 0,
+            rebuyCost: data.rebuyCost ?? 0,
+            maxRebuys: data.maxRebuys ?? 0,
+            maxAddons: data.maxAddons ?? 0,
             blindStructureId: data.blindStructureId,
             status: 'REG_OPEN',
             currentLevelNumber: 0,
@@ -51,6 +67,14 @@ class TournamentService {
         const saved = await this.tournamentRepository.save(tournament);
         if (data.rewards?.length) {
             await this.setTournamentRewards(saved.id, data.rewards);
+        }
+        if (saved.clubId) {
+            try {
+                await this.seatingService.initializeTablesFromClub(saved.id);
+            }
+            catch (err) {
+                console.warn('Auto-init tables from club failed:', err instanceof Error ? err.message : err);
+            }
         }
         return await this.getTournamentById(saved.id);
     }
@@ -99,8 +123,9 @@ class TournamentService {
     }
     /**
      * Регистрация игрока на турнир
+     * @param isArrived - если false, игрок зарегистрировался сам и ещё не прибыл в клуб
      */
-    async registerPlayer(tournamentId, playerProfileId, paymentMethod = 'DEPOSIT') {
+    async registerPlayer(tournamentId, playerProfileId, paymentMethod = 'DEPOSIT', isArrived = true) {
         const tournament = await this.tournamentRepository.findOne({
             where: { id: tournamentId },
         });
@@ -126,9 +151,16 @@ class TournamentService {
         if (!player) {
             throw new Error('Player not found');
         }
-        // Оплата с депозита: списать бай-ин до создания регистрации
-        if (paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
-            await this.financialService.deductBalance(playerProfileId, tournament.buyInCost, 'BUYIN', tournamentId);
+        // Оплата в конце турнира: бай-ин учитывается в турнирном балансе, списание при оплате
+        const buyInAmount = tournament.buyInCost ?? 0;
+        if (buyInAmount > 0) {
+            const operation = this.playerOperationRepository.create({
+                playerProfile: player,
+                operationType: 'BUYIN',
+                amount: buyInAmount,
+                tournament,
+            });
+            await this.playerOperationRepository.save(operation);
         }
         const registration = this.registrationRepository.create({
             tournament,
@@ -136,19 +168,11 @@ class TournamentService {
             registeredAt: new Date(),
             paymentMethod,
             isActive: true,
+            isArrived,
             currentStack: tournament.startingStack,
         });
-        try {
-            await this.registrationRepository.save(registration);
-            return registration;
-        }
-        catch (err) {
-            // Откат: вернуть депозит при ошибке сохранения регистрации
-            if (paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
-                await this.financialService.addBalance(playerProfileId, tournament.buyInCost, 'REFUND', tournamentId);
-            }
-            throw err;
-        }
+        await this.registrationRepository.save(registration);
+        return registration;
     }
     /**
      * Получить участников турнира
@@ -160,10 +184,100 @@ class TournamentService {
             order: { registeredAt: 'ASC' },
         });
     }
-    /**
-     * Изменить статус турнира
-     */
-    async updateTournamentStatus(tournamentId, status) {
+    /** Отметить игрока как прибывшего в клуб (управляющий нажал «Прибыл») */
+    async markPlayerArrived(tournamentId, registrationId, managedClubId) {
+        await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+        const registration = await this.registrationRepository.findOne({
+            where: { id: registrationId, tournament: { id: tournamentId } },
+            relations: ['player', 'player.user'],
+        });
+        if (!registration)
+            throw new Error('Registration not found');
+        registration.isArrived = true;
+        await this.registrationRepository.save(registration);
+        return registration;
+    }
+    async ensureTournamentBelongsToClub(tournamentId, managedClubId) {
+        const tournament = await this.tournamentRepository.findOne({ where: { id: tournamentId } });
+        if (!tournament)
+            throw new Error('Tournament not found');
+        if (managedClubId && tournament.clubId !== managedClubId) {
+            throw new Error('Forbidden: tournament belongs to another club');
+        }
+        return tournament;
+    }
+    async updateTournament(tournamentId, data, managedClubId) {
+        await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+        const tournament = await this.tournamentRepository.findOne({
+            where: { id: tournamentId },
+        });
+        if (!tournament)
+            throw new Error('Tournament not found');
+        if (data.name != null)
+            tournament.name = data.name;
+        if (data.startTime != null)
+            tournament.startTime = data.startTime;
+        if (data.buyInCost != null)
+            tournament.buyInCost = data.buyInCost;
+        if (data.startingStack != null)
+            tournament.startingStack = data.startingStack;
+        if (data.addonChips != null)
+            tournament.addonChips = data.addonChips;
+        if (data.addonCost != null)
+            tournament.addonCost = data.addonCost;
+        if (data.rebuyChips != null)
+            tournament.rebuyChips = data.rebuyChips;
+        if (data.rebuyCost != null)
+            tournament.rebuyCost = data.rebuyCost;
+        if (data.maxRebuys != null)
+            tournament.maxRebuys = data.maxRebuys;
+        if (data.maxAddons != null)
+            tournament.maxAddons = data.maxAddons;
+        if (data.blindStructureId != null)
+            tournament.blindStructureId = data.blindStructureId;
+        if (data.clubId != null)
+            tournament.clubId = data.clubId;
+        if (data.seriesId !== undefined) {
+            if (data.seriesId) {
+                const series = await this.seriesRepository.findOne({ where: { id: data.seriesId } });
+                if (series)
+                    tournament.series = series;
+            }
+            else {
+                tournament.series = null;
+            }
+        }
+        if (data.clubId !== undefined && data.clubId) {
+            const club = await this.clubRepository.findOne({ where: { id: data.clubId } });
+            tournament.club = club ?? null;
+        }
+        else if (data.clubId === null) {
+            tournament.club = null;
+        }
+        return this.tournamentRepository.save(tournament);
+    }
+    async deleteTournament(tournamentId, managedClubId, options) {
+        if (!options?.force) {
+            await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+        }
+        const tournament = await this.tournamentRepository.findOne({
+            where: { id: tournamentId },
+        });
+        if (!tournament)
+            throw new Error('Tournament not found');
+        if (!options?.force && tournament.status !== 'REG_OPEN' && tournament.status !== 'ARCHIVED') {
+            throw new Error('Can only delete tournaments in REG_OPEN or ARCHIVED status');
+        }
+        // Явно удаляем связанные записи (обходим FK-ограничения при старом schema)
+        await this.liveStateService.deleteLiveState(tournamentId);
+        await this.playerOperationRepository.delete({ tournament: { id: tournamentId } });
+        await this.playerBillRepository.delete({ tournament: { id: tournamentId } });
+        await this.orderRepository.update({ tournamentId }, { tournamentId: null });
+        await this.achievementInstanceRepository.update({ tournamentId }, { tournamentId: null });
+        await this.tournamentRepository.remove(tournament);
+    }
+    async updateTournamentStatus(tournamentId, status, managedClubId) {
+        await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
         const tournament = await this.tournamentRepository.findOne({
             where: { id: tournamentId },
         });
@@ -217,10 +331,12 @@ class TournamentService {
         if (!registration) {
             throw new Error('Registration not found');
         }
-        // Возврат депозита при отмене регистрации (если платили с депозита)
-        if (registration.paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
-            await this.financialService.addBalance(playerProfile.id, tournament.buyInCost, 'REFUND', tournamentId);
-        }
+        // Удалить операцию BUYIN (бай-ин был в турнирном счёте)
+        await this.playerOperationRepository.delete({
+            playerProfile: { id: playerProfile.id },
+            tournament: { id: tournamentId },
+            operationType: 'BUYIN',
+        });
         await this.registrationRepository.remove(registration);
     }
 }

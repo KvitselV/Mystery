@@ -8,7 +8,7 @@ export class TournamentSeriesController {
   static async create(req: AuthRequest, res: Response) {
     try {
       const clubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : req.body.clubId;
-      const { name, periodStart, periodEnd, daysOfWeek, defaultStartTime, defaultBuyIn, defaultStartingStack, defaultBlindStructureId } = req.body;
+      const { name, periodStart, periodEnd, daysOfWeek, defaultStartTime, defaultBuyIn, defaultStartingStack, defaultBlindStructureId, defaultAddonChips, defaultAddonCost, defaultRebuyChips, defaultRebuyCost, defaultMaxRebuys, defaultMaxAddons } = req.body;
       if (!name || !periodStart || !periodEnd) {
         return res.status(400).json({ error: 'name, periodStart, periodEnd are required' });
       }
@@ -25,6 +25,12 @@ export class TournamentSeriesController {
         defaultBuyIn,
         defaultStartingStack,
         defaultBlindStructureId,
+        defaultAddonChips: defaultAddonChips ?? 0,
+        defaultAddonCost: defaultAddonCost ?? 0,
+        defaultRebuyChips: defaultRebuyChips ?? 0,
+        defaultRebuyCost: defaultRebuyCost ?? 0,
+        defaultMaxRebuys: defaultMaxRebuys ?? 0,
+        defaultMaxAddons: defaultMaxAddons ?? 0,
       });
       res.status(201).json(series);
     } catch (e: unknown) {
@@ -78,6 +84,19 @@ export class TournamentSeriesController {
       const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
       await seriesService.deleteSeries(id, managedClubId);
       res.json({ message: 'Series deleted' });
+    } catch (e: unknown) {
+      res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
+    }
+  }
+
+  /**
+   * GET /tournament-series/:id/rating-table — Таблица рейтинга серии
+   */
+  static async getRatingTable(req: AuthRequest, res: Response) {
+    try {
+      const id = req.params.id as string;
+      const table = await seriesService.getSeriesRatingTable(id);
+      res.json(table);
     } catch (e: unknown) {
       res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
     }

@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import { AppDataSource } from './config/database';
 import { httpServer } from './app';
 import { connectRedis } from "./config/redis";
+import { startTournamentLevelTicker } from './services/TournamentLevelTicker';
+import { startTournamentStatusSync } from './services/TournamentStatusSync';
 
 const PORT = process.env.PORT || 3000;
 
@@ -15,6 +17,12 @@ async function bootstrap() {
     // 👇 Подключаемся к Redis
     await connectRedis();
     // При успешном коннекте у тебя в redis.ts уже есть лог "✅ Redis connected"
+
+    startTournamentLevelTicker();
+    console.log('⏱️ Tournament level ticker started');
+
+    startTournamentStatusSync();
+    console.log('📅 Tournament status sync started (hourly)');
 
     httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);

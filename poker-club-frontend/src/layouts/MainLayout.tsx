@@ -38,11 +38,11 @@ export default function MainLayout() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      <header className="sticky top-0 z-50 glass-card m-4 mx-6 rounded-2xl border border-white/10 shadow-xl">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-black via-zinc-950 to-black">
+      <header className="sticky top-0 z-50 glass-card m-4 mx-6 rounded-2xl border border-amber-900/30 shadow-xl">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-cyan-300 tracking-tight">Poker Club</h1>
+            <h1 className="text-xl font-bold text-amber-400 tracking-tight">Mystery</h1>
             <nav className="flex gap-1">
               {visibleTabs.map((tab) => (
                 <button
@@ -50,8 +50,8 @@ export default function MainLayout() {
                   onClick={() => navigate(tab.path)}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                     location.pathname.startsWith(tab.path)
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'text-zinc-400 hover:text-amber-200 hover:bg-amber-500/5'
                   }`}
                 >
                   {tab.label}
@@ -67,14 +67,14 @@ export default function MainLayout() {
                   const c = clubs.find((x) => x.id === e.target.value);
                   setSelectedClub(c ?? null);
                 }}
-                className="glass-card border border-white/10 px-4 py-2 rounded-xl text-sm bg-transparent text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                className="glass-card border border-amber-900/30 px-4 py-2 rounded-xl text-sm bg-transparent text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
               >
                 {clubs.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             )}
-            <span className="text-slate-400 text-sm">{user?.firstName} {user?.lastName}</span>
+            <span className="text-zinc-400 text-sm">{user?.name}</span>
             <button onClick={logout} className="glass-btn px-4 py-2 rounded-xl text-sm">
               Выход
             </button>

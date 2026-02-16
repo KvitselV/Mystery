@@ -3,12 +3,18 @@ import { TournamentRegistration } from '../models/TournamentRegistration';
 export declare class TournamentService {
     private tournamentRepository;
     private seriesRepository;
+    private seatingService;
+    private liveStateService;
     private registrationRepository;
     private tournamentRewardRepository;
     private rewardRepository;
     private playerRepository;
     private clubRepository;
     private financialService;
+    private playerOperationRepository;
+    private playerBillRepository;
+    private orderRepository;
+    private achievementInstanceRepository;
     /**
      * Создать турнир
      */
@@ -20,7 +26,11 @@ export declare class TournamentService {
         buyInCost: number;
         startingStack: number;
         addonChips?: number;
+        addonCost?: number;
         rebuyChips?: number;
+        rebuyCost?: number;
+        maxRebuys?: number;
+        maxAddons?: number;
         blindStructureId?: string;
         rewards?: {
             rewardId: string;
@@ -49,16 +59,35 @@ export declare class TournamentService {
     }>;
     /**
      * Регистрация игрока на турнир
+     * @param isArrived - если false, игрок зарегистрировался сам и ещё не прибыл в клуб
      */
-    registerPlayer(tournamentId: string, playerProfileId: string, paymentMethod?: 'CASH' | 'DEPOSIT'): Promise<TournamentRegistration>;
+    registerPlayer(tournamentId: string, playerProfileId: string, paymentMethod?: 'CASH' | 'DEPOSIT', isArrived?: boolean): Promise<TournamentRegistration>;
     /**
      * Получить участников турнира
      */
     getTournamentPlayers(tournamentId: string): Promise<TournamentRegistration[]>;
-    /**
-     * Изменить статус турнира
-     */
-    updateTournamentStatus(tournamentId: string, status: 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED'): Promise<Tournament>;
+    /** Отметить игрока как прибывшего в клуб (управляющий нажал «Прибыл») */
+    markPlayerArrived(tournamentId: string, registrationId: string, managedClubId?: string | null): Promise<TournamentRegistration>;
+    ensureTournamentBelongsToClub(tournamentId: string, managedClubId?: string | null): Promise<Tournament>;
+    updateTournament(tournamentId: string, data: Partial<{
+        name: string;
+        seriesId: string | null;
+        clubId: string | null;
+        startTime: Date;
+        buyInCost: number;
+        startingStack: number;
+        addonChips: number;
+        addonCost: number;
+        rebuyChips: number;
+        rebuyCost: number;
+        maxRebuys: number;
+        maxAddons: number;
+        blindStructureId: string | null;
+    }>, managedClubId?: string | null): Promise<Tournament>;
+    deleteTournament(tournamentId: string, managedClubId?: string | null, options?: {
+        force?: boolean;
+    }): Promise<void>;
+    updateTournamentStatus(tournamentId: string, status: 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED', managedClubId?: string | null): Promise<Tournament>;
     /**
      * Получить турнир по ID
      */

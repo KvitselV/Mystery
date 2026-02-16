@@ -9,16 +9,13 @@ export class User {
   id!: string;
 
   @Column({ type: 'varchar', length: 255 })
-  firstName: string;
+  name: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  lastName: string;
+  @Column({ type: 'varchar', length: 50, unique: true })
+  clubCardNumber: string;
 
   @Column({ type: 'varchar', length: 20, unique: true })
   phone: string;
-
-  @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
-  email: string;
 
   @Column({ type: 'varchar', length: 255 })
   passwordHash: string;

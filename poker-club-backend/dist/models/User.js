@@ -13,6 +13,7 @@ exports.User = void 0;
 const typeorm_1 = require("typeorm");
 const typeorm_2 = require("typeorm");
 const PlayerBalance_1 = require("./PlayerBalance");
+const Club_1 = require("./Club");
 let User = class User {
 };
 exports.User = User;
@@ -41,9 +42,18 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "passwordHash", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'enum', enum: ['ADMIN', 'PLAYER', 'WAITER', 'TV'], default: 'PLAYER' }),
+    (0, typeorm_1.Column)({ type: 'enum', enum: ['ADMIN', 'CONTROLLER', 'PLAYER', 'WAITER', 'TV'], default: 'PLAYER' }),
     __metadata("design:type", String)
 ], User.prototype, "role", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], User.prototype, "managedClubId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => Club_1.Club, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'managed_club_id' }),
+    __metadata("design:type", Object)
+], User.prototype, "managedClub", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'boolean', default: true }),
     __metadata("design:type", Boolean)

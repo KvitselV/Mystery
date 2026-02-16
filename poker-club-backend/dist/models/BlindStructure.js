@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BlindStructure = void 0;
 const typeorm_1 = require("typeorm");
 const TournamentLevel_1 = require("./TournamentLevel");
+const Club_1 = require("./Club");
 let BlindStructure = class BlindStructure {
 };
 exports.BlindStructure = BlindStructure;
@@ -31,6 +32,15 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'boolean', default: true }),
     __metadata("design:type", Boolean)
 ], BlindStructure.prototype, "isActive", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], BlindStructure.prototype, "clubId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => Club_1.Club, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'club_id' }),
+    __metadata("design:type", Object)
+], BlindStructure.prototype, "club", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)(() => TournamentLevel_1.TournamentLevel, (level) => level.blindStructure, {
         cascade: true,

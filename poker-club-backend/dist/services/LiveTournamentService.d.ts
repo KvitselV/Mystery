@@ -10,29 +10,33 @@ export declare class LiveTournamentService {
     private resultRepository;
     private blindStructureRepository;
     private levelRepository;
-    private billRepository;
-    private orderRepository;
     private liveStateService;
     private seatingService;
     private mmrService;
     private leaderboardService;
     private achievementService;
     private statisticsService;
-    private financialService;
     rebuy(tournamentId: string, playerProfileId: string, amount?: number): Promise<PlayerOperation>;
     /**
      * Аддон - игрок докупает дополнительные фишки
      */
     addon(tournamentId: string, playerProfileId: string, amount: number): Promise<PlayerOperation>;
     /**
-     * Выбытие игрока с записью результата
+     * Выбытие игрока с записью результата.
+     * finishPosition — место вылета. Если не указано, считается автоматически
+     * (следующее место после уже вылетевших).
      */
-    eliminatePlayer(tournamentId: string, playerProfileId: string, finishPosition: number): Promise<TournamentResult>;
+    eliminatePlayer(tournamentId: string, playerProfileId: string, finishPosition?: number): Promise<TournamentResult>;
     moveToNextLevel(tournamentId: string): Promise<{
         tournament: Tournament;
         currentLevel: TournamentLevel | null;
     }>;
+    moveToPrevLevel(tournamentId: string): Promise<{
+        tournament: Tournament;
+        currentLevel: TournamentLevel | null;
+    }>;
     getCurrentLevel(tournamentId: string): Promise<TournamentLevel | null>;
+    getNextLevel(tournamentId: string): Promise<TournamentLevel | null>;
     /**
      * Получить все операции игрока в турнире
      */

@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TournamentSeries = void 0;
 const typeorm_1 = require("typeorm");
 const Tournament_1 = require("./Tournament");
+const Club_1 = require("./Club");
 let TournamentSeries = class TournamentSeries {
 };
 exports.TournamentSeries = TournamentSeries;
@@ -20,8 +21,8 @@ __decorate([
     __metadata("design:type", String)
 ], TournamentSeries.prototype, "id", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'varchar', length: 255, unique: true }),
-    __metadata("design:type", String)
+    (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true }),
+    __metadata("design:type", Object)
 ], TournamentSeries.prototype, "idSeries", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
@@ -35,6 +36,19 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'timestamp' }),
     __metadata("design:type", Date)
 ], TournamentSeries.prototype, "periodEnd", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, default: '1,2,3,4,5,6' }),
+    __metadata("design:type", String)
+], TournamentSeries.prototype, "daysOfWeek", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'uuid', nullable: true }),
+    __metadata("design:type", Object)
+], TournamentSeries.prototype, "clubId", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => Club_1.Club, { nullable: true }),
+    (0, typeorm_1.JoinColumn)({ name: 'club_id' }),
+    __metadata("design:type", Object)
+], TournamentSeries.prototype, "club", void 0);
 __decorate([
     (0, typeorm_1.OneToMany)(() => Tournament_1.Tournament, (tournament) => tournament.series),
     __metadata("design:type", Array)

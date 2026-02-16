@@ -50,6 +50,10 @@ export declare class LiveStateService {
     /**
      * Удалить Live State (при завершении турнира)
      */
+    getRebuyAndAddonCounts(tournamentId: string): Promise<{
+        rebuyCount: number;
+        addonCount: number;
+    }>;
     deleteLiveState(tournamentId: string): Promise<void>;
     /**
      * Форматировать Live State для ответа и WebSocket

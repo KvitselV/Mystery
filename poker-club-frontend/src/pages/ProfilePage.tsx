@@ -35,23 +35,24 @@ export default function ProfilePage() {
             {promoting ? '...' : 'Стать администратором (dev)'}
           </button>
         )}
-        <div className="space-y-2 text-slate-300">
-          <p><span className="text-slate-500">Имя:</span> {user?.firstName} {user?.lastName}</p>
-          <p><span className="text-slate-500">Телефон:</span> {user?.phone}</p>
-          <p><span className="text-slate-500">Дата регистрации:</span> {formatRegistrationDate(user?.createdAt)}</p>
+        <div className="space-y-2 text-zinc-300">
+          <p><span className="text-zinc-500">Имя:</span> {user?.name}</p>
+          {user?.clubCardNumber && <p><span className="text-zinc-500">Номер клубной карты:</span> {user.clubCardNumber}</p>}
+          <p><span className="text-zinc-500">Телефон:</span> {user?.phone}</p>
+          <p><span className="text-zinc-500">Дата регистрации:</span> {formatRegistrationDate(user?.createdAt)}</p>
         </div>
       </div>
 
       <div className="glass-card p-6">
         <h2 className="text-xl font-bold text-white mb-4">Статистика</h2>
         {stats ? (
-          <div className="grid grid-cols-2 gap-4 text-slate-300">
-            <div><span className="text-slate-500">Турниров сыграно:</span> {(stats as { tournamentsPlayed?: number }).tournamentsPlayed ?? '—'}</div>
-            <div><span className="text-slate-500">Лучший результат:</span> {(stats as { bestFinish?: number }).bestFinish ?? '—'}</div>
-            <div><span className="text-slate-500">ИТМ:</span> {(stats as { itmRate?: number }).itmRate ?? '—'}</div>
+          <div className="grid grid-cols-2 gap-4 text-zinc-300">
+            <div><span className="text-zinc-500">Турниров сыграно:</span> {(stats as { tournamentsPlayed?: number }).tournamentsPlayed ?? '—'}</div>
+            <div><span className="text-zinc-500">Лучший результат:</span> {(stats as { bestFinish?: number }).bestFinish ?? '—'}</div>
+            <div><span className="text-zinc-500">ИТМ:</span> {(stats as { itmRate?: number }).itmRate ?? '—'}</div>
           </div>
         ) : (
-          <p className="text-slate-500">Загрузка статистики...</p>
+          <p className="text-zinc-500">Загрузка статистики...</p>
         )}
       </div>
 
@@ -61,13 +62,13 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {achievements.map((a, i) => (
               <div key={i} className="glass-card p-4 text-center">
-                <div className="text-cyan-400 font-medium">{a.name ?? a.code ?? '—'}</div>
-                {a.progress != null && <div className="text-slate-400 text-sm">{a.progress}%</div>}
+                <div className="text-amber-400 font-medium">{a.name ?? a.code ?? '—'}</div>
+                {a.progress != null && <div className="text-zinc-400 text-sm">{a.progress}%</div>}
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-slate-500">Пока нет достижений</p>
+          <p className="text-zinc-500">Пока нет достижений</p>
         )}
       </div>
     </div>

@@ -2,14 +2,19 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LiveTournamentController = void 0;
 const LiveTournamentService_1 = require("../services/LiveTournamentService");
+const LiveStateService_1 = require("../services/LiveStateService");
+const TournamentService_1 = require("../services/TournamentService");
+const TournamentBalanceService_1 = require("../services/TournamentBalanceService");
 const liveTournamentService = new LiveTournamentService_1.LiveTournamentService();
+const tournamentBalanceService = new TournamentBalanceService_1.TournamentBalanceService();
+const liveStateService = new LiveStateService_1.LiveStateService();
+const tournamentService = new TournamentService_1.TournamentService();
 class LiveTournamentController {
     static async rebuy(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const playerId = req.params.playerId;
             const { amount } = req.body;
             const operation = await liveTournamentService.rebuy(tournamentId, playerId, amount);
@@ -29,10 +34,9 @@ class LiveTournamentController {
     }
     static async addon(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const playerId = req.params.playerId;
             const { amount } = req.body;
             if (!amount) {
@@ -53,22 +57,14 @@ class LiveTournamentController {
             res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
         }
     }
-    /**
-     * POST /tournaments/:id/player/:playerId/eliminate - Выбытие игрока
-     * Только для администраторов
-     */
     static async eliminatePlayer(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const playerId = req.params.playerId;
             const { finishPosition } = req.body;
-            if (!finishPosition) {
-                return res.status(400).json({ error: 'finishPosition is required' });
-            }
-            const result = await liveTournamentService.eliminatePlayer(tournamentId, playerId, finishPosition);
+            const result = await liveTournamentService.eliminatePlayer(tournamentId, playerId, typeof finishPosition === 'number' && finishPosition >= 1 ? finishPosition : undefined);
             res.json({
                 message: 'Player eliminated',
                 result: {
@@ -88,13 +84,59 @@ class LiveTournamentController {
      */
     static async moveToNextLevel(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const { tournament, currentLevel } = await liveTournamentService.moveToNextLevel(tournamentId);
+            const durationSeconds = currentLevel?.isBreak
+                ? 300
+                : (currentLevel?.durationMinutes ?? 20) * 60;
+            await liveStateService.updateLiveState(tournamentId, {
+                currentLevelNumber: tournament.currentLevelNumber,
+                levelRemainingTimeSeconds: durationSeconds,
+            });
             res.json({
                 message: 'Moved to next level',
+                tournament: {
+                    id: tournament.id,
+                    name: tournament.name,
+                    currentLevelNumber: tournament.currentLevelNumber,
+                },
+                currentLevel: currentLevel
+                    ? {
+                        levelNumber: currentLevel.levelNumber,
+                        smallBlind: currentLevel.smallBlind,
+                        bigBlind: currentLevel.bigBlind,
+                        ante: currentLevel.ante,
+                        durationMinutes: currentLevel.durationMinutes,
+                        isBreak: currentLevel.isBreak,
+                        breakName: currentLevel.breakName,
+                    }
+                    : null,
+            });
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
+    /**
+     * PATCH /tournaments/:id/level/prev - Перейти на предыдущий уровень
+     */
+    static async moveToPrevLevel(req, res) {
+        try {
+            const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+            const { tournament, currentLevel } = await liveTournamentService.moveToPrevLevel(tournamentId);
+            const durationSeconds = currentLevel?.isBreak
+                ? 300
+                : (currentLevel?.durationMinutes ?? 20) * 60;
+            await liveStateService.updateLiveState(tournamentId, {
+                currentLevelNumber: tournament.currentLevelNumber,
+                levelRemainingTimeSeconds: durationSeconds,
+            });
+            res.json({
+                message: 'Moved to previous level',
                 tournament: {
                     id: tournament.id,
                     name: tournament.name,
@@ -165,18 +207,68 @@ class LiveTournamentController {
     }
     /**
      * POST /tournaments/:id/finish - Завершить турнир
-     * Только для администраторов
+     * ADMIN: в любой момент. CONTROLLER: только когда остался 1 игрок после поздней регистрации
      */
     static async finishTournament(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+            if (req.user?.role === 'CONTROLLER') {
+                const liveState = await liveStateService.getLiveState(tournamentId);
+                const playersCount = liveState?.playersCount ?? 0;
+                if (playersCount !== 1) {
+                    return res.status(400).json({
+                        error: 'Контроллер может завершить турнир только когда остался один игрок после поздней регистрации',
+                    });
+                }
+            }
             await liveTournamentService.finishTournament(tournamentId);
             res.json({
                 message: 'Tournament finished successfully',
                 tournamentId,
+            });
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
+    /**
+     * GET /tournaments/:id/player-balances - Балансы игроков (Controller, Admin)
+     */
+    static async getPlayerBalances(req, res) {
+        try {
+            const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+            const balances = await tournamentBalanceService.getTournamentPlayerBalances(tournamentId);
+            res.json({ balances });
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
+    /**
+     * POST /tournaments/:id/player/:playerId/pay - Оплата счёта игрока
+     */
+    static async recordPayment(req, res) {
+        try {
+            const tournamentId = req.params.id;
+            const playerId = req.params.playerId;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+            const { cashAmount = 0, nonCashAmount = 0 } = req.body;
+            const cash = Math.round(Math.max(0, Number(cashAmount)) * 100);
+            const nonCash = Math.round(Math.max(0, Number(nonCashAmount)) * 100);
+            const payment = await tournamentBalanceService.recordPayment(tournamentId, playerId, cash, nonCash);
+            res.json({
+                message: 'Payment recorded',
+                payment: {
+                    id: payment.id,
+                    cashAmount: payment.cashAmount,
+                    nonCashAmount: payment.nonCashAmount,
+                    createdAt: payment.createdAt,
+                },
             });
         }
         catch (error) {

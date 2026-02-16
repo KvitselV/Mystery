@@ -38,7 +38,7 @@ export class Order {
   @Column({ name: 'user_id' })
   userId: string;
 
-  @ManyToOne(() => Tournament, { nullable: true })
+  @ManyToOne(() => Tournament, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'tournament_id' })
   tournament?: Tournament;
 

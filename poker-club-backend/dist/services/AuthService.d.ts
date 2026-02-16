@@ -11,5 +11,22 @@ export declare class AuthService {
         accessToken: string;
     }>;
     getUserById(userId: string): Promise<User | null>;
+    getAllUsers(): Promise<Array<{
+        id: string;
+        firstName: string;
+        lastName: string;
+        phone: string;
+        role: string;
+        managedClubId: string | null;
+        managedClub: {
+            id: string;
+            name: string;
+        } | null;
+    }>>;
+    assignControllerToClub(controllerUserId: string, clubId: string): Promise<{
+        managedClubId: string;
+    }>;
+    promoteToController(adminUserId: string, targetUserId: string, clubId: string): Promise<AuthResponse | null>;
+    promoteToAdmin(userId: string): Promise<AuthResponse | null>;
 }
 //# sourceMappingURL=AuthService.d.ts.map

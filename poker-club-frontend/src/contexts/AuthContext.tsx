@@ -5,7 +5,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (phone: string, password: string) => Promise<void>;
-  register: (data: { firstName: string; lastName: string; phone: string; password: string; email?: string }) => Promise<void>;
+  register: (data: { name: string; clubCardNumber: string; phone: string; password: string }) => Promise<void>;
   promoteToAdmin: () => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   };
 
-  const register = async (data: { firstName: string; lastName: string; phone: string; password: string; email?: string }) => {
+  const register = async (data: { name: string; clubCardNumber: string; phone: string; password: string }) => {
     const { data: res } = await authApi.register(data);
     localStorage.setItem('accessToken', res.accessToken);
     setUser(res.user);

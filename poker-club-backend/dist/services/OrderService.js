@@ -19,8 +19,9 @@ class OrderService {
      * Создать новый заказ (создание заказа и списание баланса в одной транзакции)
      */
     async createOrder(data) {
-        const paymentMethod = data.paymentMethod ?? Order_1.OrderPaymentMethod.DEPOSIT;
-        const isCredit = paymentMethod === Order_1.OrderPaymentMethod.CREDIT;
+        // В турнире все заказы идут в счёт (оплата при выходе)
+        const isCredit = !!data.tournamentId || data.paymentMethod === Order_1.OrderPaymentMethod.CREDIT;
+        const paymentMethod = isCredit ? Order_1.OrderPaymentMethod.CREDIT : (data.paymentMethod ?? Order_1.OrderPaymentMethod.DEPOSIT);
         return database_1.AppDataSource.transaction(async (manager) => {
             const orderRepo = manager.getRepository(Order_1.Order);
             const orderItemRepo = manager.getRepository(OrderItem_1.OrderItem);
@@ -67,7 +68,7 @@ class OrderService {
                 tournamentId: data.tournamentId,
                 status: Order_1.OrderStatus.PENDING,
                 totalAmount,
-                paymentMethod,
+                paymentMethod: paymentMethod,
                 notes: data.notes,
                 tableNumber: data.tableNumber,
             });

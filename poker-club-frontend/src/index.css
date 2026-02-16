@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --glass-bg: rgba(255, 255, 255, 0.06);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-highlight: rgba(255, 255, 255, 0.15);
-  --accent: #22d3ee;
-  --accent-dim: #0891b2;
+  --glass-bg: rgba(218, 165, 32, 0.06);
+  --glass-border: rgba(218, 165, 32, 0.15);
+  --glass-highlight: rgba(218, 165, 32, 0.12);
+  --accent: #DAA520;
+  --accent-dim: #B8860B;
 }
 
 * {
@@ -18,35 +18,89 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: 'Outfit', system-ui, sans-serif;
-  background: linear-gradient(135deg, #0c0f1a 0%, #151b2d 40%, #0f172a 100%);
-  color: #e2e8f0;
+  background: linear-gradient(135deg, #000000 0%, #0a0a0a 40%, #000000 100%);
+  color: #f5f5f5;
 }
 
-/* Liquid Glass card */
+/* Liquid Glass card — black & gold */
 .glass-card {
-  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+  background: linear-gradient(135deg, rgba(218,165,32,0.06) 0%, rgba(0,0,0,0.4) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(218,165,32,0.15);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(218,165,32,0.08);
 }
 
 .glass-card:hover {
-  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
-  border-color: rgba(255,255,255,0.15);
+  background: linear-gradient(135deg, rgba(218,165,32,0.08) 0%, rgba(0,0,0,0.4) 100%);
+  border-color: rgba(218,165,32,0.25);
 }
 
 .glass-btn {
-  background: linear-gradient(135deg, rgba(34,211,238,0.2) 0%, rgba(34,211,238,0.1) 100%);
+  background: linear-gradient(135deg, rgba(218,165,32,0.15) 0%, rgba(184,134,11,0.08) 100%);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(34,211,238,0.3);
-  color: #22d3ee;
+  border: 1px solid rgba(218,165,32,0.3);
+  color: #DAA520;
   transition: all 0.2s ease;
 }
 
 .glass-btn:hover {
-  background: linear-gradient(135deg, rgba(34,211,238,0.3) 0%, rgba(34,211,238,0.15) 100%);
-  border-color: rgba(34,211,238,0.5);
-  box-shadow: 0 0 20px rgba(34,211,238,0.2);
+  background: linear-gradient(135deg, rgba(218,165,32,0.25) 0%, rgba(184,134,11,0.15) 100%);
+  border-color: rgba(218,165,32,0.5);
+  box-shadow: 0 0 20px rgba(218,165,32,0.15);
+}
+
+/* Glass-style checkbox & radio — black & gold */
+.glass-checkbox,
+.glass-radio {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(218, 165, 32, 0.4);
+  background: rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.glass-checkbox {
+  border-radius: 4px;
+}
+.glass-radio {
+  border-radius: 50%;
+}
+.glass-checkbox:hover,
+.glass-radio:hover {
+  border-color: rgba(218, 165, 32, 0.7);
+  background: rgba(218, 165, 32, 0.08);
+}
+.glass-checkbox:checked,
+.glass-radio:checked {
+  border-color: #DAA520;
+  box-shadow: 0 0 8px rgba(218, 165, 32, 0.3);
+}
+.glass-checkbox:checked {
+  background: linear-gradient(135deg, rgba(218, 165, 32, 0.25) 0%, rgba(184, 134, 11, 0.15) 100%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23DAA520' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+  background-size: 12px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.glass-radio:checked {
+  background-color: rgba(0, 0, 0, 0.5);
+  background-image: radial-gradient(circle at center, #DAA520 35%, transparent 45%);
+}
+
+/* TV Liquid Glass — black & gold frosted panels */
+.tv-liquid-glass {
+  background: linear-gradient(135deg, rgba(218,165,32,0.1) 0%, rgba(0,0,0,0.3) 50%, rgba(184,134,11,0.04) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(218,165,32,0.2);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.4),
+    0 2px 8px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(218,165,32,0.15),
+    inset 0 -1px 0 rgba(218,165,32,0.05);
 }

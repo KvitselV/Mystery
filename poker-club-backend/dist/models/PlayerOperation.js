@@ -34,7 +34,7 @@ __decorate([
     __metadata("design:type", Number)
 ], PlayerOperation.prototype, "amount", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, { nullable: true }),
+    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, { nullable: true, onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'tournament_id' }),
     __metadata("design:type", Tournament_1.Tournament)
 ], PlayerOperation.prototype, "tournament", void 0);

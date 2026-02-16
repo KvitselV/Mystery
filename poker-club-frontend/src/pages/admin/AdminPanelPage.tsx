@@ -14,12 +14,16 @@ import {
   type MenuCategory,
   type MenuItem,
   type CreateLevelDto,
+  type BreakType,
   type TournamentSeries,
   type Tournament,
   type UpdateTournamentDto,
   type User,
 } from '../../api';
 import { useClub } from '../../contexts/ClubContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { AdminReportModal } from '../../components/AdminReportModal';
+import { PlayerResultsModal } from '../../components/PlayerResultsModal';
 
 const DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 
@@ -28,31 +32,34 @@ export default function AdminPanelPage() {
   return (
     <div className="flex gap-6">
       <nav className="w-56 shrink-0 space-y-1">
-        <NavLink to="/admin" end className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin" end className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Обзор
         </NavLink>
-        <NavLink to="/admin/clubs" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/clubs" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Клубы
         </NavLink>
-        <NavLink to="/admin/series" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/series" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Турнирные серии
         </NavLink>
-        <NavLink to="/admin/tournaments" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/tournaments" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Турниры
         </NavLink>
-        <NavLink to="/admin/blinds" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/reports" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+          Финансовые отчёты
+        </NavLink>
+        <NavLink to="/admin/blinds" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Структуры блайндов
         </NavLink>
-        <NavLink to="/admin/menu" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/menu" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Меню
         </NavLink>
-        <NavLink to="/admin/seasons" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/seasons" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Рейтинги и сезоны
         </NavLink>
-        <NavLink to="/admin/users" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/users" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           Пользователи
         </NavLink>
-        <NavLink to="/admin/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-slate-400 hover:text-white'}`}>
+        <NavLink to="/admin/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           TV
         </NavLink>
       </nav>
@@ -62,6 +69,7 @@ export default function AdminPanelPage() {
           <Route path="/clubs" element={<AdminClubs onRefresh={refreshClubs} />} />
           <Route path="/series" element={<AdminSeries />} />
           <Route path="/tournaments" element={<AdminTournaments />} />
+          <Route path="/reports" element={<AdminFinancialReports />} />
           <Route path="/blinds" element={<AdminBlinds />} />
           <Route path="/menu" element={<AdminMenu />} />
           <Route path="/seasons" element={<AdminSeasons />} />
@@ -77,7 +85,7 @@ function AdminHome() {
   return (
     <div>
       <h2 className="text-lg font-bold text-white mb-4">Админ панель</h2>
-      <p className="text-slate-400">Выберите раздел в меню для управления данными системы.</p>
+      <p className="text-zinc-400">Выберите раздел в меню для управления данными системы.</p>
     </div>
   );
 }
@@ -129,7 +137,7 @@ function AdminClubs({ onRefresh }: { onRefresh: () => Promise<void> }) {
     setForm({ name: c.name, desc: c.description ?? '', address: c.address ?? '', phone: c.phone ?? '', tableCount: c.tableCount ?? 5 });
   };
 
-  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
 
   return (
     <div>
@@ -158,11 +166,11 @@ function AdminClubs({ onRefresh }: { onRefresh: () => Promise<void> }) {
           <div key={c.id} className="flex justify-between items-center glass-card p-3">
             <div>
               <span className="text-white">{c.name}</span>
-              <span className="text-slate-500 text-sm ml-2">({c.tableCount} столов)</span>
+              <span className="text-zinc-500 text-sm ml-2">({c.tableCount} столов)</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setSchedulesClubId(c.id)} className="text-slate-300 text-sm">Расписание</button>
-              <button onClick={() => startEdit(c)} className="text-cyan-400 text-sm">Изменить</button>
+              <button onClick={() => setSchedulesClubId(c.id)} className="text-zinc-300 text-sm">Расписание</button>
+              <button onClick={() => startEdit(c)} className="text-amber-400 text-sm">Изменить</button>
               <button onClick={() => remove(c.id)} className="text-red-400 text-sm">Удалить</button>
             </div>
           </div>
@@ -218,10 +226,10 @@ function AdminClubSchedules({ clubId, onClose, clubName }: { clubId: string; onC
   };
 
   return (
-    <div className="glass-card p-4 mb-6 border border-cyan-500/30">
+    <div className="glass-card p-4 mb-6 border border-amber-500/30">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-white font-medium">Расписание: {clubName}</h3>
-        <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕ Закрыть</button>
+        <button onClick={onClose} className="text-zinc-400 hover:text-white text-sm">✕ Закрыть</button>
       </div>
       <button onClick={() => { setShowForm(!showForm); setEditId(null); }} className="glass-btn px-4 py-2 rounded-xl mb-4 text-sm">
         {showForm ? 'Отмена' : '+ Добавить'}
@@ -237,13 +245,13 @@ function AdminClubSchedules({ clubId, onClose, clubName }: { clubId: string; onC
           {editId ? <button onClick={update} className="glass-btn px-3 py-2 rounded-xl text-sm">Сохранить</button> : <button onClick={create} className="glass-btn px-3 py-2 rounded-xl text-sm">Добавить</button>}
         </div>
       )}
-      {loading ? <p className="text-slate-500 text-sm">Загрузка...</p> : (
+      {loading ? <p className="text-zinc-500 text-sm">Загрузка...</p> : (
         <div className="space-y-1">
           {schedules.map((s) => (
             <div key={s.id} className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-slate-300 text-sm">{DAY_NAMES[s.dayOfWeek]} {s.startTime}–{s.endTime} {s.eventType && `· ${s.eventType}`}</span>
+              <span className="text-zinc-300 text-sm">{DAY_NAMES[s.dayOfWeek]} {s.startTime}–{s.endTime} {s.eventType && `· ${s.eventType}`}</span>
               <div className="flex gap-2">
-                <button onClick={() => startEdit(s)} className="text-cyan-400 text-xs">Изменить</button>
+                <button onClick={() => startEdit(s)} className="text-amber-400 text-xs">Изменить</button>
                 <button onClick={() => remove(s.id)} className="text-red-400 text-xs">Удалить</button>
               </div>
             </div>
@@ -270,6 +278,12 @@ function AdminSeries() {
   const [defaultBuyIn, setDefaultBuyIn] = useState(3000);
   const [defaultStartingStack, setDefaultStartingStack] = useState(10000);
   const [defaultBlindStructureId, setDefaultBlindStructureId] = useState('');
+  const [defaultAddonChips, setDefaultAddonChips] = useState(0);
+  const [defaultAddonCost, setDefaultAddonCost] = useState(0);
+  const [defaultRebuyChips, setDefaultRebuyChips] = useState(0);
+  const [defaultRebuyCost, setDefaultRebuyCost] = useState(0);
+  const [defaultMaxRebuys, setDefaultMaxRebuys] = useState(0);
+  const [defaultMaxAddons, setDefaultMaxAddons] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -304,6 +318,12 @@ function AdminSeries() {
         defaultBuyIn,
         defaultStartingStack,
         defaultBlindStructureId: defaultBlindStructureId || undefined,
+        defaultAddonChips,
+        defaultAddonCost,
+        defaultRebuyChips,
+        defaultRebuyCost,
+        defaultMaxRebuys,
+        defaultMaxAddons,
       });
       setShowForm(false);
       setName('');
@@ -315,6 +335,12 @@ function AdminSeries() {
       setDefaultBuyIn(3000);
       setDefaultStartingStack(10000);
       setDefaultBlindStructureId('');
+      setDefaultAddonChips(0);
+      setDefaultAddonCost(0);
+      setDefaultRebuyChips(0);
+      setDefaultRebuyCost(0);
+      setDefaultMaxRebuys(0);
+      setDefaultMaxAddons(0);
       load();
     } catch {}
   };
@@ -347,7 +373,7 @@ function AdminSeries() {
     setDaysOfWeek(days);
   };
 
-  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
 
   return (
     <div>
@@ -362,45 +388,69 @@ function AdminSeries() {
           {!editId && (
             <>
               <div>
-                <label className="text-slate-400 text-sm">Клуб *</label>
+                <label className="text-zinc-400 text-sm">Клуб *</label>
                 <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" required>
                   <option value="">— Выберите клуб —</option>
                   {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
-              <p className="text-slate-500 text-sm">Турниры создаются автоматически по дням недели от даты начала до даты финала.</p>
-              <div className="grid grid-cols-2 gap-4">
+              <p className="text-zinc-500 text-sm">Турниры создаются автоматически по дням недели от даты начала до даты финала.</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div>
-                  <label className="text-slate-400 text-sm">Время старта</label>
+                  <label className="text-zinc-400 text-sm">Время старта</label>
                   <input type="time" value={defaultStartTime} onChange={(e) => setDefaultStartTime(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
                 </div>
                 <div>
-                  <label className="text-slate-400 text-sm">Бай-ин (₽)</label>
+                  <label className="text-zinc-400 text-sm">Бай-ин (₽)</label>
                   <input type="number" value={defaultBuyIn || ''} onChange={(e) => setDefaultBuyIn(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
                 </div>
                 <div>
-                  <label className="text-slate-400 text-sm">Стартовый стек</label>
+                  <label className="text-zinc-400 text-sm">Стартовый стек</label>
                   <input type="number" value={defaultStartingStack || ''} onChange={(e) => setDefaultStartingStack(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
                 </div>
                 <div>
-                  <label className="text-slate-400 text-sm">Структура блайндов</label>
+                  <label className="text-zinc-400 text-sm">Структура блайндов</label>
                   <select value={defaultBlindStructureId} onChange={(e) => setDefaultBlindStructureId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
                     <option value="">—</option>
                     {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
+                <div>
+                  <label className="text-zinc-400 text-sm">Ребай: фишки</label>
+                  <input type="number" value={defaultRebuyChips || ''} onChange={(e) => setDefaultRebuyChips(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-sm">Ребай: стоимость (₽)</label>
+                  <input type="number" value={defaultRebuyCost || ''} onChange={(e) => setDefaultRebuyCost(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-sm">Макс. ребаев на игрока</label>
+                  <input type="number" value={defaultMaxRebuys || ''} onChange={(e) => setDefaultMaxRebuys(Math.max(0, parseInt(e.target.value) || 0))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0 = ∞" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-sm">Аддон: фишки</label>
+                  <input type="number" value={defaultAddonChips || ''} onChange={(e) => setDefaultAddonChips(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-sm">Аддон: стоимость (₽)</label>
+                  <input type="number" value={defaultAddonCost || ''} onChange={(e) => setDefaultAddonCost(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-sm">Макс. аддонов на игрока</label>
+                  <input type="number" value={defaultMaxAddons || ''} onChange={(e) => setDefaultMaxAddons(Math.max(0, parseInt(e.target.value) || 0))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0 = ∞" />
+                </div>
               </div>
             </>
           )}
           <div className="flex gap-4">
-            <div><label className="text-slate-400 text-sm">Дата начала</label><input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
-            <div><label className="text-slate-400 text-sm">Дата финала</label><input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
+            <div><label className="text-zinc-400 text-sm">Дата начала</label><input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
+            <div><label className="text-zinc-400 text-sm">Дата финала</label><input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
           </div>
           <div>
-            <label className="text-slate-400 text-sm block mb-2">Дни недели</label>
+            <label className="text-zinc-400 text-sm block mb-2">Дни недели</label>
             <div className="flex gap-2">
               {[0, 1, 2, 3, 4, 5, 6].map((d) => (
-                <button key={d} onClick={() => toggleDay(d)} className={`px-3 py-1 rounded-lg text-sm ${daysOfWeek.includes(d) ? 'glass-btn' : 'bg-white/5 text-slate-500'}`}>{DAY_NAMES[d]}</button>
+                <button key={d} onClick={() => toggleDay(d)} className={`px-3 py-1 rounded-lg text-sm ${daysOfWeek.includes(d) ? 'glass-btn' : 'bg-white/5 text-zinc-500'}`}>{DAY_NAMES[d]}</button>
               ))}
             </div>
           </div>
@@ -413,15 +463,88 @@ function AdminSeries() {
           <div key={s.id} className="flex justify-between items-center glass-card p-3">
             <div>
               <span className="text-white">{s.name}</span>
-              <span className="text-slate-500 text-sm ml-2">{s.periodStart?.slice(0, 10)} — {s.periodEnd?.slice(0, 10)}</span>
+              <span className="text-zinc-500 text-sm ml-2">{s.periodStart?.slice(0, 10)} — {s.periodEnd?.slice(0, 10)}</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => startEdit(s)} className="text-cyan-400 text-sm">Изменить</button>
+              <button onClick={() => startEdit(s)} className="text-amber-400 text-sm">Изменить</button>
               <button onClick={() => remove(s.id)} className="text-red-400 text-sm">Удалить</button>
             </div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function AdminFinancialReports() {
+  const { selectedClub } = useClub();
+  const { user, isAdmin, isController } = useAuth();
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [reportTarget, setReportTarget] = useState<Tournament | null>(null);
+  const [resultsTarget, setResultsTarget] = useState<Tournament | null>(null);
+
+  const clubId = isController ? user?.managedClubId : selectedClub?.id;
+
+  useEffect(() => {
+    tournamentsApi.list({ clubId, limit: 200 })
+      .then((r) => {
+        const list = r.data?.tournaments ?? [];
+        const archived = list.filter((t) => t.status === 'ARCHIVED' || t.status === 'FINISHED');
+        setTournaments(archived.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
+      })
+      .catch(() => setTournaments([]))
+      .finally(() => setLoading(false));
+  }, [clubId]);
+
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Финансовые отчёты</h2>
+      <p className="text-zinc-400 text-sm mb-4">Отчёты по завершённым турнирам. Выберите турнир и заполните или отредактируйте данные.</p>
+      {tournaments.length === 0 ? (
+        <p className="text-zinc-500">Нет завершённых турниров</p>
+      ) : (
+        <div className="space-y-2">
+          {tournaments.map((t) => (
+            <div key={t.id} className="flex justify-between items-center glass-card p-4">
+              <div>
+                <span className="text-white font-medium">{t.name}</span>
+                <span className="text-zinc-500 text-sm ml-2">
+                  {new Date(t.startTime).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setReportTarget(t)} className="glass-btn px-4 py-2 rounded-xl text-sm">
+                  Открыть отчёт
+                </button>
+                <button onClick={() => setResultsTarget(t)} className="glass-btn px-4 py-2 rounded-xl text-sm">
+                  Результаты
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {resultsTarget && (
+        <PlayerResultsModal tournament={resultsTarget} onClose={() => setResultsTarget(null)} />
+      )}
+      {reportTarget && (
+        <AdminReportModal
+          tournament={reportTarget}
+          onClose={() => setReportTarget(null)}
+          onSaved={() => {
+            setReportTarget(null);
+            tournamentsApi.list({ clubId, limit: 200 })
+              .then((r) => {
+                const list = r.data?.tournaments ?? [];
+                const archived = list.filter((t) => t.status === 'ARCHIVED' || t.status === 'FINISHED');
+                setTournaments(archived.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
+              });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -434,7 +557,7 @@ function AdminTournaments() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', seriesId: '', clubId: '', startTime: '', buyInCost: 3000, startingStack: 10000, addonChips: 0, rebuyChips: 0, blindStructureId: '' });
+  const [form, setForm] = useState({ name: '', seriesId: '', clubId: '', startTime: '', buyInCost: 3000, startingStack: 10000, addonChips: 0, addonCost: 0, rebuyChips: 0, rebuyCost: 0, maxRebuys: 0, maxAddons: 0, blindStructureId: '' });
 
   const load = async () => {
     setLoading(true);
@@ -462,7 +585,10 @@ function AdminTournaments() {
   useEffect(() => { load(); }, []);
 
   const create = async () => {
-    if (!form.name.trim() || !form.startTime || !form.buyInCost || !form.startingStack) return;
+    if (!form.name.trim() || !form.startTime || form.buyInCost < 0 || !form.startingStack) {
+      alert('Заполните обязательные поля: название, начало, стартовый стек. Бай-ин может быть 0.');
+      return;
+    }
     try {
       await tournamentsApi.create({
         name: form.name.trim(),
@@ -472,13 +598,20 @@ function AdminTournaments() {
         seriesId: form.seriesId || undefined,
         clubId: form.clubId || undefined,
         addonChips: form.addonChips,
+        addonCost: form.addonCost,
         rebuyChips: form.rebuyChips,
+        rebuyCost: form.rebuyCost,
+        maxRebuys: form.maxRebuys,
+        maxAddons: form.maxAddons,
         blindStructureId: form.blindStructureId || undefined,
       });
       setShowForm(false);
-      setForm({ name: '', seriesId: '', clubId: '', startTime: '', buyInCost: 3000, startingStack: 10000, addonChips: 0, rebuyChips: 0, blindStructureId: '' });
+      setForm({ name: '', seriesId: '', clubId: '', startTime: '', buyInCost: 3000, startingStack: 10000, addonChips: 0, addonCost: 0, rebuyChips: 0, rebuyCost: 0, maxRebuys: 0, maxAddons: 0, blindStructureId: '' });
       load();
-    } catch {}
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка создания турнира';
+      alert(msg);
+    }
   };
 
   const update = async () => {
@@ -492,13 +625,20 @@ function AdminTournaments() {
         seriesId: form.seriesId ? form.seriesId : null,
         clubId: form.clubId ? form.clubId : null,
         addonChips: form.addonChips,
+        addonCost: form.addonCost,
         rebuyChips: form.rebuyChips,
+        rebuyCost: form.rebuyCost,
+        maxRebuys: form.maxRebuys,
+        maxAddons: form.maxAddons,
         blindStructureId: form.blindStructureId || undefined,
       };
       await tournamentsApi.update(editId, data);
       setEditId(null);
       load();
-    } catch {}
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка обновления турнира';
+      alert(msg);
+    }
   };
 
   const remove = async (id: string) => {
@@ -521,12 +661,16 @@ function AdminTournaments() {
       buyInCost: t.buyInCost ?? 0,
       startingStack: t.startingStack ?? 0,
       addonChips: t.addonChips ?? 0,
+      addonCost: t.addonCost ?? 0,
       rebuyChips: t.rebuyChips ?? 0,
+      rebuyCost: t.rebuyCost ?? 0,
+      maxRebuys: t.maxRebuys ?? 0,
+      maxAddons: t.maxAddons ?? 0,
       blindStructureId: t.blindStructureId ?? '',
     });
   };
 
-  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
 
   return (
     <div>
@@ -540,14 +684,14 @@ function AdminTournaments() {
           <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-slate-400 text-sm">Серия</label>
+              <label className="text-zinc-400 text-sm">Серия</label>
               <select value={form.seriesId} onChange={(e) => setForm((p) => ({ ...p, seriesId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
                 <option value="">—</option>
                 {series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-slate-400 text-sm">Клуб</label>
+              <label className="text-zinc-400 text-sm">Клуб</label>
               <select value={form.clubId} onChange={(e) => setForm((p) => ({ ...p, clubId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
                 <option value="">—</option>
                 {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -555,17 +699,41 @@ function AdminTournaments() {
             </div>
           </div>
           <div>
-            <label className="text-slate-400 text-sm">Начало</label>
+            <label className="text-zinc-400 text-sm">Начало</label>
             <input type="datetime-local" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
           </div>
-          <div className="flex gap-4">
-            <input type="number" placeholder="Бай-ин" value={form.buyInCost || ''} onChange={(e) => setForm((p) => ({ ...p, buyInCost: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <div className="flex flex-wrap gap-4">
+            <input type="number" placeholder="Бай-ин (₽)" min={0} value={form.buyInCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, buyInCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
             <input type="number" placeholder="Стартовый стек" value={form.startingStack || ''} onChange={(e) => setForm((p) => ({ ...p, startingStack: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-            <input type="number" placeholder="Аддон" value={form.addonChips || ''} onChange={(e) => setForm((p) => ({ ...p, addonChips: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-            <input type="number" placeholder="Ребай" value={form.rebuyChips || ''} onChange={(e) => setForm((p) => ({ ...p, rebuyChips: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Стоимость ребая (₽)</label>
+              <input type="number" min={0} value={form.rebuyCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            </div>
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Фишки за ребай</label>
+              <input type="number" min={0} value={form.rebuyChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            </div>
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Стоимость аддона (₽)</label>
+              <input type="number" min={0} value={form.addonCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            </div>
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Фишки за аддон</label>
+              <input type="number" min={0} value={form.addonChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            </div>
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Макс. ребаев на игрока</label>
+              <input type="number" min={0} value={form.maxRebuys ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxRebuys: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" title="0 = без лимита" />
+            </div>
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Макс. аддонов на игрока</label>
+              <input type="number" min={0} value={form.maxAddons ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxAddons: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" title="0 = без лимита" />
+            </div>
           </div>
           <div>
-            <label className="text-slate-400 text-sm">Структура блайндов</label>
+            <label className="text-zinc-400 text-sm">Структура блайндов</label>
             <select value={form.blindStructureId} onChange={(e) => setForm((p) => ({ ...p, blindStructureId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
               <option value="">—</option>
               {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -580,10 +748,10 @@ function AdminTournaments() {
           <div key={t.id} className="flex justify-between items-center glass-card p-3">
             <div>
               <span className="text-white">{t.name}</span>
-              <span className="text-slate-500 text-sm ml-2">{t.startTime?.slice(0, 16)} · {t.status}</span>
+              <span className="text-zinc-500 text-sm ml-2">{t.startTime?.slice(0, 16)} · {t.status}</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => startEdit(t)} className="text-cyan-400 text-sm">Изменить</button>
+              <button onClick={() => startEdit(t)} className="text-amber-400 text-sm">Изменить</button>
               <button onClick={() => remove(t.id)} className="text-red-400 text-sm">Удалить</button>
             </div>
           </div>
@@ -593,6 +761,13 @@ function AdminTournaments() {
   );
 }
 
+const BREAK_TYPE_LABELS: Record<BreakType, string> = {
+  REGULAR: 'Обычный перерыв',
+  END_LATE_REG: 'Конец поздней регистрации',
+  ADDON: 'Аддонный перерыв',
+  END_LATE_REG_AND_ADDON: 'Конец поздней регистрации + аддон',
+};
+
 function AdminBlinds() {
   const [structures, setStructures] = useState<(BlindStructure & { levelsCount?: number })[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
@@ -601,14 +776,17 @@ function AdminBlinds() {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [clubId, setClubId] = useState('');
-  const [levels, setLevels] = useState<CreateLevelDto[]>([{ levelNumber: 1, smallBlind: 25, bigBlind: 50, durationMinutes: 15 }]);
+  const [levels, setLevels] = useState<CreateLevelDto[]>([
+    { levelNumber: 1, smallBlind: 25, bigBlind: 50, ante: 50, durationMinutes: 15, isBreak: false },
+  ]);
+  const [coefficient, setCoefficient] = useState(2);
 
   const load = async () => {
     setLoading(true);
     try {
       const [bRes, cRes] = await Promise.all([blindStructuresApi.list(), clubsApi.list()]);
       setStructures(bRes.data?.structures ?? []);
-      setClubs(cRes.data?.clubs ?? []);
+      setClubs((cRes.data?.clubs ?? []) as Club[]);
     } catch {
       setStructures([]);
       setClubs([]);
@@ -619,19 +797,51 @@ function AdminBlinds() {
 
   useEffect(() => { load(); }, []);
 
-  const addLevel = () => setLevels((p) => [...p, { levelNumber: p.length + 1, smallBlind: p[p.length - 1]?.bigBlind ?? 100, bigBlind: (p[p.length - 1]?.bigBlind ?? 100) * 2, durationMinutes: 15 }]);
-  const removeLevel = (i: number) => setLevels((p) => p.filter((_, j) => j !== i));
+  const lastGameLevel = levels.filter((l) => !l.isBreak).pop();
+  const addLevel = () => {
+    if (!lastGameLevel) return;
+    const sb = lastGameLevel.smallBlind * coefficient;
+    const bb = lastGameLevel.bigBlind * coefficient;
+    const ante = (lastGameLevel.ante ?? lastGameLevel.bigBlind) * coefficient;
+    setLevels((p) => [
+      ...p,
+      { levelNumber: p.length + 1, smallBlind: sb, bigBlind: bb, ante, durationMinutes: 15, isBreak: false },
+    ]);
+  };
+
+  const addBreak = (breakType: BreakType) => {
+    setLevels((p) => [
+      ...p,
+      {
+        levelNumber: p.length + 1,
+        smallBlind: 0,
+        bigBlind: 0,
+        ante: 0,
+        durationMinutes: 5,
+        isBreak: true,
+        breakName: BREAK_TYPE_LABELS[breakType],
+        breakType,
+      },
+    ]);
+  };
+
+  const removeLevel = (i: number) =>
+    setLevels((p) => p.filter((_, j) => j !== i).map((l, j) => ({ ...l, levelNumber: j + 1 })));
 
   const create = async () => {
     if (!name.trim() || levels.length === 0) return;
-    const levelsToSend = levels.map((l, i) => ({ ...l, levelNumber: i + 1 }));
+    const levelsToSend = levels.map((l, i) => ({
+      ...l,
+      levelNumber: i + 1,
+      ante: l.isBreak ? 0 : (l.ante ?? l.bigBlind),
+    }));
     try {
-      await blindStructuresApi.create({ name: name.trim(), description: desc || undefined, levels: levelsToSend, clubId: clubId || undefined });
+      await blindStructuresApi.create({ name: name.trim(), description: desc || undefined, clubId: clubId || undefined, levels: levelsToSend });
       setShowForm(false);
       setName('');
       setDesc('');
       setClubId('');
-      setLevels([{ levelNumber: 1, smallBlind: 25, bigBlind: 50, durationMinutes: 15 }]);
+      setLevels([{ levelNumber: 1, smallBlind: 25, bigBlind: 50, ante: 50, durationMinutes: 15, isBreak: false }]);
       load();
     } catch {}
   };
@@ -644,7 +854,7 @@ function AdminBlinds() {
     } catch {}
   };
 
-  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
 
   return (
     <div>
@@ -654,26 +864,62 @@ function AdminBlinds() {
       </button>
 
       {showForm && (
-        <div className="glass-card p-4 mb-6 space-y-4">
-          <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+        <div className="glass-card p-6 mb-6 space-y-4">
           <div>
-            <label className="text-slate-400 text-sm">Клуб</label>
+            <label className="text-zinc-400 text-sm block mb-1">Название</label>
+            <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-sm block mb-1">Описание</label>
+            <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-sm block mb-1">Клуб</label>
             <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
-              <option value="">Глобальная</option>
+              <option value="">Глобальная (все клубы)</option>
               {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
-            <div className="flex justify-between items-center mb-2"><span className="text-slate-400">Уровни</span><button onClick={addLevel} className="text-cyan-400 text-sm">+ Уровень</button></div>
-            {levels.map((l, i) => (
-              <div key={i} className="flex gap-2 items-center mb-2">
-                <input type="number" placeholder="SB" value={l.smallBlind} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], smallBlind: parseInt(e.target.value) || 0 }; return n; })} className="w-20 px-2 py-1 rounded bg-white/5 text-white" />
-                <input type="number" placeholder="BB" value={l.bigBlind} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], bigBlind: parseInt(e.target.value) || 0 }; return n; })} className="w-20 px-2 py-1 rounded bg-white/5 text-white" />
-                <input type="number" placeholder="Мин" value={l.durationMinutes} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], durationMinutes: parseInt(e.target.value) || 15 }; return n; })} className="w-16 px-2 py-1 rounded bg-white/5 text-white" />
-                <button onClick={() => removeLevel(i)} className="text-red-400 text-sm">✕</button>
-              </div>
-            ))}
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-zinc-400">Уровни</span>
+              <button onClick={addLevel} disabled={!lastGameLevel} className="text-amber-400 text-sm glass-btn px-2 py-1 rounded">
+                + Уровень (коэф. {coefficient})
+              </button>
+              <input type="number" min={0.5} max={10} step={0.5} value={coefficient} onChange={(e) => setCoefficient(parseFloat(e.target.value) || 2)} className="w-16 px-2 py-1 rounded bg-white/5 text-white text-sm" title="Коэффициент повышения" />
+              <span className="text-zinc-500 text-xs">Коэффициент</span>
+              <span className="text-zinc-400 mx-2">|</span>
+              <span className="text-zinc-500 text-sm">+ Перерыв:</span>
+              {(['REGULAR', 'END_LATE_REG', 'ADDON', 'END_LATE_REG_AND_ADDON'] as BreakType[]).map((bt) => (
+                <button key={bt} onClick={() => addBreak(bt)} className="text-emerald-400 text-xs glass-btn px-2 py-1 rounded">
+                  {BREAK_TYPE_LABELS[bt]}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-2">
+              {levels.map((l, i) => (
+                <div key={i} className="flex flex-wrap gap-2 items-center p-2 rounded bg-white/5">
+                  {l.isBreak ? (
+                    <>
+                      <span className="text-zinc-500 text-sm w-8">{i + 1}.</span>
+                      <span className="text-amber-300">{l.breakName || BREAK_TYPE_LABELS[(l.breakType || 'REGULAR') as BreakType]}</span>
+                      <input type="number" placeholder="Мин" value={l.durationMinutes} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], durationMinutes: parseInt(e.target.value) || 5 }; return n; })} className="w-16 px-2 py-1 rounded bg-white/5 text-white text-sm" />
+                      <span className="text-zinc-500 text-xs">мин</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-zinc-500 text-sm w-8">{i + 1}.</span>
+                      <input type="number" placeholder="SB" value={l.smallBlind} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], smallBlind: parseInt(e.target.value) || 0 }; return n; })} className="w-16 px-2 py-1 rounded bg-white/5 text-white text-sm" title="Малый блайнд" />
+                      <input type="number" placeholder="BB" value={l.bigBlind} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], bigBlind: parseInt(e.target.value) || 0 }; return n; })} className="w-16 px-2 py-1 rounded bg-white/5 text-white text-sm" title="Большой блайнд" />
+                      <input type="number" placeholder="Анте" value={l.ante ?? l.bigBlind} onChange={(e) => setLevels((p) => { const n = [...p]; const v = parseInt(e.target.value, 10); n[i] = { ...n[i], ante: isNaN(v) ? (n[i].bigBlind ?? 0) : v }; return n; })} className="w-16 px-2 py-1 rounded bg-white/5 text-white text-sm" title="Анте" />
+                      <input type="number" placeholder="Мин" value={l.durationMinutes} onChange={(e) => setLevels((p) => { const n = [...p]; n[i] = { ...n[i], durationMinutes: parseInt(e.target.value) || 15 }; return n; })} className="w-14 px-2 py-1 rounded bg-white/5 text-white text-sm" title="Время уровня" />
+                      <span className="text-zinc-500 text-xs">мин</span>
+                    </>
+                  )}
+                  <button onClick={() => removeLevel(i)} className="text-red-400 text-sm ml-auto">✕</button>
+                </div>
+              ))}
+            </div>
           </div>
           <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>
         </div>
@@ -795,7 +1041,7 @@ function AdminMenu() {
     setItemForm(false);
   };
 
-  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
 
   return (
     <div>
@@ -815,9 +1061,9 @@ function AdminMenu() {
         <div className="space-y-1 mt-2">
           {categories.map((c) => (
             <div key={c.id} className="flex justify-between items-center glass-card p-2">
-              <span className="text-slate-300">{c.name}</span>
+              <span className="text-zinc-300">{c.name}</span>
               <div className="flex gap-2">
-                <button onClick={() => startEditCat(c)} className="text-cyan-400 text-sm">Изменить</button>
+                <button onClick={() => startEditCat(c)} className="text-amber-400 text-sm">Изменить</button>
                 <button onClick={() => delCat(c.id)} className="text-red-400 text-sm">Удалить</button>
               </div>
             </div>
@@ -843,9 +1089,9 @@ function AdminMenu() {
         <div className="space-y-1 mt-2">
           {items.map((i) => (
             <div key={i.id} className="flex justify-between items-center glass-card p-2">
-              <span className="text-slate-300">{i.name} — {(i.price / 100).toFixed(0)} ₽</span>
+              <span className="text-zinc-300">{i.name} — {(i.price / 100).toFixed(0)} ₽</span>
               <div className="flex gap-2">
-                <button onClick={() => startEditItem(i)} className="text-cyan-400 text-sm">Изменить</button>
+                <button onClick={() => startEditItem(i)} className="text-amber-400 text-sm">Изменить</button>
                 <button onClick={() => delItem(i.id)} className="text-red-400 text-sm">Удалить</button>
               </div>
             </div>
@@ -889,7 +1135,7 @@ function AdminSeasons() {
   return (
     <div>
       <h2 className="text-lg font-bold text-white mb-4">Рейтинги и сезоны</h2>
-      <p className="text-slate-400 mb-4">Создание сезонного рейтинга для текущего месяца и обновление рейтинга MMR.</p>
+      <p className="text-zinc-400 mb-4">Создание сезонного рейтинга для текущего месяца и обновление рейтинга MMR.</p>
       <div className="flex gap-4">
         <button onClick={createSeasonal} disabled={loading} className="glass-btn px-4 py-2 rounded-xl">
           Создать сезонный рейтинг
@@ -898,7 +1144,7 @@ function AdminSeasons() {
           Обновить рейтинг MMR
         </button>
       </div>
-      {msg && <p className="mt-4 text-cyan-400">{msg}</p>}
+      {msg && <p className="mt-4 text-amber-400">{msg}</p>}
     </div>
   );
 }
@@ -947,23 +1193,23 @@ function AdminUsers() {
     setAssigning(null);
   };
 
-  if (loading) return <p className="text-slate-400">Загрузка...</p>;
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
 
   return (
     <div>
       <h2 className="text-lg font-bold text-white mb-4">Пользователи</h2>
-      <p className="text-slate-400 mb-4">Назначение контролёров клубам и повышение игроков до контролёров.</p>
+      <p className="text-zinc-400 mb-4">Назначение контролёров клубам и повышение игроков до контролёров.</p>
       {users.length === 0 ? (
-        <p className="text-slate-500">Нет пользователей.</p>
+        <p className="text-zinc-500">Нет пользователей.</p>
       ) : (
         <div className="space-y-2">
           {users.map((u) => (
             <div key={u.id} className="flex justify-between items-center glass-card p-3">
               <div>
-                <span className="text-white">{u.firstName} {u.lastName}</span>
-                <span className="text-slate-500 text-sm ml-2">{u.phone}</span>
-                <span className="text-cyan-400 text-sm ml-2">{u.role}</span>
-                {u.managedClub && <span className="text-slate-400 text-sm ml-2">→ {u.managedClub.name}</span>}
+                <span className="text-white">{u.name}</span>
+                <span className="text-zinc-500 text-sm ml-2">{u.phone}</span>
+                <span className="text-amber-400 text-sm ml-2">{u.role}</span>
+                {u.managedClub && <span className="text-zinc-400 text-sm ml-2">→ {u.managedClub.name}</span>}
               </div>
               {u.role === 'PLAYER' && (
                 <div className="flex gap-2 items-center">
@@ -971,7 +1217,7 @@ function AdminUsers() {
                     <option value="">Клуб</option>
                     {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <button onClick={() => promoteToController(u.id, promoteClubId)} disabled={!promoteClubId || assigning === u.id} className="text-cyan-400 text-sm">
+                  <button onClick={() => promoteToController(u.id, promoteClubId)} disabled={!promoteClubId || assigning === u.id} className="text-amber-400 text-sm">
                     Сделать контролёром
                   </button>
                 </div>
@@ -982,7 +1228,7 @@ function AdminUsers() {
                     <option value="">Клуб</option>
                     {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <button onClick={() => assignController(u.id, promoteClubId)} disabled={!promoteClubId || assigning === u.id} className="text-cyan-400 text-sm">
+                  <button onClick={() => assignController(u.id, promoteClubId)} disabled={!promoteClubId || assigning === u.id} className="text-amber-400 text-sm">
                     Назначить клуб
                   </button>
                 </div>
@@ -999,8 +1245,8 @@ function AdminTV() {
   return (
     <div>
       <h2 className="text-lg font-bold text-white mb-4">Настройки TV</h2>
-      <p className="text-slate-400 mb-4">Настройка отображения на TV. API для сохранения настроек планируется.</p>
-      <p className="text-slate-500 text-sm">Страница TV: <a href="/tv" className="text-cyan-400">/tv</a></p>
+      <p className="text-zinc-400 mb-4">Настройка отображения на TV. API для сохранения настроек планируется.</p>
+      <p className="text-zinc-500 text-sm">Страница TV: <a href="/tv" className="text-amber-400">/tv</a></p>
     </div>
   );
 }

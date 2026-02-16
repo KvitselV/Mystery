@@ -10,8 +10,8 @@ export interface AuthResponse {
   refreshToken: string;
   user: {
     id: string;
-    firstName: string;
-    lastName: string;
+    name: string;
+    clubCardNumber: string;
     phone: string;
     role: string;
     managedClubId?: string | null;
@@ -19,10 +19,9 @@ export interface AuthResponse {
 }
 
 export interface RegisterDto {
-  firstName: string;
-  lastName: string;
+  name: string;
+  clubCardNumber: string;
   phone: string;
-  email?: string;
   password: string;
 }
 

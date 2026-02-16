@@ -4,6 +4,8 @@ import { PlayerProfile } from '../models/PlayerProfile';
 import { PlayerOperation } from '../models/PlayerOperation';
 import { TournamentRegistration } from '../models/TournamentRegistration';
 import { TournamentResult } from '../models/TournamentResult';
+import { TournamentPayment } from '../models/TournamentPayment';
+import { TournamentAdminReport } from '../models/TournamentAdminReport';
 import { BlindStructure } from '../models/BlindStructure';
 import { TournamentLevel } from '../models/TournamentLevel';
 import { SeatingService } from './SeatingService';
@@ -12,28 +14,22 @@ import { LeaderboardService } from './LeaderboardService';
 import { LiveStateService } from './LiveStateService';
 import { AchievementService } from './AchievementService';
 import { StatisticsService } from './StatisticsService';
-import { FinancialService } from './FinancialService';
-import { PlayerBill, PlayerBillStatus } from '../models/PlayerBill';
-import { Order } from '../models/Order';
-import { OrderStatus, OrderPaymentMethod } from '../models/Order';
-
 export class LiveTournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
   private playerRepository = AppDataSource.getRepository(PlayerProfile);
   private operationRepository = AppDataSource.getRepository(PlayerOperation);
   private registrationRepository = AppDataSource.getRepository(TournamentRegistration);
   private resultRepository = AppDataSource.getRepository(TournamentResult);
+  private paymentRepository = AppDataSource.getRepository(TournamentPayment);
+  private adminReportRepository = AppDataSource.getRepository(TournamentAdminReport);
   private blindStructureRepository = AppDataSource.getRepository(BlindStructure);
   private levelRepository = AppDataSource.getRepository(TournamentLevel);
-  private billRepository = AppDataSource.getRepository(PlayerBill);
-  private orderRepository = AppDataSource.getRepository(Order);
   private liveStateService = new LiveStateService();
   private seatingService = new SeatingService();
   private mmrService = new MMRService();
   private leaderboardService = new LeaderboardService();
   private achievementService = new AchievementService();
   private statisticsService = new StatisticsService();
-  private financialService = new FinancialService();
 
   
   async rebuy(
@@ -49,9 +45,9 @@ export class LiveTournamentService {
       throw new Error('Tournament not found');
     }
 
-    // Проверка статуса турнира (ребаи доступны только в LATE_REG или RUNNING)
-    if (tournament.status !== 'LATE_REG' && tournament.status !== 'RUNNING') {
-      throw new Error('Rebuys are not available for this tournament status');
+    // Ребаи доступны только во время поздней регистрации (LATE_REG), не после её окончания (RUNNING)
+    if (tournament.status !== 'LATE_REG') {
+      throw new Error('Ребаи доступны только во время поздней регистрации');
     }
 
     const player = await this.playerRepository.findOne({
@@ -63,7 +59,7 @@ export class LiveTournamentService {
       throw new Error('Player not found');
     }
 
-    const rebuyAmount = amount ?? tournament.buyInCost;
+    const rebuyAmount = amount ?? (tournament.rebuyCost ?? tournament.buyInCost);
     const rebuyChips = tournament.rebuyChips ?? 0;
 
     const registration = await this.registrationRepository.findOne({
@@ -76,16 +72,21 @@ export class LiveTournamentService {
       throw new Error('Player is not registered for this tournament');
     }
 
-    // Списание с депозита только при оплате DEPOSIT; при CASH счёт выставится после вылета
-    if (rebuyAmount > 0 && registration.paymentMethod === 'DEPOSIT') {
-      await this.financialService.deductBalance(
-        playerProfileId,
-        rebuyAmount,
-        'REBUY',
-        tournamentId
-      );
+    const maxRebuys = tournament.maxRebuys ?? 0;
+    if (maxRebuys > 0) {
+      const usedRebuys = await this.operationRepository.count({
+        where: {
+          playerProfile: { id: playerProfileId },
+          tournament: { id: tournamentId },
+          operationType: 'REBUY',
+        },
+      });
+      if (usedRebuys >= maxRebuys) {
+        throw new Error(`Player has reached the maximum of ${maxRebuys} rebuys`);
+      }
     }
 
+    // Ребай добавляется в турнирный баланс, оплата при выходе
     const operation = this.operationRepository.create({
       playerProfile: player,
       operationType: 'REBUY',
@@ -118,9 +119,12 @@ export class LiveTournamentService {
       throw new Error('Tournament not found');
     }
 
-    // Аддоны обычно доступны на определенных уровнях или перед финальным столом
-    if (tournament.status !== 'RUNNING') {
-      throw new Error('Addons are not available for this tournament status');
+    // Аддоны доступны только во время аддонного перерыва
+    const currentLevel = await this.getCurrentLevel(tournamentId);
+    const isAddonBreak = currentLevel?.isBreak &&
+      (currentLevel.breakType === 'ADDON' || currentLevel.breakType === 'END_LATE_REG_AND_ADDON');
+    if (!isAddonBreak) {
+      throw new Error('Аддоны доступны только во время аддонного перерыва');
     }
 
     const player = await this.playerRepository.findOne({
@@ -144,16 +148,21 @@ export class LiveTournamentService {
       throw new Error('Player is not registered for this tournament');
     }
 
-    // Списание с депозита только при оплате DEPOSIT; при CASH счёт выставится после вылета
-    if (amount > 0 && registration.paymentMethod === 'DEPOSIT') {
-      await this.financialService.deductBalance(
-        playerProfileId,
-        amount,
-        'ADDON',
-        tournamentId
-      );
+    const maxAddons = tournament.maxAddons ?? 0;
+    if (maxAddons > 0) {
+      const usedAddons = await this.operationRepository.count({
+        where: {
+          playerProfile: { id: playerProfileId },
+          tournament: { id: tournamentId },
+          operationType: 'ADDON',
+        },
+      });
+      if (usedAddons >= maxAddons) {
+        throw new Error(`Player has reached the maximum of ${maxAddons} addons`);
+      }
     }
 
+    // Аддон добавляется в турнирный баланс, оплата при выходе
     const operation = this.operationRepository.create({
       playerProfile: player,
       operationType: 'ADDON',
@@ -171,25 +180,20 @@ export class LiveTournamentService {
   }
 
   /**
-   * Выбытие игрока с записью результата
+   * Выбытие игрока с записью результата.
+   * finishPosition — место вылета. Если не указано, считается автоматически
+   * (следующее место после уже вылетевших).
    */
   async eliminatePlayer(
     tournamentId: string,
     playerProfileId: string,
-    finishPosition: number,
+    finishPosition?: number,
   ): Promise<TournamentResult> {
-    console.log('ELIMINATE CALLED:', {
-      tournamentId,
-      playerProfileId,
-      finishPosition,
-    });
-
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
     });
 
     if (!tournament) {
-      console.error('ELIMINATE ERROR: Tournament not found');
       throw new Error('Tournament not found');
     }
 
@@ -199,86 +203,47 @@ export class LiveTournamentService {
     });
 
     if (!player) {
-      console.error('ELIMINATE ERROR: Player not found');
       throw new Error('Player not found');
     }
 
-    await this.seatingService.eliminatePlayer(playerProfileId, finishPosition);
+    let pos = finishPosition;
+    if (pos == null || pos < 1) {
+      const count = await this.resultRepository.count({ where: { tournament: { id: tournamentId } } });
+      pos = count + 1;
+    }
+
+    await this.seatingService.eliminatePlayer(playerProfileId, pos, tournamentId);
+
+    const registration = await this.registrationRepository.findOne({
+      where: { tournament: { id: tournamentId }, player: { id: playerProfileId } },
+    });
+    if (registration) {
+      registration.isActive = false;
+      registration.currentStack = 0; // Вылетел — фишки кончились (перешли победителю)
+      await this.registrationRepository.save(registration);
+    }
 
     await this.liveStateService.recalculateStats(tournamentId);
 
-    console.log('CREATING RESULT:', {
-      tournamentId: tournament.id,
-      playerId: player.id,
-      finishPosition,
-    });
-
-    const result = this.resultRepository.create({
-      tournament,
-      player,
-      finishPosition,
-      isFinalTable: finishPosition <= 9,
-    });
-
-    const savedResult = await this.resultRepository.save(result);
-
-    console.log('SAVED RESULT ID:', savedResult.id);
-
-    // Для игрока с оплатой CASH выставляем счёт после вылета: вход + ребаи + аддоны + заказы в долг
-    const registration = await this.registrationRepository.findOne({
+    let savedResult: TournamentResult;
+    const existingResult = await this.resultRepository.findOne({
       where: {
         tournament: { id: tournamentId },
         player: { id: playerProfileId },
       },
     });
-    if (registration && registration.paymentMethod === 'CASH') {
-      const buyInAmount = tournament.buyInCost ?? 0;
-      const rebuyOps = await this.operationRepository.find({
-        where: {
-          playerProfile: { id: playerProfileId },
-          tournament: { id: tournamentId },
-          operationType: 'REBUY',
-        },
+    if (existingResult) {
+      existingResult.finishPosition = pos;
+      existingResult.isFinalTable = pos <= 9;
+      savedResult = await this.resultRepository.save(existingResult);
+    } else {
+      const result = this.resultRepository.create({
+        tournament,
+        player,
+        finishPosition: pos,
+        isFinalTable: pos <= 9,
       });
-      const addonOps = await this.operationRepository.find({
-        where: {
-          playerProfile: { id: playerProfileId },
-          tournament: { id: tournamentId },
-          operationType: 'ADDON',
-        },
-      });
-      const rebuysAmount = rebuyOps.reduce((s, o) => s + o.amount, 0);
-      const addonsAmount = addonOps.reduce((s, o) => s + o.amount, 0);
-
-      let ordersAmount = 0;
-      if (player.user?.id) {
-        const creditOrders = await this.orderRepository.find({
-          where: {
-            userId: player.user.id,
-            tournamentId,
-            paymentMethod: OrderPaymentMethod.CREDIT,
-          },
-        });
-        ordersAmount = creditOrders
-          .filter((o) => o.status !== OrderStatus.CANCELLED)
-          .reduce((s, o) => s + o.totalAmount, 0);
-      }
-
-      const totalAmount = buyInAmount + rebuysAmount + addonsAmount + ordersAmount;
-      if (totalAmount > 0) {
-        const bill = this.billRepository.create({
-          playerProfile: player,
-          tournament,
-          amount: totalAmount,
-          buyInAmount,
-          rebuysAmount,
-          addonsAmount,
-          ordersAmount,
-          status: PlayerBillStatus.PENDING,
-        });
-        await this.billRepository.save(bill);
-        console.log(`📄 Bill created for player ${playerProfileId}: ${totalAmount}`);
-      }
+      savedResult = await this.resultRepository.save(result);
     }
 
     try {
@@ -311,6 +276,78 @@ export class LiveTournamentService {
     return savedResult;
   }
 
+  /**
+   * Вернуть вылетевшего игрока: ребай + реактивация + посадка на стол.
+   * Доступно только во время поздней регистрации и при наличии неиспользованного ребая.
+   */
+  async returnEliminatedPlayer(
+    tournamentId: string,
+    playerProfileId: string,
+    tableId: string,
+    seatNumber: number
+  ): Promise<{ message: string }> {
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+    });
+    if (!tournament) throw new Error('Tournament not found');
+
+    if (tournament.status !== 'LATE_REG') {
+      throw new Error('Возврат возможен только во время поздней регистрации');
+    }
+
+    const registration = await this.registrationRepository.findOne({
+      where: {
+        tournament: { id: tournamentId },
+        player: { id: playerProfileId },
+      },
+    });
+    if (!registration) throw new Error('Игрок не зарегистрирован');
+    if (registration.isActive) throw new Error('Игрок уже в турнире');
+
+    const maxRebuys = tournament.maxRebuys ?? 0;
+    const usedRebuys = await this.operationRepository.count({
+      where: {
+        playerProfile: { id: playerProfileId },
+        tournament: { id: tournamentId },
+        operationType: 'REBUY',
+      },
+    });
+    if (maxRebuys > 0 && usedRebuys >= maxRebuys) {
+      throw new Error(`Игрок использовал все ребаи (макс. ${maxRebuys})`);
+    }
+
+    const existingResult = await this.resultRepository.findOne({
+      where: {
+        tournament: { id: tournamentId },
+        player: { id: playerProfileId },
+      },
+    });
+    if (existingResult) {
+      const oldPosition = existingResult.finishPosition; // 15 — последнее место
+      await this.resultRepository.remove(existingResult);
+      // Сдвиг: игроки с лучшими местами (14, 13, 12) становятся хуже на 1: 14→15, 13→14, 12→13
+      const toShift = await this.resultRepository.find({
+        where: { tournament: { id: tournamentId } },
+        order: { finishPosition: 'DESC' },
+      });
+      for (const r of toShift) {
+        if (r.finishPosition < oldPosition) {
+          r.finishPosition += 1;
+          await this.resultRepository.save(r);
+        }
+      }
+    }
+
+    registration.isActive = true;
+    await this.registrationRepository.save(registration);
+
+    await this.rebuy(tournamentId, playerProfileId);
+    await this.seatingService.manualReseating(tournamentId, playerProfileId, tableId, seatNumber);
+
+    await this.liveStateService.recalculateStats(tournamentId);
+
+    return { message: 'Игрок возвращён в турнир' };
+  }
 
   async moveToNextLevel(tournamentId: string): Promise<{
     tournament: Tournament;
@@ -349,7 +386,16 @@ export class LiveTournamentService {
       throw new Error('No more levels available');
     }
 
-    // Обновить текущий уровень
+    // При выходе из перерыва с "конец поздней регистрации" — сменить статус на RUNNING
+    const currentLevel = structure.levels.find(
+      (l) => l.levelNumber === tournament.currentLevelNumber
+    );
+    if (currentLevel?.isBreak && (currentLevel.breakType === 'END_LATE_REG' || currentLevel.breakType === 'END_LATE_REG_AND_ADDON')) {
+      if (tournament.status === 'LATE_REG') {
+        tournament.status = 'RUNNING';
+      }
+    }
+
     tournament.currentLevelNumber = nextLevelNumber;
     await this.tournamentRepository.save(tournament);
 
@@ -359,6 +405,53 @@ export class LiveTournamentService {
     };
   }
 
+  async moveToPrevLevel(tournamentId: string): Promise<{
+    tournament: Tournament;
+    currentLevel: TournamentLevel | null;
+  }> {
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+    });
+
+    if (!tournament) {
+      throw new Error('Tournament not found');
+    }
+
+    if (!tournament.blindStructureId) {
+      throw new Error('Tournament has no blind structure assigned');
+    }
+
+    const prevLevelNumber = tournament.currentLevelNumber - 1;
+    if (prevLevelNumber < 1) {
+      throw new Error('Already at first level');
+    }
+
+    const blindStructureService = AppDataSource.getRepository(BlindStructure);
+    const structure = await blindStructureService.findOne({
+      where: { id: tournament.blindStructureId },
+      relations: ['levels'],
+    });
+
+    if (!structure) {
+      throw new Error('Blind structure not found');
+    }
+
+    const prevLevel = structure.levels.find(
+      (level) => level.levelNumber === prevLevelNumber
+    );
+
+    if (!prevLevel) {
+      throw new Error('Previous level not found');
+    }
+
+    tournament.currentLevelNumber = prevLevelNumber;
+    await this.tournamentRepository.save(tournament);
+
+    return {
+      tournament,
+      currentLevel: prevLevel,
+    };
+  }
 
   async getCurrentLevel(tournamentId: string): Promise<TournamentLevel | null> {
     const tournament = await this.tournamentRepository.findOne({
@@ -381,6 +474,23 @@ export class LiveTournamentService {
     return (
       structure.levels.find(
         (level) => level.levelNumber === tournament.currentLevelNumber
+      ) || null
+    );
+  }
+
+  async getNextLevel(tournamentId: string): Promise<TournamentLevel | null> {
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+    });
+    if (!tournament || !tournament.blindStructureId) return null;
+    const structure = await this.blindStructureRepository.findOne({
+      where: { id: tournament.blindStructureId },
+      relations: ['levels'],
+    });
+    if (!structure) return null;
+    return (
+      structure.levels.find(
+        (level) => level.levelNumber === tournament.currentLevelNumber + 1
       ) || null
     );
   }
@@ -409,16 +519,57 @@ export class LiveTournamentService {
       throw new Error('Tournament not found');
     }
 
-    // Проверка что турнир в статусе RUNNING
-    if (tournament.status !== 'RUNNING') {
+    // Проверка что турнир в статусе RUNNING или LATE_REG
+    if (tournament.status !== 'RUNNING' && tournament.status !== 'LATE_REG') {
       throw new Error('Tournament is not running');
     }
 
-    // 1. Изменить статус турнира на FINISHED
-    tournament.status = 'FINISHED';
+    // 1. Изменить статус турнира на ARCHIVED
+    tournament.status = 'ARCHIVED';
     await this.tournamentRepository.save(tournament);
 
-    console.log(`🏁 Tournament ${tournamentId} finished`);
+    // 2. Создать отчёт для администратора (данные можно редактировать позже)
+    const arrivedCount = await this.registrationRepository.count({
+      where: { tournament: { id: tournamentId }, isArrived: true },
+    });
+    const payments = await this.paymentRepository.find({
+      where: { tournamentId },
+    });
+    const cashRevenue = payments.reduce((s, p) => s + p.cashAmount, 0);
+    const nonCashRevenue = payments.reduce((s, p) => s + p.nonCashAmount, 0);
+    const report = this.adminReportRepository.create({
+      tournamentId,
+      attendanceCount: arrivedCount,
+      cashRevenue,
+      nonCashRevenue,
+      expenses: [],
+      totalProfit: cashRevenue + nonCashRevenue,
+    });
+    await this.adminReportRepository.save(report);
+
+    console.log(`🏁 Tournament ${tournamentId} finished → ARCHIVED`);
+
+    // Создать результат для победителя (последнего оставшегося игрока), если его ещё нет
+    const existingResults = await this.resultRepository.count({ where: { tournament: { id: tournamentId } } });
+    const registrations = await this.registrationRepository.find({
+      where: { tournament: { id: tournamentId }, isActive: true },
+      relations: ['player'],
+    });
+    if (registrations.length === 1 && existingResults >= 0) {
+      const winnerReg = registrations[0];
+      const winnerPlayer = winnerReg.player;
+      if (winnerPlayer && !(await this.resultRepository.findOne({ where: { tournament: { id: tournamentId }, player: { id: winnerPlayer.id } } }))) {
+        const winnerResult = this.resultRepository.create({
+          tournament,
+          player: winnerPlayer,
+          finishPosition: 1,
+          isFinalTable: true,
+        });
+        await this.resultRepository.save(winnerResult);
+        winnerReg.isActive = false;
+        await this.registrationRepository.save(winnerReg);
+      }
+    }
 
     // 2. Удалить live state
     await this.liveStateService.deleteLiveState(tournamentId);

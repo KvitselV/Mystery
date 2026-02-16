@@ -1,20 +1,24 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { TournamentService } from '../services/TournamentService';
+import { AuthService } from '../services/AuthService';
 import { AppDataSource } from '../config/database';
 import { PlayerProfile } from '../models/PlayerProfile';
+import { User } from '../models/User';
 
 const tournamentService = new TournamentService();
+const authService = new AuthService();
 const playerProfileRepository = AppDataSource.getRepository(PlayerProfile);
+const userRepository = AppDataSource.getRepository(User);
 
 export class TournamentController {
 
   static async createTournament(req: AuthRequest, res: Response) {
     try {
       const clubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : req.body.clubId;
-      const { name, seriesId, startTime, buyInCost, startingStack, addonChips, rebuyChips, blindStructureId, rewards } = req.body;
+      const { name, seriesId, startTime, buyInCost, startingStack, addonChips, addonCost, rebuyChips, rebuyCost, maxRebuys, maxAddons, blindStructureId, rewards } = req.body;
 
-      if (!name || !startTime || !buyInCost || !startingStack) {
+      if (!name || !startTime || (buyInCost === undefined || buyInCost === null || buyInCost < 0) || !startingStack) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
@@ -26,7 +30,11 @@ export class TournamentController {
         buyInCost,
         startingStack,
         addonChips: addonChips ?? 0,
+        addonCost: addonCost ?? 0,
         rebuyChips: rebuyChips ?? 0,
+        rebuyCost: rebuyCost ?? 0,
+        maxRebuys: maxRebuys ?? 0,
+        maxAddons: maxAddons ?? 0,
         blindStructureId,
         rewards: Array.isArray(rewards) ? rewards : undefined,
       });
@@ -127,13 +135,107 @@ export class TournamentController {
         const registration = await tournamentService.registerPlayer(
         tournamentId,
         playerProfile.id,
-        paymentMethod || 'DEPOSIT'
+        paymentMethod || 'DEPOSIT',
+        false // саморег — игрок ещё не прибыл
         );
 
         res.status(201).json(registration);
     } catch (error: unknown) {
         res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
+    }
+
+    /**
+     * POST /tournaments/:id/register-guest - Зарегистрировать гостя (админ создаёт аккаунт и записывает на турнир)
+     */
+    static async registerGuest(req: AuthRequest, res: Response) {
+      try {
+        const tournamentId = (req.params.id as string) || '';
+        const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+        await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+
+        const { name, clubCardNumber, phone, password } = req.body;
+        if (!name || !clubCardNumber || !phone || !password) {
+          return res.status(400).json({ error: 'Обязательные поля: имя, номер клубной карты, телефон, пароль' });
+        }
+
+        const { playerProfileId } = await authService.createUserAsGuest({
+          name,
+          clubCardNumber,
+          phone,
+          password,
+        });
+
+        const registration = await tournamentService.registerPlayer(
+          tournamentId,
+          playerProfileId,
+          'CASH',
+          true
+        );
+
+        res.status(201).json({
+          message: 'Гость зарегистрирован и записан на турнир',
+          registration: {
+            id: registration.id,
+            playerId: registration.player?.id,
+            playerName: name,
+            clubCardNumber,
+            isArrived: registration.isArrived,
+          },
+        });
+      } catch (error: unknown) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+      }
+    }
+
+    /**
+     * POST /tournaments/:id/register-by-card - Записать на турнир по номеру клубной карты
+     */
+    static async registerByCard(req: AuthRequest, res: Response) {
+      try {
+        const tournamentId = (req.params.id as string) || '';
+        const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+        await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+
+        const { clubCardNumber } = req.body;
+        if (!clubCardNumber || typeof clubCardNumber !== 'string') {
+          return res.status(400).json({ error: 'Номер клубной карты обязателен' });
+        }
+
+        const user = await userRepository.findOne({
+          where: { clubCardNumber: clubCardNumber.trim() },
+        });
+        if (!user) {
+          return res.status(404).json({ error: 'Игрок с таким номером карты не найден' });
+        }
+
+        const playerProfile = await playerProfileRepository.findOne({
+          where: { user: { id: user.id } },
+        });
+        if (!playerProfile) {
+          return res.status(404).json({ error: 'Профиль игрока не найден' });
+        }
+
+        const registration = await tournamentService.registerPlayer(
+          tournamentId,
+          playerProfile.id,
+          'CASH',
+          true
+        );
+
+        res.status(201).json({
+          message: 'Игрок записан на турнир',
+          registration: {
+            id: registration.id,
+            playerId: registration.player?.id,
+            playerName: user.name,
+            clubCardNumber: user.clubCardNumber,
+            isArrived: registration.isArrived,
+          },
+        });
+      } catch (error: unknown) {
+        res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+      }
     }
 
     /**
@@ -144,17 +246,26 @@ export class TournamentController {
         const tournamentIdRaw = req.params.id;
         const tournamentId = Array.isArray(tournamentIdRaw) ? tournamentIdRaw[0] : tournamentIdRaw;
 
-        const players = await tournamentService.getTournamentPlayers(tournamentId);
+        const [players, eliminatedPlayerIds] = await Promise.all([
+          tournamentService.getTournamentPlayers(tournamentId),
+          tournamentService.getEliminatedPlayerIds(tournamentId),
+        ]);
 
         res.json({
-        players: players.map((p) => ({
-            id: p.id,
-            playerId: p.player?.id,
-            playerName: `${p.player.user.firstName} ${p.player.user.lastName}`,
-            registeredAt: p.registeredAt,
-            paymentMethod: p.paymentMethod,
-            isActive: p.isActive,
-        })),
+        players: players.map((p) => {
+            const playerId = p.player?.id;
+            const isEliminated = playerId ? eliminatedPlayerIds.has(playerId) : false;
+            return {
+              id: p.id,
+              playerId,
+              playerName: p.player?.user?.name,
+              clubCardNumber: p.player?.user?.clubCardNumber,
+              registeredAt: p.registeredAt,
+              paymentMethod: p.paymentMethod,
+              isActive: isEliminated ? false : p.isActive,
+              isArrived: p.isArrived ?? true,
+            };
+        }),
         });
     } catch (error: unknown) {
         res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
@@ -195,7 +306,11 @@ export class TournamentController {
         buyInCost: body.buyInCost,
         startingStack: body.startingStack,
         addonChips: body.addonChips,
+        addonCost: body.addonCost,
         rebuyChips: body.rebuyChips,
+        rebuyCost: body.rebuyCost,
+        maxRebuys: body.maxRebuys,
+        maxAddons: body.maxAddons,
         blindStructureId: body.blindStructureId,
       }, managedClubId);
       res.json(tournament);
@@ -208,10 +323,26 @@ export class TournamentController {
     try {
       const id = (req.params.id as string) || '';
       const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
-      await tournamentService.deleteTournament(id, managedClubId);
+      const force = req.user?.role === 'ADMIN';
+      await tournamentService.deleteTournament(id, managedClubId, { force });
       res.json({ message: 'Tournament deleted' });
     } catch (e: unknown) {
       res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
+    }
+  }
+
+  /**
+   * PATCH /tournaments/:id/registrations/:registrationId/arrived - Отметить игрока как прибывшего
+   */
+  static async markPlayerArrived(req: AuthRequest, res: Response) {
+    try {
+      const tournamentId = (req.params.id as string) || '';
+      const registrationId = (req.params.registrationId as string) || '';
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      const reg = await tournamentService.markPlayerArrived(tournamentId, registrationId, managedClubId);
+      res.json(reg);
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
     }
   }
 

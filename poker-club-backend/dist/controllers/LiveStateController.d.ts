@@ -9,17 +9,17 @@ export declare class LiveStateController {
      * PATCH /tournaments/:id/pause - Поставить турнир на паузу
      * Только для администраторов
      */
-    static pauseTournament(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static pauseTournament(req: AuthRequest, res: Response): Promise<void>;
     /**
      * PATCH /tournaments/:id/resume - Возобновить турнир
      * Только для администраторов
      */
-    static resumeTournament(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static resumeTournament(req: AuthRequest, res: Response): Promise<void>;
     /**
      * PATCH /tournaments/:id/live/recalculate - Пересчитать статистику
      * Только для администраторов
      */
-    static recalculateStats(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static recalculateStats(req: AuthRequest, res: Response): Promise<void>;
     /**
      * PATCH /tournaments/:id/live/time - Обновить оставшееся время
      * Только для администраторов

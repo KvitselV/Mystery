@@ -23,6 +23,6 @@ export declare class BlindStructureController {
      * DELETE /blind-structures/:id - Деактивировать структуру
      * Только для администраторов
      */
-    static deactivateStructure(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static deactivateStructure(req: AuthRequest, res: Response): Promise<void>;
 }
 //# sourceMappingURL=BlindStructureController.d.ts.map

@@ -209,6 +209,17 @@ class LiveStateService {
     /**
      * Удалить Live State (при завершении турнира)
      */
+    async getRebuyAndAddonCounts(tournamentId) {
+        const [rebuyCount, addonCount] = await Promise.all([
+            this.operationRepository.count({
+                where: { tournament: { id: tournamentId }, operationType: 'REBUY' },
+            }),
+            this.operationRepository.count({
+                where: { tournament: { id: tournamentId }, operationType: 'ADDON' },
+            }),
+        ]);
+        return { rebuyCount, addonCount };
+    }
     async deleteLiveState(tournamentId) {
         const liveState = await this.liveStateRepository.findOne({
             where: { tournament: { id: tournamentId } },

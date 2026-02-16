@@ -42,6 +42,7 @@ export class BlindStructureController {
             durationMinutes: level.durationMinutes,
             isBreak: level.isBreak,
             breakName: level.breakName,
+            breakType: level.breakType,
           })),
         },
       });
@@ -63,6 +64,7 @@ export class BlindStructureController {
           id: structure.id,
           name: structure.name,
           description: structure.description,
+          clubId: structure.clubId,
           levelsCount: structure.levels.length,
           createdAt: structure.createdAt,
         })),
@@ -97,6 +99,7 @@ export class BlindStructureController {
             durationMinutes: level.durationMinutes,
             isBreak: level.isBreak,
             breakName: level.breakName,
+            breakType: level.breakType,
           })),
         },
       });
@@ -112,9 +115,9 @@ export class BlindStructureController {
   static async addLevel(req: AuthRequest, res: Response) {
     try {
       const structureId = req.params.id as string;
-      const { levelNumber, smallBlind, bigBlind, ante, durationMinutes, isBreak, breakName } = req.body;
+      const { levelNumber, smallBlind, bigBlind, ante, durationMinutes, isBreak, breakName, breakType } = req.body;
 
-      if (!levelNumber || !smallBlind || !bigBlind || !durationMinutes) {
+      if (!levelNumber || smallBlind == null || bigBlind == null || !durationMinutes) {
         return res.status(400).json({
           error: 'levelNumber, smallBlind, bigBlind, and durationMinutes are required',
         });
@@ -125,10 +128,11 @@ export class BlindStructureController {
         levelNumber,
         smallBlind,
         bigBlind,
-        ante,
+        ante: ante ?? bigBlind,
         durationMinutes,
-        isBreak,
+        isBreak: !!isBreak,
         breakName,
+        breakType: isBreak ? (breakType || 'REGULAR') : undefined,
       }, managedClubId);
 
       res.status(201).json({
@@ -142,6 +146,46 @@ export class BlindStructureController {
           durationMinutes: level.durationMinutes,
           isBreak: level.isBreak,
           breakName: level.breakName,
+          breakType: level.breakType,
+        },
+      });
+    } catch (error: unknown) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+    }
+  }
+
+  /**
+   * POST /blind-structures/:id/levels/with-coefficient - Добавить уровень по коэффициенту
+   */
+  static async addLevelWithCoefficient(req: AuthRequest, res: Response) {
+    try {
+      const structureId = req.params.id as string;
+      const { coefficient, durationMinutes } = req.body;
+
+      if (!coefficient || !durationMinutes) {
+        return res.status(400).json({ error: 'coefficient and durationMinutes are required' });
+      }
+
+      const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+      const level = await blindStructureService.addLevelWithCoefficient(
+        structureId,
+        Number(coefficient),
+        Number(durationMinutes),
+        managedClubId
+      );
+
+      res.status(201).json({
+        message: 'Level added with coefficient',
+        level: {
+          id: level.id,
+          levelNumber: level.levelNumber,
+          smallBlind: level.smallBlind,
+          bigBlind: level.bigBlind,
+          ante: level.ante,
+          durationMinutes: level.durationMinutes,
+          isBreak: level.isBreak,
+          breakName: level.breakName,
+          breakType: level.breakType,
         },
       });
     } catch (error: unknown) {

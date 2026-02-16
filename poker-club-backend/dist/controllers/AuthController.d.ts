@@ -5,5 +5,9 @@ export declare class AuthController {
     static login(req: Request, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     static refresh(req: Request, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     static getMe(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static promoteToAdmin(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static assignControllerToClub(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static getUsers(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static promoteToController(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
 }
 //# sourceMappingURL=AuthController.d.ts.map

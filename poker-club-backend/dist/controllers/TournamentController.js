@@ -9,22 +9,24 @@ const playerProfileRepository = database_1.AppDataSource.getRepository(PlayerPro
 class TournamentController {
     static async createTournament(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
-            const { name, seriesId, clubId, startTime, buyInCost, startingStack, addonChips, rebuyChips, blindStructureId, rewards } = req.body;
-            if (!name || !startTime || !buyInCost || !startingStack) {
+            const clubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : req.body.clubId;
+            const { name, seriesId, startTime, buyInCost, startingStack, addonChips, addonCost, rebuyChips, rebuyCost, maxRebuys, maxAddons, blindStructureId, rewards } = req.body;
+            if (!name || !startTime || (buyInCost === undefined || buyInCost === null || buyInCost < 0) || !startingStack) {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
             const tournament = await tournamentService.createTournament({
                 name,
                 seriesId,
-                clubId,
+                clubId: req.user?.role === 'CONTROLLER' ? req.user.managedClubId ?? undefined : req.body.clubId,
                 startTime: new Date(startTime),
                 buyInCost,
                 startingStack,
                 addonChips: addonChips ?? 0,
+                addonCost: addonCost ?? 0,
                 rebuyChips: rebuyChips ?? 0,
+                rebuyCost: rebuyCost ?? 0,
+                maxRebuys: maxRebuys ?? 0,
+                maxAddons: maxAddons ?? 0,
                 blindStructureId,
                 rewards: Array.isArray(rewards) ? rewards : undefined,
             });
@@ -77,15 +79,11 @@ class TournamentController {
             res.status(404).json({ error: message });
         }
     }
-    /**
-     * PATCH /tournaments/:id/rewards - Обновить награды турнира (ADMIN)
-     */
     static async updateTournamentRewards(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(id, managedClubId);
             const { rewards } = req.body;
             if (!Array.isArray(rewards)) {
                 return res.status(400).json({ error: 'rewards must be an array of { rewardId, place }' });
@@ -116,7 +114,8 @@ class TournamentController {
             if (!playerProfile) {
                 return res.status(404).json({ error: 'Player profile not found' });
             }
-            const registration = await tournamentService.registerPlayer(tournamentId, playerProfile.id, paymentMethod || 'DEPOSIT');
+            const registration = await tournamentService.registerPlayer(tournamentId, playerProfile.id, paymentMethod || 'DEPOSIT', false // саморег — игрок ещё не прибыл
+            );
             res.status(201).json(registration);
         }
         catch (error) {
@@ -134,10 +133,12 @@ class TournamentController {
             res.json({
                 players: players.map((p) => ({
                     id: p.id,
+                    playerId: p.player?.id,
                     playerName: `${p.player.user.firstName} ${p.player.user.lastName}`,
                     registeredAt: p.registeredAt,
                     paymentMethod: p.paymentMethod,
                     isActive: p.isActive,
+                    isArrived: p.isArrived ?? true,
                 })),
             });
         }
@@ -150,25 +151,76 @@ class TournamentController {
      */
     static async updateTournamentStatus(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentIdRaw = req.params.id;
             const tournamentId = Array.isArray(tournamentIdRaw) ? tournamentIdRaw[0] : tournamentIdRaw;
             const { status } = req.body;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
             if (!status) {
                 return res.status(400).json({ error: 'Status is required' });
             }
-            const tournament = await tournamentService.updateTournamentStatus(tournamentId, status);
+            const tournament = await tournamentService.updateTournamentStatus(tournamentId, status, managedClubId);
             res.json(tournament);
         }
         catch (error) {
             res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
         }
     }
+    static async updateTournament(req, res) {
+        try {
+            const id = req.params.id || '';
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            const body = req.body;
+            const tournament = await tournamentService.updateTournament(id, {
+                name: body.name,
+                seriesId: body.seriesId,
+                clubId: body.clubId,
+                startTime: body.startTime ? new Date(body.startTime) : undefined,
+                buyInCost: body.buyInCost,
+                startingStack: body.startingStack,
+                addonChips: body.addonChips,
+                addonCost: body.addonCost,
+                rebuyChips: body.rebuyChips,
+                rebuyCost: body.rebuyCost,
+                maxRebuys: body.maxRebuys,
+                maxAddons: body.maxAddons,
+                blindStructureId: body.blindStructureId,
+            }, managedClubId);
+            res.json(tournament);
+        }
+        catch (e) {
+            res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
+        }
+    }
+    static async deleteTournament(req, res) {
+        try {
+            const id = req.params.id || '';
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            const force = req.user?.role === 'ADMIN';
+            await tournamentService.deleteTournament(id, managedClubId, { force });
+            res.json({ message: 'Tournament deleted' });
+        }
+        catch (e) {
+            res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
+        }
+    }
     /**
-   * DELETE /tournaments/:id/register - Отменить регистрацию
-   */
+     * PATCH /tournaments/:id/registrations/:registrationId/arrived - Отметить игрока как прибывшего
+     */
+    static async markPlayerArrived(req, res) {
+        try {
+            const tournamentId = req.params.id || '';
+            const registrationId = req.params.registrationId || '';
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            const reg = await tournamentService.markPlayerArrived(tournamentId, registrationId, managedClubId);
+            res.json(reg);
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
+    /**
+     * DELETE /tournaments/:id/register - Отменить регистрацию
+     */
     static async unregisterFromTournament(req, res) {
         try {
             if (!req.user) {

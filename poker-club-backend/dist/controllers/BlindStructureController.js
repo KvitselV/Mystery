@@ -10,9 +10,6 @@ class BlindStructureController {
      */
     static async createStructure(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const { name, description, levels } = req.body;
             if (!name || !levels || !Array.isArray(levels) || levels.length === 0) {
                 return res.status(400).json({
@@ -23,6 +20,7 @@ class BlindStructureController {
                 name,
                 description,
                 levels,
+                clubId: req.user?.role === 'CONTROLLER' ? req.user.managedClubId ?? null : req.body.clubId ?? null,
             });
             res.status(201).json({
                 message: 'Blind structure created successfully',
@@ -53,7 +51,8 @@ class BlindStructureController {
      */
     static async getAllStructures(req, res) {
         try {
-            const structures = await blindStructureService.getAllStructures();
+            const clubFilter = req.user?.role === 'CONTROLLER' ? req.user.managedClubId ?? undefined : req.query.clubId;
+            const structures = await blindStructureService.getAllStructures(clubFilter || undefined);
             res.json({
                 structures: structures.map((structure) => ({
                     id: structure.id,
@@ -105,9 +104,6 @@ class BlindStructureController {
      */
     static async addLevel(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const structureId = req.params.id;
             const { levelNumber, smallBlind, bigBlind, ante, durationMinutes, isBreak, breakName } = req.body;
             if (!levelNumber || !smallBlind || !bigBlind || !durationMinutes) {
@@ -115,6 +111,7 @@ class BlindStructureController {
                     error: 'levelNumber, smallBlind, bigBlind, and durationMinutes are required',
                 });
             }
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
             const level = await blindStructureService.addLevel(structureId, {
                 levelNumber,
                 smallBlind,
@@ -123,7 +120,7 @@ class BlindStructureController {
                 durationMinutes,
                 isBreak,
                 breakName,
-            });
+            }, managedClubId);
             res.status(201).json({
                 message: 'Level added successfully',
                 level: {
@@ -148,11 +145,9 @@ class BlindStructureController {
      */
     static async deactivateStructure(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const structureId = req.params.id;
-            const structure = await blindStructureService.deactivateStructure(structureId);
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            const structure = await blindStructureService.deactivateStructure(structureId, managedClubId);
             res.json({
                 message: 'Blind structure deactivated',
                 structure: {

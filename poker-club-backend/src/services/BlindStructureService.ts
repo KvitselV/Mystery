@@ -3,6 +3,8 @@ import { AppDataSource } from '../config/database';
 import { BlindStructure } from '../models/BlindStructure';
 import { TournamentLevel } from '../models/TournamentLevel';
 
+export type BreakType = 'REGULAR' | 'END_LATE_REG' | 'ADDON' | 'END_LATE_REG_AND_ADDON';
+
 interface CreateLevelDto {
   levelNumber: number;
   smallBlind: number;
@@ -11,6 +13,7 @@ interface CreateLevelDto {
   durationMinutes: number;
   isBreak?: boolean;
   breakName?: string;
+  breakType?: BreakType;
 }
 
 interface CreateBlindStructureDto {
@@ -45,10 +48,11 @@ export class BlindStructureService {
         levelNumber: levelData.levelNumber,
         smallBlind: levelData.smallBlind,
         bigBlind: levelData.bigBlind,
-        ante: levelData.ante || 0,
+        ante: levelData.ante ?? levelData.bigBlind,
         durationMinutes: levelData.durationMinutes,
         isBreak: levelData.isBreak || false,
         breakName: levelData.breakName,
+        breakType: levelData.breakType ?? (levelData.isBreak ? 'REGULAR' : undefined),
       })
     );
 
@@ -126,13 +130,53 @@ export class BlindStructureService {
       levelNumber: levelData.levelNumber,
       smallBlind: levelData.smallBlind,
       bigBlind: levelData.bigBlind,
-      ante: levelData.ante || 0,
+      ante: levelData.ante ?? levelData.bigBlind,
       durationMinutes: levelData.durationMinutes,
       isBreak: levelData.isBreak || false,
       breakName: levelData.breakName,
+      breakType: levelData.isBreak ? (levelData.breakType || 'REGULAR') : undefined,
     });
 
     return this.levelRepository.save(level);
+  }
+
+  /**
+   * Добавить уровень по коэффициенту от последнего уровня.
+   * coefficient умножает SB, BB, ante последнего уровня.
+   */
+  async addLevelWithCoefficient(
+    structureId: string,
+    coefficient: number,
+    durationMinutes: number,
+    managedClubId?: string | null
+  ): Promise<TournamentLevel> {
+    await this.ensureCanModify(structureId, managedClubId);
+    const structure = await this.structureRepository.findOne({
+      where: { id: structureId },
+      relations: ['levels'],
+    });
+    if (!structure) throw new Error('Blind structure not found');
+
+    const gameLevels = (structure.levels || []).filter((l) => !l.isBreak);
+    const lastLevel = gameLevels.length > 0 ? gameLevels.reduce((a, b) => (a.levelNumber > b.levelNumber ? a : b)) : null;
+    if (!lastLevel || lastLevel.isBreak) {
+      throw new Error('Последний уровень должен быть игровым (не перерывом) для добавления по коэффициенту');
+    }
+
+    const coef = Math.max(0.1, Math.min(10, Number(coefficient)));
+    const levelNumber = lastLevel.levelNumber + 1;
+    const smallBlind = Math.round(lastLevel.smallBlind * coef);
+    const bigBlind = Math.round(lastLevel.bigBlind * coef);
+    const ante = Math.round((lastLevel.ante || lastLevel.bigBlind) * coef);
+
+    return this.addLevel(structureId, {
+      levelNumber,
+      smallBlind,
+      bigBlind,
+      ante,
+      durationMinutes,
+      isBreak: false,
+    }, managedClubId);
   }
 
   /**

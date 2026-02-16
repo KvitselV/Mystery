@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { Tournament } from './Tournament';
 import { PlayerProfile } from './PlayerProfile';
 
 @Entity('tournament_results')
+@Unique(['tournament', 'player'])
 export class TournamentResult {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -20,6 +21,9 @@ export class TournamentResult {
 
   @Column({ type: 'int', default: 0 })
   mmrGained: number; // ММR за турнир
+
+  @Column({ type: 'int', default: 0 })
+  points: number; // Очки за турнир (для рейтинга серии)
 
   @Column({ type: 'boolean', default: false })
   isFinalTable: boolean;

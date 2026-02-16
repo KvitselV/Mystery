@@ -45,7 +45,7 @@ __decorate([
     __metadata("design:type", String)
 ], Order.prototype, "userId", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, { nullable: true }),
+    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, { nullable: true, onDelete: 'SET NULL' }),
     (0, typeorm_1.JoinColumn)({ name: 'tournament_id' }),
     __metadata("design:type", Tournament_1.Tournament)
 ], Order.prototype, "tournament", void 0);

@@ -7,6 +7,7 @@ router.use(authMiddleware);
 
 router.get('/', TournamentSeriesController.getAll);
 router.get('/:id', TournamentSeriesController.getById);
+router.get('/:id/rating-table', TournamentSeriesController.getRatingTable);
 router.post('/', requireAdminOrController(), TournamentSeriesController.create);
 router.patch('/:id', requireAdminOrController(), TournamentSeriesController.update);
 router.delete('/:id', requireAdminOrController(), TournamentSeriesController.delete);

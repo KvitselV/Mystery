@@ -25,12 +25,17 @@ export class AuthService {
     // Хеш пароля
     const passwordHash = await bcrypt.hash(data.password, 10);
 
+    // Проверь, что номер клубной карты не занят
+    const existingByCard = await this.userRepository.findOne({ where: { clubCardNumber: data.clubCardNumber } });
+    if (existingByCard) {
+      throw new Error('Пользователь с таким номером клубной карты уже существует');
+    }
+
     // Создай пользователя
     const user = this.userRepository.create({
-      firstName: data.firstName,
-      lastName: data.lastName,
+      name: data.name,
+      clubCardNumber: data.clubCardNumber,
       phone: data.phone,
-      email: data.email,
       passwordHash,
       role: 'PLAYER',
       isActive: true,
@@ -68,12 +73,48 @@ export class AuthService {
       refreshToken,
       user: {
         id: savedUser.id,
-        firstName: savedUser.firstName,
-        lastName: savedUser.lastName,
+        name: savedUser.name,
+        clubCardNumber: savedUser.clubCardNumber,
         phone: savedUser.phone,
         role: savedUser.role,
       },
     };
+  }
+
+  /** Создать пользователя без токенов (для регистрации гостя админом). Возвращает playerProfileId. */
+  async createUserAsGuest(data: RegisterDto): Promise<{ userId: string; playerProfileId: string }> {
+    const existingUser = await this.userRepository.findOne({ where: { phone: data.phone } });
+    if (existingUser) throw new Error('Пользователь с таким телефоном уже существует');
+
+    const existingByCard = await this.userRepository.findOne({ where: { clubCardNumber: data.clubCardNumber } });
+    if (existingByCard) throw new Error('Пользователь с таким номером клубной карты уже существует');
+
+    const passwordHash = await bcrypt.hash(data.password, 10);
+    const user = this.userRepository.create({
+      name: data.name,
+      clubCardNumber: data.clubCardNumber,
+      phone: data.phone,
+      passwordHash,
+      role: 'PLAYER',
+      isActive: true,
+    });
+    const savedUser = await this.userRepository.save(user);
+
+    const balance = this.balanceRepository.create({ depositBalance: 0, totalDeposited: 0 });
+    const savedBalance = await this.balanceRepository.save(balance);
+
+    const playerProfile = this.playerRepository.create({
+      user: savedUser,
+      balance: savedBalance,
+      mmrValue: 0,
+      rankCode: 'E',
+      tournamentsCount: 0,
+      winRate: 0,
+      averageFinish: 0,
+    });
+    const savedProfile = await this.playerRepository.save(playerProfile);
+
+    return { userId: savedUser.id, playerProfileId: savedProfile.id };
   }
 
   async login(data: LoginDto): Promise<AuthResponse> {
@@ -103,8 +144,8 @@ export class AuthService {
       refreshToken,
       user: {
         id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        name: user.name,
+        clubCardNumber: user.clubCardNumber,
         phone: user.phone,
         role: user.role,
       },
@@ -134,20 +175,20 @@ export class AuthService {
     return this.userRepository.findOne({
       where: { id: userId },
       relations: ['managedClub'],
-      select: ['id', 'firstName', 'lastName', 'phone', 'email', 'role', 'isActive', 'createdAt', 'managedClubId'],
+      select: ['id', 'name', 'clubCardNumber', 'phone', 'role', 'isActive', 'createdAt', 'managedClubId'],
     });
   }
 
-  async getAllUsers(): Promise<Array<{ id: string; firstName: string; lastName: string; phone: string; role: string; managedClubId: string | null; managedClub: { id: string; name: string } | null }>> {
+  async getAllUsers(): Promise<Array<{ id: string; name: string; clubCardNumber: string; phone: string; role: string; managedClubId: string | null; managedClub: { id: string; name: string } | null }>> {
     const users = await this.userRepository.find({
       relations: ['managedClub'],
-      select: ['id', 'firstName', 'lastName', 'phone', 'role', 'managedClubId'],
+      select: ['id', 'name', 'clubCardNumber', 'phone', 'role', 'managedClubId'],
       order: { createdAt: 'DESC' },
     });
     return users.map((u) => ({
       id: u.id,
-      firstName: u.firstName,
-      lastName: u.lastName,
+      name: u.name,
+      clubCardNumber: u.clubCardNumber,
       phone: u.phone,
       role: u.role,
       managedClubId: u.managedClubId,
@@ -177,7 +218,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: target.id, firstName: target.firstName, lastName: target.lastName, phone: target.phone, role: target.role, managedClubId: clubId },
+      user: { id: target.id, name: target.name, clubCardNumber: target.clubCardNumber, phone: target.phone, role: target.role, managedClubId: clubId },
     };
   }
 
@@ -194,7 +235,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, role: user.role },
+      user: { id: user.id, name: user.name, clubCardNumber: user.clubCardNumber, phone: user.phone, role: user.role },
     };
   }
 }

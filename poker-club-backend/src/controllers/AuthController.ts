@@ -7,18 +7,17 @@ const authService = new AuthService();
 export class AuthController {
   static async register(req: Request, res: Response) {
     try {
-      const { firstName, lastName, phone, email, password } = req.body;
+      const { name, clubCardNumber, phone, password } = req.body;
 
       // Базовая валидация
-      if (!firstName || !lastName || !phone || !password) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      if (!name || !clubCardNumber || !phone || !password) {
+        return res.status(400).json({ error: 'Обязательные поля: имя, номер клубной карты, телефон, пароль' });
       }
 
       const result = await authService.register({
-        firstName,
-        lastName,
+        name,
+        clubCardNumber,
         phone,
-        email,
         password,
       });
 

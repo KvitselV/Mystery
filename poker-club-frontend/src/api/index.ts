@@ -18,10 +18,20 @@ export const tournamentSeriesApi = {
     defaultBuyIn?: number;
     defaultStartingStack?: number;
     defaultBlindStructureId?: string;
+    defaultAddonChips?: number;
+    defaultAddonCost?: number;
+    defaultRebuyChips?: number;
+    defaultRebuyCost?: number;
+    defaultMaxRebuys?: number;
+    defaultMaxAddons?: number;
   }) => api.post<TournamentSeries>('/tournament-series', data),
   update: (id: string, data: Partial<{ name: string; periodStart: string; periodEnd: string; daysOfWeek: number[] }>) =>
     api.patch(`/tournament-series/${id}`, data),
   delete: (id: string) => api.delete(`/tournament-series/${id}`),
+  getRatingTable: (id: string) =>
+    api.get<{ seriesName: string; columns: { date: string; dateLabel: string; tournamentId: string }[]; rows: SeriesRatingRow[] }>(
+      `/tournament-series/${id}/rating-table`
+    ),
 };
 
 // Tournaments
@@ -30,14 +40,24 @@ export const tournamentsApi = {
     api.get<{ tournaments: Tournament[]; total: number }>('/tournaments', { params }),
   getById: (id: string) => api.get<Tournament>(`/tournaments/${id}`),
   getPlayers: (id: string) => api.get<{ players: TournamentPlayer[] }>(`/tournaments/${id}/players`),
+  markPlayerArrived: (tournamentId: string, registrationId: string) =>
+    api.patch(`/tournaments/${tournamentId}/registrations/${registrationId}/arrived`),
   register: (id: string, paymentMethod?: string) =>
     api.post(`/tournaments/${id}/register`, { paymentMethod: paymentMethod || 'DEPOSIT' }),
+  registerGuest: (tournamentId: string, data: { name: string; clubCardNumber: string; phone: string; password: string }) =>
+    api.post(`/tournaments/${tournamentId}/register-guest`, data),
+  registerByCard: (tournamentId: string, clubCardNumber: string) =>
+    api.post(`/tournaments/${tournamentId}/register-by-card`, { clubCardNumber }),
   unregister: (id: string) => api.delete(`/tournaments/${id}/register`),
   create: (data: CreateTournamentDto) => api.post<Tournament>('/tournaments', data),
   update: (id: string, data: UpdateTournamentDto) =>
     api.patch<Tournament>(`/tournaments/${id}`, data),
   delete: (id: string) => api.delete(`/tournaments/${id}`),
   updateStatus: (id: string, status: string) => api.patch(`/tournaments/${id}/status`, { status }),
+  getAdminReport: (id: string) => api.get<{ report: TournamentAdminReport }>(`/tournaments/${id}/admin-report`),
+  updateAdminReport: (id: string, data: Partial<TournamentAdminReportUpdate>) =>
+    api.patch<{ report: TournamentAdminReport }>(`/tournaments/${id}/admin-report`, data),
+  getPlayerResults: (id: string) => api.get<{ results: TournamentPlayerResult[] }>(`/tournaments/${id}/player-results`),
 };
 
 // Clubs
@@ -65,8 +85,8 @@ export const seatingApi = {
     api.get<{ table: TournamentTable }>(`/tournaments/${tournamentId}/tables/${tableId}`),
   initFromClub: (tournamentId: string) =>
     api.post(`/tournaments/${tournamentId}/tables/init-from-club`),
-  autoSeating: (tournamentId: string) =>
-    api.post(`/tournaments/${tournamentId}/seating/auto`),
+  autoSeating: (tournamentId: string, body?: { moves?: { tableId: string; utgSeatNumber?: number; playerIds?: string[] }[] }) =>
+    api.post(`/tournaments/${tournamentId}/seating/auto`, body ?? {}),
   manualSeating: (tournamentId: string, body: { playerId: string; newTableId: string; newSeatNumber: number }) =>
     api.post(`/tournaments/${tournamentId}/seating/manual`, body),
 };
@@ -87,12 +107,19 @@ export const liveTournamentApi = {
     api.post(`/tournaments/${tournamentId}/player/${playerId}/rebuy`, { amount }),
   addon: (tournamentId: string, playerId: string, amount: number) =>
     api.post(`/tournaments/${tournamentId}/player/${playerId}/addon`, { amount }),
-  eliminate: (tournamentId: string, playerId: string, finishPosition: number) =>
+  eliminate: (tournamentId: string, playerId: string, finishPosition?: number) =>
     api.post(`/tournaments/${tournamentId}/player/${playerId}/eliminate`, { finishPosition }),
+  returnEliminated: (tournamentId: string, playerId: string, tableId: string, seatNumber: number) =>
+    api.post(`/tournaments/${tournamentId}/player/${playerId}/return`, { tableId, seatNumber }),
   nextLevel: (tournamentId: string) => api.patch(`/tournaments/${tournamentId}/level/next`),
+  prevLevel: (tournamentId: string) => api.patch(`/tournaments/${tournamentId}/level/prev`),
   getCurrentLevel: (tournamentId: string) =>
     api.get<{ level: TournamentLevel }>(`/tournaments/${tournamentId}/level/current`),
   finish: (tournamentId: string) => api.post(`/tournaments/${tournamentId}/finish`),
+  getPlayerBalances: (tournamentId: string) =>
+    api.get<{ balances: TournamentPlayerBalance[] }>(`/tournaments/${tournamentId}/player-balances`),
+  recordPayment: (tournamentId: string, playerId: string, cashAmount: number, nonCashAmount: number) =>
+    api.post(`/tournaments/${tournamentId}/player/${playerId}/pay`, { cashAmount, nonCashAmount }),
 };
 
 // Blind Structures
@@ -104,6 +131,8 @@ export const blindStructuresApi = {
     api.post<{ structure: BlindStructure }>('/blind-structures', data),
   addLevel: (id: string, level: CreateLevelDto) =>
     api.post(`/blind-structures/${id}/levels`, level),
+  addLevelWithCoefficient: (id: string, coefficient: number, durationMinutes: number) =>
+    api.post(`/blind-structures/${id}/levels/with-coefficient`, { coefficient, durationMinutes }),
   deactivate: (id: string) => api.delete(`/blind-structures/${id}`),
 };
 
@@ -160,15 +189,50 @@ export const ordersApi = {
 };
 
 // Types
+export interface TournamentAdminReport {
+  id: string;
+  tournamentId: string;
+  attendanceCount: number;
+  cashRevenue: number;
+  nonCashRevenue: number;
+  expenses: { description: string; amount: number }[];
+  totalProfit: number;
+}
+export interface TournamentAdminReportUpdate {
+  attendanceCount?: number;
+  cashRevenue?: number;
+  nonCashRevenue?: number;
+  expenses?: { description: string; amount: number }[];
+}
+export interface TournamentPlayerResult {
+  finishPosition: number;
+  playerId: string;
+  playerName: string;
+  clubCardNumber?: string;
+  points: number;
+}
+export interface SeriesRatingRow {
+  playerId: string;
+  playerName: string;
+  clubCardNumber?: string;
+  totalPoints: number;
+  pointsByDate: Record<string, number>;
+  positionByDate?: Record<string, number>;
+}
+
 export interface Tournament {
   id: string;
   name: string;
   startTime: string;
-  status: 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED';
+  status: 'ANNOUNCED' | 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED';
   buyInCost: number;
   startingStack: number;
   addonChips?: number;
+  addonCost?: number;
   rebuyChips?: number;
+  rebuyCost?: number;
+  maxRebuys?: number;
+  maxAddons?: number;
   currentLevelNumber?: number;
   blindStructureId?: string;
   clubId?: string;
@@ -181,9 +245,11 @@ export interface TournamentPlayer {
   id: string;
   playerId?: string;
   playerName: string;
+  clubCardNumber?: string;
   registeredAt: string;
   paymentMethod: string;
   isActive: boolean;
+  isArrived?: boolean;
 }
 export interface CreateTournamentDto {
   name: string;
@@ -194,7 +260,11 @@ export interface CreateTournamentDto {
   clubId?: string;
   blindStructureId?: string;
   addonChips?: number;
+  addonCost?: number;
   rebuyChips?: number;
+  rebuyCost?: number;
+  maxRebuys?: number;
+  maxAddons?: number;
 }
 export type UpdateTournamentDto = Omit<Partial<CreateTournamentDto>, 'seriesId' | 'clubId'> & {
   seriesId?: string | null;
@@ -239,6 +309,7 @@ export interface TableSeat {
   status: string;
   playerName?: string;
   playerId?: string;
+  clubCardNumber?: string;
 }
 export interface LiveState {
   tournamentId: string;
@@ -247,10 +318,48 @@ export interface LiveState {
   levelRemainingTimeSeconds: number;
   playersCount: number;
   averageStack: number;
+  totalChipsInPlay?: number;
   isPaused: boolean;
   liveStatus?: string;
   entriesCount?: number;
+  totalParticipants?: number;
+  nextBreakTime?: string | null;
+  currentLevel?: {
+    smallBlind: number;
+    bigBlind: number;
+    ante?: number;
+    isBreak?: boolean;
+    breakType?: string | null;
+    breakName?: string | null;
+  } | null;
+  nextLevel?: {
+    smallBlind: number;
+    bigBlind: number;
+    ante?: number;
+  } | null;
+  tournament?: {
+    startingStack: number;
+    rebuyChips: number;
+    addonChips: number;
+    maxRebuys?: number;
+    maxAddons?: number;
+  };
 }
+export interface TournamentPlayerBalance {
+  playerId: string;
+  playerName: string;
+  clubCardNumber?: string;
+  balance: number;
+  buyInAmount: number;
+  rebuysAmount: number;
+  rebuyCount?: number;
+  addonsAmount: number;
+  addonCount?: number;
+  ordersAmount: number;
+  paidAmount: number;
+}
+export type BreakType = 'REGULAR' | 'END_LATE_REG' | 'ADDON' | 'END_LATE_REG_AND_ADDON';
+
 export interface TournamentLevel {
   id: string;
   levelNumber: number;
@@ -259,11 +368,14 @@ export interface TournamentLevel {
   ante?: number;
   durationMinutes: number;
   isBreak?: boolean;
+  breakName?: string;
+  breakType?: BreakType;
 }
 export interface BlindStructure {
   id: string;
   name: string;
   description?: string;
+  clubId?: string | null;
   levels?: TournamentLevel[];
 }
 export interface CreateLevelDto {
@@ -273,6 +385,8 @@ export interface CreateLevelDto {
   ante?: number;
   durationMinutes: number;
   isBreak?: boolean;
+  breakName?: string;
+  breakType?: BreakType;
 }
 export interface Leaderboard {
   id: string;

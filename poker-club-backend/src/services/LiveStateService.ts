@@ -1,5 +1,4 @@
 import { AppDataSource } from '../config/database';
-import { In } from 'typeorm';
 import { redisClient } from '../config/redis';
 import { TournamentLiveState } from '../models/TournamentLiveState';
 import { Tournament } from '../models/Tournament';
@@ -152,27 +151,25 @@ export class LiveStateService {
       where: { tournament: { id: tournamentId } },
     });
 
-    const rebuyCount = await this.operationRepository.count({
-      where: {
-        tournament: { id: tournamentId },
-        operationType: 'REBUY',
-      },
-    });
+    const [rebuyCount, addonCount] = await Promise.all([
+      this.operationRepository.count({
+        where: { tournament: { id: tournamentId }, operationType: 'REBUY' },
+      }),
+      this.operationRepository.count({
+        where: { tournament: { id: tournamentId }, operationType: 'ADDON' },
+      }),
+    ]);
     const totalEntries = totalParticipants + rebuyCount;
 
-    let totalChipsInPlay = 0;
-    if (activePlayerIds.length > 0) {
-      const activeRegs = await this.registrationRepository.find({
-        where: {
-          tournament: { id: tournamentId },
-          player: { id: In(activePlayerIds) },
-        },
-      });
-      totalChipsInPlay = activeRegs.reduce((sum, r) => sum + (r.currentStack ?? 0), 0);
-    }
+    // Общее количество фишек = бай-ины + ребаи + аддоны. Не уменьшается при вылете — вылетевший отдал фишки победителю.
+    const startingStack = liveState.tournament?.startingStack ?? 0;
+    const rebuyChips = liveState.tournament?.rebuyChips ?? 0;
+    const addonChips = liveState.tournament?.addonChips ?? 0;
+    const totalChipsInPlay = totalParticipants * startingStack + rebuyCount * rebuyChips + addonCount * addonChips;
 
     const playersCount = activePlayerIds.length;
-    const averageStack = playersCount > 0 ? Math.floor(totalChipsInPlay / playersCount) : 0;
+    const divisor = playersCount > 0 ? playersCount : totalParticipants;
+    const averageStack = divisor > 0 ? Math.floor(totalChipsInPlay / divisor) : (liveState.tournament?.startingStack ?? 0);
 
     liveState.playersCount = playersCount;
     liveState.totalParticipants = totalParticipants;
@@ -268,6 +265,18 @@ export class LiveStateService {
   /**
    * Удалить Live State (при завершении турнира)
    */
+  async getRebuyAndAddonCounts(tournamentId: string): Promise<{ rebuyCount: number; addonCount: number }> {
+    const [rebuyCount, addonCount] = await Promise.all([
+      this.operationRepository.count({
+        where: { tournament: { id: tournamentId }, operationType: 'REBUY' },
+      }),
+      this.operationRepository.count({
+        where: { tournament: { id: tournamentId }, operationType: 'ADDON' },
+      }),
+    ]);
+    return { rebuyCount, addonCount };
+  }
+
   async deleteLiveState(tournamentId: string): Promise<void> {
     const liveState = await this.liveStateRepository.findOne({
       where: { tournament: { id: tournamentId } },

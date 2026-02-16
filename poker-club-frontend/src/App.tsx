@@ -5,6 +5,7 @@ import RegisterPage from './pages/RegisterPage';
 import MainLayout from './layouts/MainLayout';
 import WaiterLayout from './layouts/WaiterLayout';
 import TournamentsPage from './pages/TournamentsPage';
+import TournamentManagePage from './pages/TournamentManagePage';
 import RatingsPage from './pages/RatingsPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/admin/SettingsPage';
@@ -35,6 +36,7 @@ function App() {
       <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/tournaments" replace />} />
         <Route path="tournaments" element={<TournamentsPage />} />
+        <Route path="tournaments/manage" element={<TournamentManagePage />} />
         <Route path="ratings" element={<RatingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings/*" element={<SettingsPage />} />

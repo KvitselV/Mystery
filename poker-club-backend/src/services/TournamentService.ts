@@ -1,23 +1,36 @@
 import { AppDataSource } from '../config/database';
 import { FindOptionsWhere } from 'typeorm';
 import { Tournament } from '../models/Tournament';
+import { TournamentResult } from '../models/TournamentResult';
 import { TournamentSeries } from '../models/TournamentSeries';
 import { TournamentRegistration } from '../models/TournamentRegistration';
 import { TournamentReward } from '../models/TournamentReward';
 import { Reward } from '../models/Reward';
 import { PlayerProfile } from '../models/PlayerProfile';
+import { PlayerOperation } from '../models/PlayerOperation';
+import { PlayerBill } from '../models/PlayerBill';
+import { Order } from '../models/Order';
+import { AchievementInstance } from '../models/AchievementInstance';
 import { FinancialService } from './FinancialService';
 import { Club } from '../models/Club';
+import { SeatingService } from './SeatingService';
+import { LiveStateService } from './LiveStateService';
 
 export class TournamentService {
   private tournamentRepository = AppDataSource.getRepository(Tournament);
   private seriesRepository = AppDataSource.getRepository(TournamentSeries);
+  private seatingService = new SeatingService();
+  private liveStateService = new LiveStateService();
   private registrationRepository = AppDataSource.getRepository(TournamentRegistration);
   private tournamentRewardRepository = AppDataSource.getRepository(TournamentReward);
   private rewardRepository = AppDataSource.getRepository(Reward);
   private playerRepository = AppDataSource.getRepository(PlayerProfile);
   private clubRepository = AppDataSource.getRepository(Club);
   private financialService = new FinancialService();
+  private playerOperationRepository = AppDataSource.getRepository(PlayerOperation);
+  private playerBillRepository = AppDataSource.getRepository(PlayerBill);
+  private orderRepository = AppDataSource.getRepository(Order);
+  private achievementInstanceRepository = AppDataSource.getRepository(AchievementInstance);
 
   /**
    * Создать турнир
@@ -30,7 +43,11 @@ export class TournamentService {
     buyInCost: number;
     startingStack: number;
     addonChips?: number;
+    addonCost?: number;
     rebuyChips?: number;
+    rebuyCost?: number;
+    maxRebuys?: number;
+    maxAddons?: number;
     blindStructureId?: string;
     rewards?: { rewardId: string; place: number }[];
   }): Promise<Tournament> {
@@ -46,6 +63,14 @@ export class TournamentService {
       throw new Error('Club not found');
     }
 
+    const startDate = new Date(data.startTime);
+    const today = new Date();
+    const isToday =
+      startDate.getFullYear() === today.getFullYear() &&
+      startDate.getMonth() === today.getMonth() &&
+      startDate.getDate() === today.getDate();
+    const initialStatus = isToday ? 'REG_OPEN' : 'ANNOUNCED';
+
     const tournament = this.tournamentRepository.create({
       name: data.name,
       series: series || undefined,
@@ -55,9 +80,13 @@ export class TournamentService {
       buyInCost: data.buyInCost,
       startingStack: data.startingStack,
       addonChips: data.addonChips ?? 0,
+      addonCost: data.addonCost ?? 0,
       rebuyChips: data.rebuyChips ?? 0,
+      rebuyCost: data.rebuyCost ?? 0,
+      maxRebuys: data.maxRebuys ?? 0,
+      maxAddons: data.maxAddons ?? 0,
       blindStructureId: data.blindStructureId,
-      status: 'REG_OPEN',
+      status: initialStatus,
       currentLevelNumber: 0,
     });
 
@@ -67,7 +96,42 @@ export class TournamentService {
       await this.setTournamentRewards(saved.id, data.rewards);
     }
 
+    if (saved.clubId) {
+      try {
+        await this.seatingService.initializeTablesFromClub(saved.id);
+      } catch (err) {
+        console.warn('Auto-init tables from club failed:', err instanceof Error ? err.message : err);
+      }
+    }
+
     return await this.getTournamentById(saved.id);
+  }
+
+  /**
+   * Синхронизация статусов по дате: турниры с startTime сегодня и статусом ANNOUNCED
+   * переводятся в REG_OPEN. Вызывается периодически (каждый час).
+   * Админ по‑прежнему может вручную открыть регистрацию для любого турнира.
+   */
+  async syncTournamentStatusByDate(): Promise<number> {
+    const today = new Date();
+    const tournaments = await this.tournamentRepository.find({
+      where: { status: 'ANNOUNCED' },
+    });
+
+    let updated = 0;
+    for (const t of tournaments) {
+      const start = new Date(t.startTime);
+      const isToday =
+        start.getFullYear() === today.getFullYear() &&
+        start.getMonth() === today.getMonth() &&
+        start.getDate() === today.getDate();
+      if (isToday) {
+        t.status = 'REG_OPEN';
+        await this.tournamentRepository.save(t);
+        updated++;
+      }
+    }
+    return updated;
   }
 
   /**
@@ -130,12 +194,15 @@ export class TournamentService {
   }
 
   /**
-   * Регистрация игрока на турнир
+   * Регистрация игрока на турнир.
+   * Разрешена только при REG_OPEN (до старта) или LATE_REG (поздняя регистрация).
+   * При RUNNING регистрация закрыта (после перерыва "конец поздней регистрации").
    */
   async registerPlayer(
     tournamentId: string,
     playerProfileId: string,
-    paymentMethod: 'CASH' | 'DEPOSIT' = 'DEPOSIT'
+    paymentMethod: 'CASH' | 'DEPOSIT' = 'DEPOSIT',
+    isArrived: boolean = true
   ): Promise<TournamentRegistration> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
@@ -169,14 +236,16 @@ export class TournamentService {
       throw new Error('Player not found');
     }
 
-    // Оплата с депозита: списать бай-ин до создания регистрации
-    if (paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
-      await this.financialService.deductBalance(
-        playerProfileId,
-        tournament.buyInCost,
-        'BUYIN',
-        tournamentId
-      );
+    // Оплата в конце турнира: бай-ин учитывается в турнирном балансе, списание при оплате
+    const buyInAmount = tournament.buyInCost ?? 0;
+    if (buyInAmount > 0) {
+      const operation = this.playerOperationRepository.create({
+        playerProfile: player,
+        operationType: 'BUYIN',
+        amount: buyInAmount,
+        tournament,
+      });
+      await this.playerOperationRepository.save(operation);
     }
 
     const registration = this.registrationRepository.create({
@@ -185,24 +254,12 @@ export class TournamentService {
       registeredAt: new Date(),
       paymentMethod,
       isActive: true,
+      isArrived,
       currentStack: tournament.startingStack,
     });
 
-    try {
-      await this.registrationRepository.save(registration);
-      return registration;
-    } catch (err) {
-      // Откат: вернуть депозит при ошибке сохранения регистрации
-      if (paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
-        await this.financialService.addBalance(
-          playerProfileId,
-          tournament.buyInCost,
-          'REFUND',
-          tournamentId
-        );
-      }
-      throw err;
-    }
+    await this.registrationRepository.save(registration);
+    return registration;
   }
 
   /**
@@ -214,6 +271,32 @@ export class TournamentService {
       relations: ['player', 'player.user'],
       order: { registeredAt: 'ASC' },
     });
+  }
+
+  /**
+   * ID игроков, имеющих результат в турнире (вылетевших)
+   */
+  async getEliminatedPlayerIds(tournamentId: string): Promise<Set<string>> {
+    const resultRepo = AppDataSource.getRepository(TournamentResult);
+    const results = await resultRepo.find({
+      where: { tournament: { id: tournamentId } },
+      select: ['player'],
+      relations: ['player'],
+    });
+    return new Set(results.map((r) => r.player?.id).filter(Boolean) as string[]);
+  }
+
+  /** Отметить игрока как прибывшего в клуб (управляющий нажал «Прибыл») */
+  async markPlayerArrived(tournamentId: string, registrationId: string, managedClubId?: string | null): Promise<TournamentRegistration> {
+    await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+    const registration = await this.registrationRepository.findOne({
+      where: { id: registrationId, tournament: { id: tournamentId } },
+      relations: ['player', 'player.user'],
+    });
+    if (!registration) throw new Error('Registration not found');
+    registration.isArrived = true;
+    await this.registrationRepository.save(registration);
+    return registration;
   }
 
   async ensureTournamentBelongsToClub(tournamentId: string, managedClubId?: string | null): Promise<Tournament> {
@@ -235,7 +318,11 @@ export class TournamentService {
       buyInCost: number;
       startingStack: number;
       addonChips: number;
+      addonCost: number;
       rebuyChips: number;
+      rebuyCost: number;
+      maxRebuys: number;
+      maxAddons: number;
       blindStructureId: string | null;
     }>,
     managedClubId?: string | null
@@ -251,7 +338,11 @@ export class TournamentService {
     if (data.buyInCost != null) tournament.buyInCost = data.buyInCost;
     if (data.startingStack != null) tournament.startingStack = data.startingStack;
     if (data.addonChips != null) tournament.addonChips = data.addonChips;
+    if (data.addonCost != null) tournament.addonCost = data.addonCost;
     if (data.rebuyChips != null) tournament.rebuyChips = data.rebuyChips;
+    if (data.rebuyCost != null) tournament.rebuyCost = data.rebuyCost;
+    if (data.maxRebuys != null) tournament.maxRebuys = data.maxRebuys;
+    if (data.maxAddons != null) tournament.maxAddons = data.maxAddons;
     if (data.blindStructureId != null) tournament.blindStructureId = data.blindStructureId;
     if (data.clubId != null) tournament.clubId = data.clubId;
 
@@ -282,15 +373,21 @@ export class TournamentService {
       where: { id: tournamentId },
     });
     if (!tournament) throw new Error('Tournament not found');
-    if (!options?.force && tournament.status !== 'REG_OPEN' && tournament.status !== 'ARCHIVED') {
-      throw new Error('Can only delete tournaments in REG_OPEN or ARCHIVED status');
+    if (!options?.force && tournament.status !== 'ANNOUNCED' && tournament.status !== 'REG_OPEN' && tournament.status !== 'ARCHIVED') {
+      throw new Error('Can only delete tournaments in ANNOUNCED, REG_OPEN or ARCHIVED status');
     }
+    // Явно удаляем связанные записи (обходим FK-ограничения при старом schema)
+    await this.liveStateService.deleteLiveState(tournamentId);
+    await this.playerOperationRepository.delete({ tournament: { id: tournamentId } });
+    await this.playerBillRepository.delete({ tournament: { id: tournamentId } });
+    await this.orderRepository.update({ tournamentId }, { tournamentId: null! });
+    await this.achievementInstanceRepository.update({ tournamentId }, { tournamentId: null! });
     await this.tournamentRepository.remove(tournament);
   }
 
   async updateTournamentStatus(
     tournamentId: string,
-    status: 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED',
+    status: 'ANNOUNCED' | 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED',
     managedClubId?: string | null
   ): Promise<Tournament> {
     await this.ensureTournamentBelongsToClub(tournamentId, managedClubId);
@@ -304,7 +401,14 @@ export class TournamentService {
 
     tournament.status = status;
 
-    return await this.tournamentRepository.save(tournament);
+    const saved = await this.tournamentRepository.save(tournament);
+
+    // При переходе в RUNNING/LATE_REG — пересчитать live state (игроки, входы, стек) для таймера
+    if (status === 'RUNNING' || status === 'LATE_REG') {
+      await this.liveStateService.recalculateStats(tournamentId);
+    }
+
+    return saved;
   }
 
   /**
@@ -364,15 +468,12 @@ export class TournamentService {
       throw new Error('Registration not found');
     }
 
-    // Возврат депозита при отмене регистрации (если платили с депозита)
-    if (registration.paymentMethod === 'DEPOSIT' && tournament.buyInCost > 0) {
-      await this.financialService.addBalance(
-        playerProfile.id,
-        tournament.buyInCost,
-        'REFUND',
-        tournamentId
-      );
-    }
+    // Удалить операцию BUYIN (бай-ин был в турнирном счёте)
+    await this.playerOperationRepository.delete({
+      playerProfile: { id: playerProfile.id },
+      tournament: { id: tournamentId },
+      operationType: 'BUYIN',
+    });
 
     await this.registrationRepository.remove(registration);
   }

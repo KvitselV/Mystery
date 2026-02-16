@@ -17,7 +17,7 @@ export class PlayerOperation {
   @Column({ type: 'int' })
   amount: number;
 
-  @ManyToOne(() => Tournament, { nullable: true })
+  @ManyToOne(() => Tournament, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tournament_id' })
   tournament: Tournament;
 

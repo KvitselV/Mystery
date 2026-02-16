@@ -17,7 +17,7 @@ export class Tournament {
   @Column({ type: 'timestamp' })
   startTime: Date;
 
-  @Column({ type: 'enum', enum: ['REG_OPEN', 'LATE_REG', 'RUNNING', 'FINISHED', 'ARCHIVED'], default: 'REG_OPEN' })
+  @Column({ type: 'enum', enum: ['ANNOUNCED', 'REG_OPEN', 'LATE_REG', 'RUNNING', 'FINISHED', 'ARCHIVED'], default: 'ANNOUNCED' })
   status: string;
 
   @Column({ type: 'int', default: 0 })
@@ -30,7 +30,19 @@ export class Tournament {
   addonChips: number;
 
   @Column({ type: 'int', default: 0 })
+  addonCost: number; // стоимость аддона (₽)
+
+  @Column({ type: 'int', default: 0 })
   rebuyChips: number;
+
+  @Column({ type: 'int', default: 0 })
+  rebuyCost: number; // стоимость ребая (₽)
+
+  @Column({ type: 'int', default: 0 })
+  maxRebuys: number; // макс. ребаев на игрока (0 = без лимита)
+
+  @Column({ type: 'int', default: 0 })
+  maxAddons: number; // макс. аддонов на игрока (0 = без лимита)
 
   @Column({ type: 'int', default: 0 })
   currentLevelNumber: number;

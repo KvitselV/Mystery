@@ -52,7 +52,7 @@ __decorate([
     __metadata("design:type", AchievementType_1.AchievementType)
 ], AchievementInstance.prototype, "achievementType", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, { nullable: true }),
+    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, { nullable: true, onDelete: 'SET NULL' }),
     (0, typeorm_1.JoinColumn)({ name: 'tournamentId' }),
     __metadata("design:type", Tournament_1.Tournament)
 ], AchievementInstance.prototype, "tournament", void 0);

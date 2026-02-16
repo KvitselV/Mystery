@@ -1,24 +1,12 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 export declare class SeatingController {
-    /**
-     * POST /tournaments/:id/tables/init-from-club - Создать столы турнира из столов клуба
-     * Только для администраторов. Вызывать при запуске турнира (турнир должен быть привязан к клубу).
-     */
-    static initTablesFromClub(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    /**
-     * POST /tournaments/:id/seating/auto - Автоматическая рассадка
-     * Только для администраторов
-     */
-    static autoSeating(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    /**
-     * POST /tournaments/:id/seating/manual - Ручная пересадка игрока
-     * Только для администраторов
-     */
+    static initTablesFromClub(req: AuthRequest, res: Response): Promise<void>;
+    static autoSeating(req: AuthRequest, res: Response): Promise<void>;
     static manualReseating(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     /**
      * GET /tournaments/:id/tables - Получить все столы турнира
-     * Доступно администраторам и клиентам
+     * Admin/Controller: все столы. Гости: только столы с игроками (occupiedSeats > 0).
      */
     static getTournamentTables(req: AuthRequest, res: Response): Promise<void>;
     /**

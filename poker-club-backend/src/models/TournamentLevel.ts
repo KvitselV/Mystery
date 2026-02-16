@@ -37,5 +37,9 @@ export class TournamentLevel {
   isBreak!: boolean; // Это перерыв?
 
   @Column({ type: 'varchar', length: 100, nullable: true })
-  breakName?: string; // Название перерыва (например, "Обед")
+  breakName?: string; // Название перерыва
+
+  /** Тип перерыва: REGULAR | END_LATE_REG | ADDON | END_LATE_REG_AND_ADDON */
+  @Column({ type: 'varchar', length: 30, nullable: true })
+  breakType?: string; // только для isBreak=true
 }

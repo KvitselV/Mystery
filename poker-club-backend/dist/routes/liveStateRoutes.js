@@ -4,17 +4,11 @@ const express_1 = require("express");
 const LiveStateController_1 = require("../controllers/LiveStateController");
 const authMiddleware_1 = require("../middlewares/authMiddleware");
 const router = (0, express_1.Router)();
-// Все маршруты требуют авторизации
 router.use(authMiddleware_1.authMiddleware);
-// Получить Live State (доступно всем)
 router.get('/:id/live', LiveStateController_1.LiveStateController.getLiveState);
-// Поставить на паузу (только ADMIN)
-router.patch('/:id/pause', LiveStateController_1.LiveStateController.pauseTournament);
-// Возобновить (только ADMIN)
-router.patch('/:id/resume', LiveStateController_1.LiveStateController.resumeTournament);
-// Пересчитать статистику (только ADMIN)
-router.patch('/:id/live/recalculate', LiveStateController_1.LiveStateController.recalculateStats);
-// Обновить время (только ADMIN)
-router.patch('/:id/live/time', LiveStateController_1.LiveStateController.updateLevelTime);
+router.patch('/:id/pause', (0, authMiddleware_1.requireAdminOrController)(), LiveStateController_1.LiveStateController.pauseTournament);
+router.patch('/:id/resume', (0, authMiddleware_1.requireAdminOrController)(), LiveStateController_1.LiveStateController.resumeTournament);
+router.patch('/:id/live/recalculate', (0, authMiddleware_1.requireAdminOrController)(), LiveStateController_1.LiveStateController.recalculateStats);
+router.patch('/:id/live/time', (0, authMiddleware_1.requireAdminOrController)(), LiveStateController_1.LiveStateController.updateLevelTime);
 exports.default = router;
 //# sourceMappingURL=liveStateRoutes.js.map

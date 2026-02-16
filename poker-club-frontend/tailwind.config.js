@@ -5,11 +5,18 @@ export default {
     extend: {
       colors: {
         glass: {
-          bg: 'rgba(255, 255, 255, 0.08)',
-          border: 'rgba(255, 255, 255, 0.18)',
-          hover: 'rgba(255, 255, 255, 0.12)',
+          bg: 'rgba(218, 165, 32, 0.08)',
+          border: 'rgba(218, 165, 32, 0.2)',
+          hover: 'rgba(218, 165, 32, 0.12)',
         },
-        accent: { DEFAULT: '#0ea5e9', dark: '#0284c7' },
+        accent: { DEFAULT: '#DAA520', dark: '#B8860B' },
+        gold: {
+          300: '#FCD34D',
+          400: '#FBBF24',
+          500: '#DAA520',
+          600: '#B8860B',
+          700: '#92400E',
+        },
       },
       backdropBlur: {
         xs: '2px',

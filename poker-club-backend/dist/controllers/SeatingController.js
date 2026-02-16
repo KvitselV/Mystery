@@ -3,19 +3,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SeatingController = void 0;
 const SeatingService_1 = require("../services/SeatingService");
 const LiveStateService_1 = require("../services/LiveStateService");
+const TournamentService_1 = require("../services/TournamentService");
 const seatingService = new SeatingService_1.SeatingService();
 const liveStateService = new LiveStateService_1.LiveStateService();
+const tournamentService = new TournamentService_1.TournamentService();
 class SeatingController {
-    /**
-     * POST /tournaments/:id/tables/init-from-club - Создать столы турнира из столов клуба
-     * Только для администраторов. Вызывать при запуске турнира (турнир должен быть привязан к клубу).
-     */
     static async initTablesFromClub(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const result = await seatingService.initializeTablesFromClub(tournamentId);
             res.json({
                 message: 'Tournament tables initialized from club',
@@ -26,16 +23,11 @@ class SeatingController {
             res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
         }
     }
-    /**
-     * POST /tournaments/:id/seating/auto - Автоматическая рассадка
-     * Только для администраторов
-     */
     static async autoSeating(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
             const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const result = await seatingService.autoSeating(tournamentId);
             await liveStateService.recalculateStats(tournamentId);
             res.json({
@@ -47,22 +39,18 @@ class SeatingController {
             res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
         }
     }
-    /**
-     * POST /tournaments/:id/seating/manual - Ручная пересадка игрока
-     * Только для администраторов
-     */
     static async manualReseating(req, res) {
         try {
-            if (!req.user || req.user.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Forbidden' });
-            }
+            const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const { playerId, newTableId, newSeatNumber } = req.body;
             if (!playerId || !newTableId || !newSeatNumber) {
                 return res.status(400).json({
                     error: 'playerId, newTableId, and newSeatNumber are required',
                 });
             }
-            const seat = await seatingService.manualReseating(playerId, newTableId, newSeatNumber);
+            const seat = await seatingService.manualReseating(tournamentId, playerId, newTableId, newSeatNumber);
             res.json({
                 message: 'Player reseated successfully',
                 seat: {
@@ -80,12 +68,18 @@ class SeatingController {
     }
     /**
      * GET /tournaments/:id/tables - Получить все столы турнира
-     * Доступно администраторам и клиентам
+     * Admin/Controller: все столы. Гости: только столы с игроками (occupiedSeats > 0).
      */
     static async getTournamentTables(req, res) {
         try {
             const tournamentId = req.params.id;
-            const tables = await seatingService.getTournamentTables(tournamentId);
+            const tournament = await tournamentService.getTournamentById(tournamentId);
+            const isAdmin = req.user?.role === 'ADMIN';
+            const isControllerForClub = req.user?.role === 'CONTROLLER' && tournament.clubId === req.user?.managedClubId;
+            let tables = await seatingService.getTournamentTables(tournamentId);
+            if (!isAdmin && !isControllerForClub) {
+                tables = tables.filter((t) => (t.occupiedSeats ?? 0) > 0);
+            }
             res.json({
                 tables: tables.map((table) => ({
                     id: table.id,

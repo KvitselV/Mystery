@@ -30,7 +30,7 @@ export class PlayerBill {
   @Column({ name: 'player_id' })
   playerProfileId: string;
 
-  @ManyToOne(() => Tournament)
+  @ManyToOne(() => Tournament, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tournament_id' })
   tournament: Tournament;
 

@@ -1,4 +1,5 @@
 import { PlayerBalance } from './PlayerBalance';
+import { Club } from './Club';
 export declare class User {
     id: string;
     firstName: string;
@@ -6,7 +7,9 @@ export declare class User {
     phone: string;
     email: string;
     passwordHash: string;
-    role: 'ADMIN' | 'PLAYER' | 'WAITER' | 'TV';
+    role: 'ADMIN' | 'CONTROLLER' | 'PLAYER' | 'WAITER' | 'TV';
+    managedClubId: string | null;
+    managedClub: Club | null;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;

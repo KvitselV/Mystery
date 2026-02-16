@@ -3,6 +3,8 @@ import { AuthRequest } from '../middlewares/authMiddleware';
 import { SeatingService } from '../services/SeatingService';
 import { LiveStateService } from '../services/LiveStateService';
 import { TournamentService } from '../services/TournamentService';
+import { io } from '../app';
+import { broadcastSeatingChange } from '../websocket';
 
 const seatingService = new SeatingService();
 const liveStateService = new LiveStateService();
@@ -32,13 +34,25 @@ export class SeatingController {
       const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
       await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
 
-      const result = await seatingService.autoSeating(tournamentId);
+      const moves = req.body?.moves as { tableId: string; utgSeatNumber?: number; playerIds?: string[] }[] | undefined;
+
+      const result = await seatingService.autoSeating(tournamentId, moves);
+
+      if (result.needInput) {
+        return res.status(409).json({
+          code: 'NEED_INPUT',
+          message: 'Specify UTG seat or select players to move',
+          ...result,
+        });
+      }
 
       await liveStateService.recalculateStats(tournamentId);
+      broadcastSeatingChange(io, tournamentId, { type: 'auto_seating' });
 
       res.json({
         message: 'Auto seating completed successfully',
-        ...result,
+        tablesCreated: result.tablesCreated,
+        seatsAssigned: result.seatsAssigned,
       });
     } catch (error: unknown) {
       res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
@@ -59,10 +73,13 @@ export class SeatingController {
       }
 
       const seat = await seatingService.manualReseating(
+        tournamentId,
         playerId,
         newTableId,
         newSeatNumber
       );
+
+      broadcastSeatingChange(io, tournamentId, { type: 'manual_reseat', playerId, newTableId, newSeatNumber });
 
       res.json({
         message: 'Player reseated successfully',
@@ -81,13 +98,20 @@ export class SeatingController {
 
   /**
    * GET /tournaments/:id/tables - Получить все столы турнира
-   * Доступно администраторам и клиентам
+   * Admin/Controller: все столы. Гости: только столы с игроками (occupiedSeats > 0).
    */
   static async getTournamentTables(req: AuthRequest, res: Response) {
     try {
       const tournamentId = req.params.id as string;
+      const tournament = await tournamentService.getTournamentById(tournamentId);
+      const isAdmin = req.user?.role === 'ADMIN';
+      const isControllerForClub =
+        req.user?.role === 'CONTROLLER' && tournament.clubId === req.user?.managedClubId;
 
-      const tables = await seatingService.getTournamentTables(tournamentId);
+      let tables = await seatingService.getTournamentTables(tournamentId);
+      if (!isAdmin && !isControllerForClub) {
+        tables = tables.filter((t) => (t.occupiedSeats ?? 0) > 0);
+      }
 
       res.json({
         tables: tables.map((table) => ({
@@ -107,6 +131,7 @@ export class SeatingController {
             status: seat.status,
             playerName: seat.playerName,
             playerId: seat.player?.id,
+            clubCardNumber: seat.player?.user?.clubCardNumber,
           })),
         })),
       });
@@ -170,16 +195,18 @@ export class SeatingController {
         return res.status(400).json({ error: 'finishPosition is required' });
       }
 
-      const seat = await seatingService.eliminatePlayer(playerId, finishPosition);
+      const seat = await seatingService.eliminatePlayer(playerId, finishPosition, req.params.id as string);
 
       res.json({
         message: 'Player eliminated successfully',
-        seat: {
-          id: seat.id,
-          tableId: seat.table.id,
-          status: seat.status,
-          playerName: seat.playerName,
-        },
+        seat: seat
+          ? {
+              id: seat.id,
+              tableId: seat.table.id,
+              status: seat.status,
+              playerName: seat.playerName,
+            }
+          : null,
       });
     } catch (error: unknown) {
       res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });

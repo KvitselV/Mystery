@@ -39,7 +39,7 @@ __decorate([
     __metadata("design:type", String)
 ], PlayerBill.prototype, "playerProfileId", void 0);
 __decorate([
-    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament),
+    (0, typeorm_1.ManyToOne)(() => Tournament_1.Tournament, { onDelete: 'CASCADE' }),
     (0, typeorm_1.JoinColumn)({ name: 'tournament_id' }),
     __metadata("design:type", Tournament_1.Tournament)
 ], PlayerBill.prototype, "tournament", void 0);

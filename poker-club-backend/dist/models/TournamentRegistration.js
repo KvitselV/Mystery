@@ -43,6 +43,10 @@ __decorate([
     __metadata("design:type", Boolean)
 ], TournamentRegistration.prototype, "isActive", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'boolean', default: true }),
+    __metadata("design:type", Boolean)
+], TournamentRegistration.prototype, "isArrived", void 0);
+__decorate([
     (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)
 ], TournamentRegistration.prototype, "currentStack", void 0);

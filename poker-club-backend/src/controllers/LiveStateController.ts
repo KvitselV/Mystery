@@ -1,9 +1,11 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { LiveStateService } from '../services/LiveStateService';
+import { LiveTournamentService } from '../services/LiveTournamentService';
 import { TournamentService } from '../services/TournamentService';
 
 const liveStateService = new LiveStateService();
+const liveTournamentService = new LiveTournamentService();
 const tournamentService = new TournamentService();
 
 export class LiveStateController {
@@ -20,6 +22,11 @@ export class LiveStateController {
         return res.status(404).json({ error: 'Live state not found' });
       }
 
+      const [currentLevel, nextLevel] = await Promise.all([
+        liveTournamentService.getCurrentLevel(tournamentId),
+        liveTournamentService.getNextLevel(tournamentId),
+      ]);
+
       res.json({
         liveState: {
           tournamentId: liveState.tournament.id,
@@ -28,10 +35,37 @@ export class LiveStateController {
           levelRemainingTimeSeconds: liveState.levelRemainingTimeSeconds,
           playersCount: liveState.playersCount,
           averageStack: liveState.averageStack,
+          totalChipsInPlay: liveState.totalChipsInPlay,
           isPaused: liveState.isPaused,
           liveStatus: liveState.liveStatus,
           nextBreakTime: liveState.nextBreakTime,
           updatedAt: liveState.updatedAt,
+          entriesCount: liveState.totalEntries || liveState.totalParticipants || liveState.playersCount,
+          totalParticipants: liveState.totalParticipants ?? liveState.playersCount,
+          currentLevel: currentLevel
+            ? {
+                smallBlind: currentLevel.smallBlind,
+                bigBlind: currentLevel.bigBlind,
+                ante: currentLevel.ante ?? 0,
+                isBreak: currentLevel.isBreak ?? false,
+                breakType: currentLevel.breakType ?? null,
+                breakName: currentLevel.breakName ?? null,
+              }
+            : null,
+          nextLevel: nextLevel
+            ? {
+                smallBlind: nextLevel.smallBlind,
+                bigBlind: nextLevel.bigBlind,
+                ante: nextLevel.ante ?? 0,
+              }
+            : null,
+          tournament: {
+            startingStack: liveState.tournament.startingStack,
+            rebuyChips: liveState.tournament.rebuyChips ?? 0,
+            addonChips: liveState.tournament.addonChips ?? 0,
+            maxRebuys: liveState.tournament.maxRebuys ?? 0,
+            maxAddons: liveState.tournament.maxAddons ?? 0,
+          },
         },
       });
     } catch (error: unknown) {

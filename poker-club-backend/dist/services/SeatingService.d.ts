@@ -15,18 +15,18 @@ export declare class SeatingService {
         tablesCreated: number;
     }>;
     /**
-     * Автоматическая рассадка игроков.
-     * Если турнир привязан к клубу — используются столы клуба (создаются при первом вызове при необходимости).
-     * Столы без игроков остаются INACTIVE, с игроками — ACTIVE.
+     * Автоматическая рассадка: рассаживает на пустые места только тех, кто не за столами.
+     * Игроки, уже сидящие за столами, остаются на своих местах.
      */
     autoSeating(tournamentId: string): Promise<{
         tablesCreated: number;
         seatsAssigned: number;
     }>;
     /**
-     * Ручная пересадка игрока на другой стол/бокс
+     * Ручная пересадка игрока на другой стол/бокс.
+     * Можно пересаживать на место, где раньше сидел другой игрок (оно будет свободным).
      */
-    manualReseating(playerId: string, newTableId: string, newSeatNumber: number): Promise<TableSeat>;
+    manualReseating(tournamentId: string, playerId: string, newTableId: string, newSeatNumber: number): Promise<TableSeat>;
     /**
      * Получить все столы турнира с игроками и привязкой к столу клуба
      */

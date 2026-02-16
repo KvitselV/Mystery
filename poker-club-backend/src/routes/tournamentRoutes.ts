@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { TournamentController } from '../controllers/TournamentController';
+import { TournamentReportController } from '../controllers/TournamentReportController';
 import { authMiddleware, requireAdminOrController } from '../middlewares/authMiddleware';
 import seatingRoutes from './seatingRoutes';
 import liveTournamentRoutes from './liveTournamentRoutes';
@@ -11,8 +12,14 @@ router.use(authMiddleware);
 
 router.get('/', TournamentController.getTournaments);
 router.get('/:id', TournamentController.getTournamentById);
+router.get('/:id/admin-report', requireAdminOrController(), TournamentReportController.getAdminReport);
+router.patch('/:id/admin-report', requireAdminOrController(), TournamentReportController.updateAdminReport);
+router.get('/:id/player-results', TournamentReportController.getPlayerResults);
 router.get('/:id/players', TournamentController.getTournamentPlayers);
+router.patch('/:id/registrations/:registrationId/arrived', requireAdminOrController(), TournamentController.markPlayerArrived);
 router.post('/:id/register', TournamentController.registerForTournament);
+router.post('/:id/register-guest', requireAdminOrController(), TournamentController.registerGuest);
+router.post('/:id/register-by-card', requireAdminOrController(), TournamentController.registerByCard);
 router.delete('/:id/register', TournamentController.unregisterFromTournament);
 
 router.post('/', requireAdminOrController(), TournamentController.createTournament);

@@ -13,6 +13,7 @@ interface CreateBlindStructureDto {
     name: string;
     description?: string;
     levels: CreateLevelDto[];
+    clubId?: string | null;
 }
 export declare class BlindStructureService {
     private structureRepository;
@@ -26,13 +27,13 @@ export declare class BlindStructureService {
      */
     getStructureById(id: string): Promise<BlindStructure>;
     /**
-     * Получить все структуры
+     * Получить все структуры.
+     * clubId: для Controller — только своего клуба + глобальные (clubId=null)
+     * Без clubId (Admin): все структуры
      */
-    getAllStructures(): Promise<BlindStructure[]>;
-    /**
-     * Добавить уровень к структуре
-     */
-    addLevel(structureId: string, levelData: CreateLevelDto): Promise<TournamentLevel>;
+    getAllStructures(clubFilter?: string | null): Promise<BlindStructure[]>;
+    ensureCanModify(structureId: string, managedClubId?: string | null): Promise<BlindStructure>;
+    addLevel(structureId: string, levelData: CreateLevelDto, managedClubId?: string | null): Promise<TournamentLevel>;
     /**
      * Удалить уровень
      */
@@ -41,10 +42,7 @@ export declare class BlindStructureService {
      * Обновить уровень
      */
     updateLevel(levelId: string, updates: Partial<CreateLevelDto>): Promise<TournamentLevel>;
-    /**
-     * Деактивировать структуру
-     */
-    deactivateStructure(id: string): Promise<BlindStructure>;
+    deactivateStructure(id: string, managedClubId?: string | null): Promise<BlindStructure>;
     /**
      * Получить уровень по номеру для конкретной структуры
      */

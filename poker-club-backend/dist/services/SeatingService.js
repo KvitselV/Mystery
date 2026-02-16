@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SeatingService = void 0;
+const typeorm_1 = require("typeorm");
 const database_1 = require("../config/database");
 const Tournament_1 = require("../models/Tournament");
 const TournamentTable_1 = require("../models/TournamentTable");
@@ -32,7 +33,8 @@ class SeatingService {
             throw new Error('Tournament has no club');
         }
         const clubTables = tournament.club.tables;
-        if (!clubTables?.length) {
+        const tableCount = tournament.club.tableCount ?? 0;
+        if (!clubTables?.length && tableCount < 1) {
             throw new Error('Club has no tables');
         }
         // Не создавать повторно, если столы уже есть
@@ -42,124 +44,156 @@ class SeatingService {
         if (existing > 0) {
             return { tablesCreated: 0 };
         }
-        const tables = clubTables
-            .sort((a, b) => a.tableNumber - b.tableNumber)
-            .map((clubTable) => this.tableRepository.create({
-            tournament,
-            clubTable,
-            clubTableId: clubTable.id,
-            tableNumber: clubTable.tableNumber,
-            maxSeats: clubTable.maxSeats ?? this.maxSeatsPerTable,
-            occupiedSeats: 0,
-            status: 'INACTIVE',
-        }));
+        const tables = clubTables?.length
+            ? clubTables
+                .sort((a, b) => a.tableNumber - b.tableNumber)
+                .map((clubTable) => this.tableRepository.create({
+                tournament,
+                clubTable,
+                clubTableId: clubTable.id,
+                tableNumber: clubTable.tableNumber,
+                maxSeats: clubTable.maxSeats ?? this.maxSeatsPerTable,
+                occupiedSeats: 0,
+                status: 'INACTIVE',
+            }))
+            : Array.from({ length: Math.max(1, tableCount) }, (_, i) => this.tableRepository.create({
+                tournament,
+                tableNumber: i + 1,
+                maxSeats: this.maxSeatsPerTable,
+                occupiedSeats: 0,
+                status: 'INACTIVE',
+            }));
         await this.tableRepository.save(tables);
         return { tablesCreated: tables.length };
     }
     /**
-     * Автоматическая рассадка игроков.
-     * Если турнир привязан к клубу — используются столы клуба (создаются при первом вызове при необходимости).
-     * Столы без игроков остаются INACTIVE, с игроками — ACTIVE.
+     * Автоматическая рассадка: рассаживает на пустые места только тех, кто не за столами.
+     * Игроки, уже сидящие за столами, остаются на своих местах.
      */
     async autoSeating(tournamentId) {
         const tournament = await this.tournamentRepository.findOne({
             where: { id: tournamentId },
-            relations: ['club', 'club.tables', 'registrations', 'registrations.player', 'registrations.player.user'],
+            relations: ['club', 'club.tables'],
         });
         if (!tournament) {
             throw new Error('Tournament not found');
         }
-        if (!tournament.registrations?.length) {
+        const registrations = await this.registrationRepository.find({
+            where: { tournament: { id: tournamentId }, isActive: true, isArrived: true },
+            relations: ['player', 'player.user'],
+        });
+        if (registrations.length === 0) {
             throw new Error('No registrations found');
         }
-        const playerCount = tournament.registrations.length;
-        let tables;
-        if (tournament.clubId && tournament.club?.tables?.length) {
-            // Турнир в клубе: столы из клуба
-            let existingTables = await this.tableRepository.find({
+        let tables = await this.tableRepository.find({
+            where: { tournament: { id: tournamentId } },
+            relations: ['clubTable'],
+            order: { tableNumber: 'ASC' },
+        });
+        if (tables.length === 0) {
+            if (tournament.clubId && tournament.club?.tables?.length) {
+                await this.initializeTablesFromClub(tournamentId);
+            }
+            else {
+                const tableCount = Math.max(1, Math.ceil(registrations.length / this.maxSeatsPerTable));
+                for (let i = 0; i < tableCount; i++) {
+                    await this.tableRepository.save(this.tableRepository.create({
+                        tournament,
+                        tableNumber: i + 1,
+                        maxSeats: this.maxSeatsPerTable,
+                        occupiedSeats: 0,
+                        status: 'INACTIVE',
+                    }));
+                }
+            }
+            tables = await this.tableRepository.find({
                 where: { tournament: { id: tournamentId } },
-                relations: ['clubTable'],
                 order: { tableNumber: 'ASC' },
             });
-            if (existingTables.length === 0) {
-                await this.initializeTablesFromClub(tournamentId);
-                existingTables = await this.tableRepository.find({
-                    where: { tournament: { id: tournamentId } },
-                    relations: ['clubTable'],
-                    order: { tableNumber: 'ASC' },
+        }
+        const tableIds = tables.map((t) => t.id);
+        const allSeats = await this.seatRepository.find({
+            where: { table: { id: (0, typeorm_1.In)(tableIds) } },
+            relations: ['table', 'player'],
+        });
+        const seatedPlayerIds = new Set();
+        const occupiedByTable = new Map();
+        for (const seat of allSeats) {
+            if (seat.isOccupied && seat.player && seat.status !== 'ELIMINATED') {
+                seatedPlayerIds.add(seat.player.id);
+            }
+            if (!occupiedByTable.has(seat.table.id)) {
+                occupiedByTable.set(seat.table.id, new Set());
+            }
+            if (seat.isOccupied) {
+                occupiedByTable.get(seat.table.id).add(seat.seatNumber);
+            }
+        }
+        const unseated = registrations.filter((r) => r.player?.user && !seatedPlayerIds.has(r.player.id));
+        if (unseated.length === 0) {
+            return { tablesCreated: 0, seatsAssigned: 0 };
+        }
+        const emptySlots = [];
+        for (const table of tables) {
+            const occupied = occupiedByTable.get(table.id) ?? new Set();
+            const maxSeats = table.maxSeats ?? this.maxSeatsPerTable;
+            for (let sn = 1; sn <= maxSeats; sn++) {
+                if (occupied.has(sn))
+                    continue;
+                const existing = allSeats.find((s) => s.table.id === table.id && s.seatNumber === sn);
+                if (existing) {
+                    if (!existing.isOccupied && existing.status !== 'ELIMINATED') {
+                        emptySlots.push({ table, seatNumber: sn, existingSeat: existing });
+                    }
+                }
+                else {
+                    emptySlots.push({ table, seatNumber: sn });
+                }
+            }
+        }
+        const shuffled = this.shuffleArray(unseated);
+        let assigned = 0;
+        for (let i = 0; i < shuffled.length && i < emptySlots.length; i++) {
+            const reg = shuffled[i];
+            const player = reg.player;
+            const slot = emptySlots[i];
+            const playerName = `${player.user.firstName} ${player.user.lastName}`;
+            if (slot.existingSeat) {
+                slot.existingSeat.isOccupied = true;
+                slot.existingSeat.player = player;
+                slot.existingSeat.playerName = playerName;
+                slot.existingSeat.status = 'ACTIVE';
+                await this.seatRepository.save(slot.existingSeat);
+            }
+            else {
+                const seat = this.seatRepository.create({
+                    table: slot.table,
+                    seatNumber: slot.seatNumber,
+                    player,
+                    playerName,
+                    isOccupied: true,
+                    status: 'ACTIVE',
                 });
+                await this.seatRepository.save(seat);
             }
-            // Удалить старые места (игроков), рассадка заново
-            await this.seatRepository.delete({
-                table: { tournament: { id: tournamentId } },
-            });
-            tables = existingTables;
-            // Сбросить занятость по всем столам
-            for (const t of tables) {
-                t.occupiedSeats = 0;
-                t.status = 'INACTIVE';
-            }
-            await this.tableRepository.save(tables);
-        }
-        else {
-            // Турнир без клуба: создаём столы по количеству игроков
-            await this.tableRepository.delete({ tournament: { id: tournamentId } });
-            const tableCount = Math.ceil(playerCount / this.maxSeatsPerTable);
-            tables = [];
-            for (let i = 0; i < tableCount; i++) {
-                const table = this.tableRepository.create({
-                    tournament,
-                    tableNumber: i + 1,
-                    maxSeats: this.maxSeatsPerTable,
-                    occupiedSeats: 0,
-                    status: 'INACTIVE',
-                });
-                tables.push(table);
-            }
-            await this.tableRepository.save(tables);
-        }
-        const shuffledRegistrations = this.shuffleArray(tournament.registrations);
-        let tableIndex = 0;
-        let seatIndex = 0;
-        const allSeats = [];
-        for (const registration of shuffledRegistrations) {
-            const table = tables[tableIndex];
-            const player = registration.player;
-            const seat = this.seatRepository.create({
-                table,
-                seatNumber: seatIndex + 1,
-                player,
-                playerName: `${player.user.firstName} ${player.user.lastName}`,
-                isOccupied: true,
-                status: 'ACTIVE',
-            });
-            allSeats.push(seat);
-            seatIndex++;
-            if (seatIndex >= table.maxSeats) {
-                table.occupiedSeats = seatIndex;
-                table.status = 'ACTIVE';
-                seatIndex = 0;
-                tableIndex++;
-            }
-        }
-        if (seatIndex > 0 && tableIndex < tables.length) {
-            tables[tableIndex].occupiedSeats = seatIndex;
-            tables[tableIndex].status = 'ACTIVE';
+            slot.table.occupiedSeats = (slot.table.occupiedSeats ?? 0) + 1;
+            if (slot.table.status === 'INACTIVE')
+                slot.table.status = 'ACTIVE';
+            assigned++;
         }
         await this.tableRepository.save(tables);
-        await this.seatRepository.save(allSeats);
-        return {
-            tablesCreated: tournament.clubId ? 0 : tables.length,
-            seatsAssigned: playerCount,
-        };
+        return { tablesCreated: 0, seatsAssigned: assigned };
     }
     /**
-     * Ручная пересадка игрока на другой стол/бокс
+     * Ручная пересадка игрока на другой стол/бокс.
+     * Можно пересаживать на место, где раньше сидел другой игрок (оно будет свободным).
      */
-    async manualReseating(playerId, newTableId, newSeatNumber) {
-        // Найди текущее место игрока
+    async manualReseating(tournamentId, playerId, newTableId, newSeatNumber) {
         const currentSeat = await this.seatRepository.findOne({
-            where: { player: { id: playerId } },
+            where: {
+                player: { id: playerId },
+                table: { tournament: { id: tournamentId } },
+            },
             relations: ['table'],
         });
         if (!currentSeat) {
@@ -171,11 +205,11 @@ class SeatingService {
                 table: { id: newTableId },
                 seatNumber: newSeatNumber,
             },
+            relations: ['table'],
         });
-        // Если бокс не существует - создай его
         if (!newSeat) {
             const newTable = await this.tableRepository.findOne({
-                where: { id: newTableId },
+                where: { id: newTableId, tournament: { id: tournamentId } },
             });
             if (!newTable) {
                 throw new Error('New table not found');
@@ -191,22 +225,29 @@ class SeatingService {
         if (newSeat.isOccupied) {
             throw new Error('New seat is already occupied');
         }
-        // Освободи старое место
+        const oldTableId = currentSeat.table?.id;
         currentSeat.isOccupied = false;
         currentSeat.player = null;
         currentSeat.playerName = null;
         currentSeat.status = 'WAITING';
         await this.seatRepository.save(currentSeat);
-        const oldTable = currentSeat.table;
-        oldTable.occupiedSeats = Math.max(0, oldTable.occupiedSeats - 1);
-        if (oldTable.occupiedSeats === 0)
-            oldTable.status = 'INACTIVE';
-        await this.tableRepository.save(oldTable);
+        if (oldTableId) {
+            const oldTable = await this.tableRepository.findOne({ where: { id: oldTableId } });
+            if (oldTable) {
+                oldTable.occupiedSeats = Math.max(0, (oldTable.occupiedSeats ?? 0) - 1);
+                if (oldTable.occupiedSeats === 0)
+                    oldTable.status = 'INACTIVE';
+                await this.tableRepository.save(oldTable);
+            }
+        }
         // Займи новое место
         const player = await this.playerRepository.findOne({
             where: { id: playerId },
             relations: ['user'],
         });
+        if (!player?.user) {
+            throw new Error('Player or user not found');
+        }
         newSeat.isOccupied = true;
         newSeat.player = player;
         newSeat.playerName = `${player.user.firstName} ${player.user.lastName}`;
@@ -222,7 +263,12 @@ class SeatingService {
                 newTableEntity.status = 'ACTIVE';
             await this.tableRepository.save(newTableEntity);
         }
-        return newSeat;
+        // Вернуть место с загруженной связью table для ответа API
+        const result = await this.seatRepository.findOne({
+            where: { id: newSeat.id },
+            relations: ['table'],
+        });
+        return result;
     }
     /**
      * Получить все столы турнира с игроками и привязкой к столу клуба

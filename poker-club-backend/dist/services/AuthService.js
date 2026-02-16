@@ -117,8 +117,70 @@ class AuthService {
     async getUserById(userId) {
         return this.userRepository.findOne({
             where: { id: userId },
-            select: ['id', 'firstName', 'lastName', 'phone', 'email', 'role', 'isActive'],
+            relations: ['managedClub'],
+            select: ['id', 'firstName', 'lastName', 'phone', 'email', 'role', 'isActive', 'createdAt', 'managedClubId'],
         });
+    }
+    async getAllUsers() {
+        const users = await this.userRepository.find({
+            relations: ['managedClub'],
+            select: ['id', 'firstName', 'lastName', 'phone', 'role', 'managedClubId'],
+            order: { createdAt: 'DESC' },
+        });
+        return users.map((u) => ({
+            id: u.id,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            phone: u.phone,
+            role: u.role,
+            managedClubId: u.managedClubId,
+            managedClub: u.managedClub ? { id: u.managedClub.id, name: u.managedClub.name } : null,
+        }));
+    }
+    async assignControllerToClub(controllerUserId, clubId) {
+        const user = await this.userRepository.findOne({ where: { id: controllerUserId } });
+        if (!user)
+            throw new Error('User not found');
+        if (user.role !== 'CONTROLLER')
+            throw new Error('User is not a controller');
+        user.managedClubId = clubId;
+        await this.userRepository.save(user);
+        return { managedClubId: clubId };
+    }
+    async promoteToController(adminUserId, targetUserId, clubId) {
+        const admin = await this.userRepository.findOne({ where: { id: adminUserId } });
+        if (!admin || admin.role !== 'ADMIN')
+            return null;
+        const target = await this.userRepository.findOne({ where: { id: targetUserId } });
+        if (!target)
+            return null;
+        target.role = 'CONTROLLER';
+        target.managedClubId = clubId;
+        await this.userRepository.save(target);
+        const accessToken = this.jwtService.generateAccessToken(target.id, target.role);
+        const refreshToken = this.jwtService.generateRefreshToken(target.id);
+        return {
+            accessToken,
+            refreshToken,
+            user: { id: target.id, firstName: target.firstName, lastName: target.lastName, phone: target.phone, role: target.role, managedClubId: clubId },
+        };
+    }
+    async promoteToAdmin(userId) {
+        if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_PROMOTE_ADMIN) {
+            return null;
+        }
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user)
+            return null;
+        user.role = 'ADMIN';
+        await this.userRepository.save(user);
+        const accessToken = this.jwtService.generateAccessToken(user.id, user.role);
+        const refreshToken = this.jwtService.generateRefreshToken(user.id);
+        return {
+            accessToken,
+            refreshToken,
+            user: { id: user.id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, role: user.role },
+        };
     }
 }
 exports.AuthService = AuthService;

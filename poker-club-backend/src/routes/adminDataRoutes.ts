@@ -7,5 +7,6 @@ router.use(authMiddleware);
 router.use(requireAdmin());
 router.get('/data', AdminDataController.getAllData);
 router.patch('/entity/:table/:id', AdminDataController.updateEntity);
+router.post('/recalculate-ratings', AdminDataController.recalculateRatings);
 
 export default router;

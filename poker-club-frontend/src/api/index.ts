@@ -8,6 +8,8 @@ export const adminDataApi = {
   getAll: () => api.get<Record<string, unknown[]>>('/admin/data'),
   update: (table: string, id: string, data: Record<string, unknown>) =>
     api.patch(`/admin/entity/${table}/${id}`, data),
+  recalculateRatings: () =>
+    api.post<{ message: string; updatedTournaments: number; updatedResults: number; createdMissing?: number }>('/admin/recalculate-ratings'),
 };
 
 // Tournament Series

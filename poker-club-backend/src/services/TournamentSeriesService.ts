@@ -152,6 +152,7 @@ export class TournamentSeriesService {
         await this.tournamentService.deleteTournament(t.id, undefined, { force: true });
       }
     }
+    await this.leaderboardService.deleteLeaderboardsBySeriesId(id);
     await this.seriesRepository.remove(series);
   }
 

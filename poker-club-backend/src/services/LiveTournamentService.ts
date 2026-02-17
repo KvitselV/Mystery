@@ -211,7 +211,9 @@ export class LiveTournamentService {
     let pos = finishPosition;
     if (pos == null || pos < 1) {
       const count = await this.resultRepository.count({ where: { tournament: { id: tournamentId } } });
-      pos = count + 1;
+      const totalPlayers = await this.registrationRepository.count({ where: { tournament: { id: tournamentId } } });
+      // Первый вылетевший = последнее место (totalPlayers), последний вылетевший = 2-е место
+      pos = totalPlayers - count;
     }
 
     await this.seatingService.eliminatePlayer(playerProfileId, pos, tournamentId);
@@ -303,16 +305,16 @@ export class LiveTournamentService {
       },
     });
     if (existingResult) {
-      const oldPosition = existingResult.finishPosition; // 15 — последнее место
+      const oldPosition = existingResult.finishPosition; // 1 = победитель, N = последнее место
       await this.resultRepository.remove(existingResult);
-      // Сдвиг: игроки с лучшими местами (14, 13, 12) становятся хуже на 1: 14→15, 13→14, 12→13
+      // Сдвиг: игроки с местами хуже удалённого (например 6,7,... при удалении 5) сдвигаются вверх
       const toShift = await this.resultRepository.find({
         where: { tournament: { id: tournamentId } },
-        order: { finishPosition: 'DESC' },
+        order: { finishPosition: 'ASC' },
       });
       for (const r of toShift) {
-        if (r.finishPosition < oldPosition) {
-          r.finishPosition += 1;
+        if (r.finishPosition > oldPosition) {
+          r.finishPosition -= 1;
           await this.resultRepository.save(r);
         }
       }
@@ -529,25 +531,34 @@ export class LiveTournamentService {
 
     console.log(`🏁 Tournament ${tournamentId} finished → ARCHIVED`);
 
-    // Создать результат для победителя (последнего оставшегося игрока), если его ещё нет
-    const existingResults = await this.resultRepository.count({ where: { tournament: { id: tournamentId } } });
+    // Создать результаты для всех оставшихся активных игроков (топ мест: 1, 2, 3, ...)
     const registrations = await this.registrationRepository.find({
       where: { tournament: { id: tournamentId }, isActive: true },
       relations: ['player'],
+      order: { id: 'ASC' },
     });
-    if (registrations.length === 1 && existingResults >= 0) {
-      const winnerReg = registrations[0];
-      const winnerPlayer = winnerReg.player;
-      if (winnerPlayer && !(await this.resultRepository.findOne({ where: { tournament: { id: tournamentId }, player: { id: winnerPlayer.id } } }))) {
-        const winnerResult = this.resultRepository.create({
-          tournament,
-          player: winnerPlayer,
-          finishPosition: 1,
-          isFinalTable: true,
+
+    if (registrations.length > 0) {
+      // Активные игроки (финальный стол) получают топовые места 1, 2, 3, ...
+      let nextPosition = 1;
+      for (const reg of registrations) {
+        const player = reg.player;
+        if (!player) continue;
+        const hasResult = await this.resultRepository.findOne({
+          where: { tournament: { id: tournamentId }, player: { id: player.id } },
         });
-        await this.resultRepository.save(winnerResult);
-        winnerReg.isActive = false;
-        await this.registrationRepository.save(winnerReg);
+        if (hasResult) continue;
+
+        const pos = nextPosition++;
+        const result = this.resultRepository.create({
+          tournament,
+          player,
+          finishPosition: pos,
+          isFinalTable: pos <= 9,
+        });
+        await this.resultRepository.save(result);
+        reg.isActive = false;
+        await this.registrationRepository.save(reg);
       }
     }
 

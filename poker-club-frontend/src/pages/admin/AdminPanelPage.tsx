@@ -11,6 +11,7 @@ import {
   tournamentsApi,
   authApi,
   achievementsApi,
+  adminDataApi,
   type BlindStructure,
   type Club,
   type ClubSchedule,
@@ -1218,16 +1219,35 @@ function AdminSeasons() {
     }
   };
 
+  const recalculateRatings = async () => {
+    if (!confirm('Пересчитать все рейтинги по новой системе очков? Все серийные и сезонные рейтинги будут пересобраны.')) return;
+    setLoading(true);
+    setMsg('');
+    try {
+      const res = await adminDataApi.recalculateRatings();
+      const data = res.data;
+      const created = data?.createdMissing ? `, создано ${data.createdMissing} недостающих` : '';
+      setMsg(data ? `Готово: ${data.updatedTournaments} турниров, ${data.updatedResults} результатов обновлено${created}` : 'Рейтинги пересчитаны');
+    } catch (e: unknown) {
+      setMsg((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-lg font-bold text-white mb-4">Рейтинги и сезоны</h2>
       <p className="text-zinc-400 mb-4">Создание сезонного рейтинга для текущего месяца и обновление рейтинга MMR.</p>
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <button onClick={createSeasonal} disabled={loading} className="glass-btn px-4 py-2 rounded-xl">
           Создать сезонный рейтинг
         </button>
         <button onClick={updateMmr} disabled={loading} className="glass-btn px-4 py-2 rounded-xl">
           Обновить рейтинг MMR
+        </button>
+        <button onClick={recalculateRatings} disabled={loading} className="glass-btn px-4 py-2 rounded-xl border border-amber-500/50 text-amber-400 hover:bg-amber-500/10">
+          Пересчитать рейтинг (новая система очков)
         </button>
       </div>
       {msg && <p className="mt-4 text-amber-400">{msg}</p>}

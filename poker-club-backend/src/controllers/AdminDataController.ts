@@ -1,8 +1,10 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { AdminDataService } from '../services/AdminDataService';
+import { LeaderboardService } from '../services/LeaderboardService';
 
 const adminDataService = new AdminDataService();
+const leaderboardService = new LeaderboardService();
 
 export class AdminDataController {
   /**
@@ -39,6 +41,27 @@ export class AdminDataController {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Update failed';
       res.status(400).json({ error: msg });
+    }
+  }
+
+  /**
+   * POST /admin/recalculate-ratings — Пересчитать все рейтинги по новой системе очков (только ADMIN)
+   */
+  static async recalculateRatings(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      const result = await leaderboardService.recalculateAllRatings();
+      res.json({
+        message: result.createdMissing
+          ? `Рейтинги пересчитаны. Создано ${result.createdMissing} недостающих результатов.`
+          : 'Рейтинги пересчитаны',
+        ...result,
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Ошибка пересчёта рейтингов';
+      res.status(500).json({ error: msg });
     }
   }
 }

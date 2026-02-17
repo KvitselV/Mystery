@@ -145,8 +145,21 @@ export class AuthService {
     return this.userRepository.findOne({
       where: { id: userId },
       relations: ['managedClub'],
-      select: ['id', 'name', 'clubCardNumber', 'phone', 'role', 'isActive', 'createdAt', 'managedClubId'],
+      select: ['id', 'name', 'clubCardNumber', 'phone', 'role', 'isActive', 'createdAt', 'managedClubId', 'avatarUrl'],
     });
+  }
+
+  async updateProfile(userId: string, data: { name?: string; phone?: string; avatarUrl?: string | null }): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new Error('User not found');
+    if (data.name != null) user.name = data.name.trim();
+    if (data.phone != null) {
+      const existing = await this.userRepository.findOne({ where: { phone: data.phone } });
+      if (existing && existing.id !== userId) throw new Error('Пользователь с таким телефоном уже существует');
+      user.phone = data.phone.trim();
+    }
+    if ('avatarUrl' in data) user.avatarUrl = data.avatarUrl ?? null;
+    return this.userRepository.save(user);
   }
 
   async getAllUsers(): Promise<Array<{ id: string; name: string; clubCardNumber: string; phone: string; role: string; managedClubId: string | null; managedClub: { id: string; name: string } | null }>> {

@@ -132,6 +132,7 @@ export class SeatingController {
             playerName: seat.playerName,
             playerId: seat.player?.id,
             clubCardNumber: seat.player?.user?.clubCardNumber,
+            avatarUrl: seat.player?.user?.avatarUrl ?? undefined,
           })),
         })),
       });
@@ -170,6 +171,8 @@ export class SeatingController {
             playerName: seat.playerName,
             playerId: seat.player?.id,
             playerRank: seat.player?.rankCode,
+            clubCardNumber: seat.player?.user?.clubCardNumber,
+            avatarUrl: seat.player?.user?.avatarUrl ?? undefined,
           })),
         },
       });

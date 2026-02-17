@@ -17,5 +17,10 @@ router.get('/user/:userId/progress', AchievementController.getUserProgress);
 // Только ADMIN
 router.post('/check/:userId/:tournamentId', requireRole(['ADMIN']), AchievementController.checkAchievements);
 router.post('/seed', requireRole(['ADMIN']), AchievementController.seedTypes);
+router.post('/types', requireRole(['ADMIN']), AchievementController.createType);
+router.delete('/instances/:id', requireRole(['ADMIN']), AchievementController.revokeInstance);
+
+// Закреплённые достижения (свой userId или ADMIN)
+router.patch('/user/:userId/pins', AchievementController.setPins);
 
 export default router;

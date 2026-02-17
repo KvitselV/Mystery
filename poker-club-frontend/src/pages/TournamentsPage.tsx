@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { tournamentsApi, liveStateApi, seatingApi, liveTournamentApi, type Tournament, type LiveState, type TournamentTable, type TournamentPlayer, type TournamentPlayerBalance } from '../api';
+import { tournamentsApi, liveStateApi, seatingApi, liveTournamentApi, blindStructuresApi, type Tournament, type LiveState, type TournamentTable, type TournamentPlayer, type TournamentPlayerBalance } from '../api';
 import { AdminReportModal } from '../components/AdminReportModal';
 import { PlayerResultsModal } from '../components/PlayerResultsModal';
 import { useClub } from '../contexts/ClubContext';
 import { useAuth } from '../contexts/AuthContext';
-import { format, addDays, startOfDay } from 'date-fns';
+import { format, addDays, startOfDay, startOfMonth, startOfWeek, addMonths, subMonths, isSameMonth, isToday } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { TVTimerBlock } from '../components/TVTimerBlock';
 
@@ -22,7 +23,8 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
   const [live, setLive] = useState<Tournament | null>(null);
   const [liveState, setLiveState] = useState<LiveState | null>(null);
   const [tables, setTables] = useState<TournamentTable[]>([]);
-  const [scheduleWeek, setScheduleWeek] = useState<{ date: Date; tournaments: Tournament[] }[]>([]);
+  const [scheduleMonth, setScheduleMonth] = useState(() => startOfMonth(new Date()));
+  const [allTournaments, setAllTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [reportTarget, setReportTarget] = useState<Tournament | null>(null);
@@ -34,7 +36,7 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
       if (isInitialLoad) setLoading(true);
       try {
         const clubId = selectedClub?.id;
-        const { data } = await tournamentsApi.list({ clubId, limit: 50 });
+        const { data } = await tournamentsApi.list({ clubId, limit: 200 });
         const list = data.tournaments || [];
 
         const running = list.find((t) => t.status === 'RUNNING' || t.status === 'LATE_REG');
@@ -61,22 +63,11 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
           .slice(0, 3);
         setUpcoming(upcomingList);
 
-        const days: { date: Date; tournaments: Tournament[] }[] = [];
-        for (let i = 0; i < 7; i++) {
-          const d = addDays(startOfDay(new Date()), i);
-          days.push({
-            date: d,
-            tournaments: list.filter((t) => {
-              const st = new Date(t.startTime);
-              return st.toDateString() === d.toDateString();
-            }),
-          });
-        }
-        setScheduleWeek(days);
+        setAllTournaments(list);
       } catch {
         setUpcoming([]);
         setLive(null);
-        setScheduleWeek([]);
+        setAllTournaments([]);
       } finally {
         setLoading(false);
       }
@@ -99,6 +90,13 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
     socket.on('connect_error', () => setSocketConnected(false));
     socket.emit('join_tournament', live.id);
     socket.on('seating_change', () => setRefreshKey((k) => k + 1));
+    socket.on('timer_tick', (data: { levelRemainingTimeSeconds: number; currentLevelNumber: number; isPaused: boolean }) => {
+      setLiveState((prev) => prev ? { ...prev, ...data } : null);
+    });
+    socket.on('level_change', () => setRefreshKey((k) => k + 1));
+    socket.on('live_state_update', (data: { levelRemainingTimeSeconds?: number; currentLevelNumber?: number; isPaused?: boolean }) => {
+      setLiveState((prev) => prev ? { ...prev, ...data } : null);
+    });
     return () => {
       setSocketConnected(false);
       socket.emit('leave_tournament', live.id);
@@ -158,31 +156,15 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-white mb-4">Расписание на 7 дней</h2>
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-          {scheduleWeek.map((day) => (
-            <div key={day.date.toISOString()} className="glass-card p-4">
-              <div className="text-amber-400 font-medium mb-2">
-                {format(day.date, 'EEE, d MMM', { locale: ru })}
-              </div>
-              <div className="space-y-2">
-                {day.tournaments.length === 0 && (
-                  <p className="text-zinc-500 text-sm">Нет турниров</p>
-                )}
-                {day.tournaments.map((t) => (
-                  <TournamentScheduleItem
-                    key={t.id}
-                    tournament={t}
-                    isAdmin={!!isControllerOrAdmin}
-                    onRefresh={() => setRefreshKey((k) => k + 1)}
-                    onReportClick={isControllerOrAdmin ? setReportTarget : undefined}
-                    onResultsClick={setResultsTarget}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <ScheduleCalendar
+          month={scheduleMonth}
+          onMonthChange={setScheduleMonth}
+          tournaments={allTournaments}
+          isAdmin={!!isControllerOrAdmin}
+          onRefresh={() => setRefreshKey((k) => k + 1)}
+          onReportClick={isControllerOrAdmin ? setReportTarget : undefined}
+          onResultsClick={setResultsTarget}
+        />
       </section>
 
       {reportTarget && (
@@ -195,6 +177,100 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
       {resultsTarget && (
         <PlayerResultsModal tournament={resultsTarget} onClose={() => setResultsTarget(null)} />
       )}
+    </div>
+  );
+}
+
+function ScheduleCalendar({
+  month,
+  onMonthChange,
+  tournaments,
+  isAdmin,
+  onRefresh,
+  onReportClick,
+  onResultsClick,
+}: {
+  month: Date;
+  onMonthChange: (d: Date) => void;
+  tournaments: Tournament[];
+  isAdmin: boolean;
+  onRefresh: () => void;
+  onReportClick?: (t: Tournament) => void;
+  onResultsClick?: (t: Tournament) => void;
+}) {
+  const monthStart = startOfMonth(month);
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+  const cells: { date: Date }[] = [];
+  for (let i = 0; i < 42; i++) {
+    cells.push({ date: addDays(calendarStart, i) });
+  }
+
+  const getTournamentsForDate = (d: Date) =>
+    tournaments.filter((t) => new Date(t.startTime).toDateString() === d.toDateString());
+
+  return (
+    <div className="glass-card p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold text-white">
+          {format(month, 'LLLL yyyy', { locale: ru })}
+        </h2>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => onMonthChange(subMonths(month, 1))}
+            className="w-8 h-8 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-white/10"
+            title="Предыдущий месяц"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => onMonthChange(addMonths(month, 1))}
+            className="w-8 h-8 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-white/10"
+            title="Следующий месяц"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-px">
+        {DAYS.map((d) => (
+          <div key={d} className="py-2 text-center text-zinc-400 text-sm font-medium">
+            {d}
+          </div>
+        ))}
+        {cells.map(({ date }) => {
+          const isCurrentMonth = isSameMonth(date, month);
+          const isTodayDate = isToday(date);
+          const dayTournaments = getTournamentsForDate(date);
+          return (
+            <div
+              key={date.toISOString()}
+              className={`min-h-[100px] p-2 border border-transparent rounded-lg ${
+                isTodayDate ? 'border-blue-500/60 bg-blue-500/10' : ''
+              } ${!isCurrentMonth ? 'opacity-50' : ''}`}
+            >
+              <div className={`text-sm mb-2 ${isCurrentMonth ? 'text-white' : 'text-zinc-500'}`}>
+                {format(date, 'd')}
+              </div>
+              <div className="space-y-1">
+                {dayTournaments.map((t) => (
+                  <TournamentScheduleItem
+                    key={t.id}
+                    tournament={t}
+                    isAdmin={isAdmin}
+                    onRefresh={onRefresh}
+                    onReportClick={onReportClick}
+                    onResultsClick={onResultsClick}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -306,6 +382,35 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
   );
 }
 
+function isLateRegEndBreak(level: { isBreak?: boolean; breakType?: string | null; breakName?: string | null }): boolean {
+  if (!level?.isBreak) return false;
+  const bt = (level.breakType ?? '').toUpperCase();
+  if (bt === 'END_LATE_REG' || bt === 'END_LATE_REG_AND_ADDON') return true;
+  const name = (level.breakName ?? '').toLowerCase();
+  return name.includes('поздн') || name.includes('late') || name.includes('late reg');
+}
+
+function getLateRegEndTime(tournament: Tournament): Date | null {
+  const levels = tournament.blindStructure?.levels;
+  if (!levels?.length) return null;
+  const sorted = [...levels].sort((a, b) => (a.levelNumber ?? 0) - (b.levelNumber ?? 0));
+  let totalMinutes = 0;
+  for (const l of sorted) {
+    if (isLateRegEndBreak(l)) {
+      const start = new Date(tournament.startTime);
+      start.setMinutes(start.getMinutes() + totalMinutes);
+      return start;
+    }
+    totalMinutes += l.durationMinutes ?? 0;
+  }
+  return null;
+}
+
+/** Убирает суффикс с датой из названия турнира (например "Mystery Test - 21.02" → "Mystery Test") */
+function tournamentNameOnly(name: string): string {
+  return name.replace(/\s*-\s*\d{1,2}\.\d{1,2}(\.\d{4})?$/, '').trim();
+}
+
 function TournamentScheduleItem({
   tournament,
   isAdmin,
@@ -319,60 +424,240 @@ function TournamentScheduleItem({
   onReportClick?: (t: Tournament) => void;
   onResultsClick?: (t: Tournament) => void;
 }) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [blindStructureWithLevels, setBlindStructureWithLevels] = useState<{ levels?: { levelNumber?: number; isBreak?: boolean; breakType?: string; breakName?: string; durationMinutes?: number }[] } | null>(null);
+
+  // Список турниров может не включать blindStructure.levels — догружаем при необходимости
+  useEffect(() => {
+    if (!tournament.blindStructureId) return;
+    const levels = tournament.blindStructure?.levels;
+    if (levels?.length) return; // уже есть
+    blindStructuresApi.getById(tournament.blindStructureId).then(
+      (r) => setBlindStructureWithLevels(r.data?.structure ?? null),
+      () => {}
+    );
+  }, [tournament.blindStructureId, tournament.blindStructure?.levels?.length]);
+
+  const tWithStructure: Tournament = blindStructureWithLevels
+    ? { ...tournament, blindStructure: { ...tournament.blindStructure, levels: blindStructureWithLevels.levels } as Tournament['blindStructure'] }
+    : tournament;
+  const lateRegEnd = getLateRegEndTime(tWithStructure);
+  const startTime = format(new Date(tournament.startTime), 'HH:mm');
+  const lateRegTime = lateRegEnd ? format(lateRegEnd, 'HH:mm') : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setDetailOpen(true)}
+        className="w-full text-left glass-card p-3 rounded-xl hover:border-amber-500/30 hover:bg-white/5 transition-colors border border-transparent"
+      >
+        <div className="text-white font-medium mb-1">{tournamentNameOnly(tournament.name)}</div>
+        <div className="text-zinc-400 text-xs space-y-0.5">
+          <div className="whitespace-nowrap truncate">Начало: {startTime}</div>
+          <div className="whitespace-nowrap truncate">Позд. рег.: {lateRegTime ?? '—'}</div>
+        </div>
+      </button>
+      {detailOpen &&
+        createPortal(
+          <TournamentDetailModal
+          tournament={tournament}
+          isAdmin={!!isAdmin}
+          onClose={() => setDetailOpen(false)}
+          onRefresh={() => { setDetailOpen(false); onRefresh?.(); }}
+          onReportClick={onReportClick}
+          onResultsClick={onResultsClick}
+        />,
+        document.body
+        )}
+    </>
+  );
+}
+
+function TournamentDetailModal({
+  tournament: initialTournament,
+  isAdmin,
+  onClose,
+  onRefresh,
+  onReportClick,
+  onResultsClick,
+}: {
+  tournament: Tournament;
+  isAdmin: boolean;
+  onClose: () => void;
+  onRefresh: () => void;
+  onReportClick?: (t: Tournament) => void;
+  onResultsClick?: (t: Tournament) => void;
+}) {
+  const { user } = useAuth();
+  const [tournament, setTournament] = useState(initialTournament);
+  const [reg, setReg] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    tournamentsApi.getById(initialTournament.id).then((r) => setTournament(r.data)).catch(() => {});
+  }, [initialTournament.id]);
+
+  const amIRegistered = (t: Tournament) => {
+    const regs = t.registrations as { player?: { user?: { id?: string } } }[] | undefined;
+    if (!regs?.length || !user?.id) return false;
+    return regs.some((r) => r.player?.user?.id === user.id);
+  };
+
+  const lateRegEnd = getLateRegEndTime(tournament);
+  const startTimeStr = format(new Date(tournament.startTime), 'dd.MM.yyyy HH:mm');
+  const lateRegStr = lateRegEnd ? format(lateRegEnd, 'HH:mm') : null;
+
+  const handleRegister = async () => {
+    if (tournament.status === 'ANNOUNCED') return;
+    setLoading(true);
+    try {
+      await tournamentsApi.register(tournament.id);
+      setReg(true);
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка регистрации');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnregister = async () => {
+    setLoading(true);
+    try {
+      await tournamentsApi.unregister(tournament.id);
+      setReg(false);
+      onRefresh();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleStart = async () => {
     if (tournament.status !== 'REG_OPEN') return;
     setStarting(true);
     try {
       await tournamentsApi.updateStatus(tournament.id, 'LATE_REG');
-      onRefresh?.();
-    } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка';
-      alert(msg);
-    } finally {
-      setStarting(false);
-    }
-  };
-  const handleOpenReg = async () => {
-    if (tournament.status !== 'ANNOUNCED') return;
-    setStarting(true);
-    try {
-      await tournamentsApi.updateStatus(tournament.id, 'REG_OPEN');
-      onRefresh?.();
+      onRefresh();
     } catch (e: unknown) {
       alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
     } finally {
       setStarting(false);
     }
   };
+
+  const handleOpenReg = async () => {
+    if (tournament.status !== 'ANNOUNCED') return;
+    setStarting(true);
+    try {
+      await tournamentsApi.updateStatus(tournament.id, 'REG_OPEN');
+      onRefresh();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const isRegistered = reg || amIRegistered(tournament);
   const isArchived = tournament.status === 'ARCHIVED' || tournament.status === 'FINISHED';
+
   return (
-    <div className="flex items-center justify-between gap-2 text-sm text-zinc-300 group">
-      <span>{tournament.name} — {format(new Date(tournament.startTime), 'HH:mm')}</span>
-      {isAdmin && tournament.status === 'ANNOUNCED' && (
-        <button onClick={handleOpenReg} disabled={starting} className="shrink-0 glass-btn px-2 py-1 rounded-lg text-xs text-emerald-400">
-          {starting ? '...' : 'Открыть регистрацию'}
-        </button>
-      )}
-      {isAdmin && tournament.status === 'REG_OPEN' && (
-        <button onClick={handleStart} disabled={starting} className="shrink-0 glass-btn px-2 py-1 rounded-lg text-xs text-amber-400">
-          {starting ? '...' : 'Начать'}
-        </button>
-      )}
-      {isArchived && (
-        <span className="flex gap-1 shrink-0">
-          {onReportClick && (
-            <button onClick={() => onReportClick(tournament)} className="glass-btn px-2 py-1 rounded-lg text-xs text-zinc-400 hover:text-white">
-              Отчёт
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="glass-card p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-xl font-bold text-amber-400">{tournament.name}</h3>
+          <button onClick={onClose} className="text-zinc-400 hover:text-white text-2xl leading-none">×</button>
+        </div>
+        <div className="space-y-4 text-zinc-300">
+          <div>
+            <span className="text-zinc-500">Начало: </span>
+            <span>{startTimeStr}</span>
+          </div>
+          {lateRegStr && (
+            <div>
+              <span className="text-zinc-500">Поздняя регистрация до: </span>
+              <span>{lateRegStr}</span>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div><span className="text-zinc-500">Бай-ин:</span> {tournament.buyInCost} ₽</div>
+            <div><span className="text-zinc-500">Стартовый стек:</span> {tournament.startingStack}</div>
+            <div><span className="text-zinc-500">Зарегистрировано:</span> {tournament.registrations?.length ?? 0}</div>
+          </div>
+          {tournament.blindStructure?.levels && tournament.blindStructure.levels.length > 0 && (
+            <div>
+              <h4 className="text-white font-medium mb-2">Структура блайндов</h4>
+              <div className="overflow-x-auto rounded-lg border border-white/10">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 text-zinc-400">
+                      <th className="text-left py-2 px-2">Ур.</th>
+                      <th className="text-left py-2 px-2">SB</th>
+                      <th className="text-left py-2 px-2">BB</th>
+                      <th className="text-left py-2 px-2">Анте</th>
+                      <th className="text-left py-2 px-2">Мин</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tournament.blindStructure.levels.map((l) => (
+                      <tr key={l.id} className="border-b border-white/5">
+                        <td className="py-2 px-2">{l.levelNumber}</td>
+                        <td className="py-2 px-2">{l.smallBlind}</td>
+                        <td className="py-2 px-2">{l.bigBlind}</td>
+                        <td className="py-2 px-2">{l.ante ?? 0}</td>
+                        <td className="py-2 px-2">{l.isBreak ? (l.breakName || '—') : l.durationMinutes}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 mt-6">
+          {!isArchived && tournament.status !== 'ANNOUNCED' && (
+            isRegistered ? (
+              <button onClick={handleUnregister} disabled={loading} className="glass-btn px-4 py-2 rounded-xl text-red-400">
+                {loading ? '...' : 'Отменить регистрацию'}
+              </button>
+            ) : (
+              <button onClick={handleRegister} disabled={loading} className="glass-btn px-4 py-2 rounded-xl text-emerald-400">
+                {loading ? '...' : 'Зарегистрироваться'}
+              </button>
+            )
+          )}
+          {isAdmin && tournament.status === 'ANNOUNCED' && (
+            <button onClick={handleOpenReg} disabled={starting} className="glass-btn px-4 py-2 rounded-xl text-emerald-400">
+              {starting ? '...' : 'Открыть регистрацию'}
             </button>
           )}
-          {onResultsClick && (
-            <button onClick={() => onResultsClick(tournament)} className="glass-btn px-2 py-1 rounded-lg text-xs text-zinc-400 hover:text-white">
-              Результаты
+          {isAdmin && tournament.status === 'REG_OPEN' && (
+            <button onClick={handleStart} disabled={starting} className="glass-btn px-4 py-2 rounded-xl text-amber-400">
+              {starting ? '...' : 'Начать турнир'}
             </button>
           )}
-        </span>
-      )}
+          {isArchived && (
+            <>
+              {onReportClick && (
+                <button onClick={() => { onReportClick(tournament); onClose(); }} className="glass-btn px-4 py-2 rounded-xl text-zinc-400 hover:text-white">
+                  Отчёт
+                </button>
+              )}
+              {onResultsClick && (
+                <button onClick={() => { onResultsClick(tournament); onClose(); }} className="glass-btn px-4 py-2 rounded-xl text-zinc-400 hover:text-white">
+                  Результаты
+                </button>
+              )}
+            </>
+          )}
+          <button onClick={onClose} className="glass-btn px-4 py-2 rounded-xl text-zinc-400">
+            Закрыть
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -496,14 +781,23 @@ function Table2D({
                 onTouchMove: onTouchDragMove,
                 onTouchEnd: onTouchDragEnd,
               })}
-              className={`absolute w-10 h-10 -translate-x-1/2 -translate-y-1/2 rounded-lg flex flex-col items-center justify-center text-xs shrink-0 ${canClick || canDrop ? 'cursor-pointer hover:border-2 hover:border-amber-400' : ''} ${canDragOccupied ? 'cursor-grab active:cursor-grabbing' : ''} ${(canDragOccupied || canDrop) ? 'touch-none' : ''} ${isOccupied ? 'glass-card border border-amber-500/40' : 'border border-dashed border-zinc-500/50 bg-zinc-800/30 hover:bg-zinc-700/40'}`}
+              className={`absolute w-10 h-10 -translate-x-1/2 -translate-y-1/2 rounded-lg flex flex-col items-center justify-center text-xs shrink-0 ${canClick || canDrop ? 'cursor-pointer hover:border-2 hover:border-amber-400' : ''} ${canDragOccupied ? 'cursor-grab active:cursor-grabbing' : ''} ${(canDragOccupied || canDrop) ? 'touch-none' : ''} ${isOccupied ? 'glass-card border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]' : 'border border-dashed border-zinc-500/50 bg-zinc-800/30 hover:bg-zinc-700/40'}`}
               style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
             >
               {isOccupied ? (
                 <>
-                  <span className="text-amber-300 font-medium truncate max-w-full px-1 text-[11px] leading-tight">
-                    {seat.clubCardNumber || seat.playerName || 'Гость'}
-                  </span>
+                  {seat.avatarUrl ? (
+                    <div className="flex flex-col items-center w-full">
+                      <img src={seat.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+                      <span className="text-amber-300 font-medium truncate max-w-full text-[9px] leading-tight">
+                        {seat.clubCardNumber || seat.playerName || 'Гость'}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-amber-300 font-medium truncate max-w-full px-1 text-[11px] leading-tight">
+                      {seat.clubCardNumber || seat.playerName || 'Гость'}
+                    </span>
+                  )}
                   <span className="absolute -top-0.5 -left-0.5 text-zinc-500 text-[9px]">{seatNum}</span>
                   {isEliminated && <span className="absolute -top-0.5 -right-0.5 text-red-400 text-[9px]">✕</span>}
                 </>
@@ -904,6 +1198,7 @@ export function AdminTournamentPanel({
   tables,
   onRefresh,
   onRefreshTables,
+  onOptimisticPauseChange,
   isAdmin = false,
 }: {
   tournament: Tournament;
@@ -911,6 +1206,7 @@ export function AdminTournamentPanel({
   tables: TournamentTable[];
   onRefresh: () => void;
   onRefreshTables?: () => Promise<void>;
+  onOptimisticPauseChange?: (isPaused: boolean) => void;
   isAdmin?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
@@ -1113,7 +1409,11 @@ export function AdminTournamentPanel({
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 18l-6-6 6-6"/></svg>
               </button>
               <button
-                onClick={() => doAction(() => (liveState?.isPaused ? liveStateApi.resume(tournament.id) : liveStateApi.pause(tournament.id)))}
+                onClick={() => {
+                  const willBePaused = !liveState?.isPaused;
+                  onOptimisticPauseChange?.(willBePaused);
+                  doAction(() => (liveState?.isPaused ? liveStateApi.resume(tournament.id) : liveStateApi.pause(tournament.id)));
+                }}
                 disabled={loading}
                 className="glass-btn p-2 rounded-xl text-sm"
                 title={liveState?.isPaused ? 'Возобновить' : 'Пауза'}

@@ -11,6 +11,7 @@ export interface User {
   managedClubId?: string | null;
   managedClub?: { id: string; name: string } | null;
   createdAt?: string;
+  avatarUrl?: string | null;
 }
 
 export const authApi = {
@@ -20,6 +21,8 @@ export const authApi = {
     api.post<{ user: User }>('/auth/register', data),
   logout: () => api.post<{ ok: boolean }>('/auth/logout'),
   me: () => api.get<User>('/auth/me'),
+  updateProfile: (data: { name?: string; phone?: string; avatarUrl?: string | null }) =>
+    api.patch<User>('/auth/me', data),
   promoteToAdmin: () =>
     api.post<{ user: User }>('/auth/promote-me'),
   getUsers: () => api.get<{ users: User[] }>('/auth/users'),

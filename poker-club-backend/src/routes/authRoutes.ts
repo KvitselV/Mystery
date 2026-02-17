@@ -11,6 +11,7 @@ router.post('/logout', AuthController.logout);
 
 // Защищённые маршруты
 router.get('/me', authMiddleware, AuthController.getMe);
+router.patch('/me', authMiddleware, AuthController.updateProfile);
 router.post('/promote-me', authMiddleware, AuthController.promoteToAdmin);
 
 router.get('/users', authMiddleware, requireAdmin(), AuthController.getUsers);

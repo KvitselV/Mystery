@@ -16,6 +16,7 @@ import clubRoutes from './routes/clubRoutes';
 import tournamentSeriesRoutes from './routes/tournamentSeriesRoutes';
 import rewardRoutes from './routes/rewardRoutes';
 import billRoutes from './routes/billRoutes';
+import adminDataRoutes from './routes/adminDataRoutes';
 
 const app = express();
 const httpServer = createServer(app);
@@ -62,6 +63,7 @@ app.use('/orders', orderRoutes);
 app.use('/clubs', clubRoutes);
 app.use('/rewards', rewardRoutes);
 app.use('/bills', billRoutes);
+app.use('/admin', adminDataRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

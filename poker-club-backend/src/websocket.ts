@@ -101,6 +101,15 @@ export function broadcastLevelChange(io: SocketServer, tournamentId: string, lev
   io.to(`tournament:${tournamentId}`).emit('level_change', levelData);
 }
 
+/** Рассылка таймера каждую секунду — клиенты только отображают, сервер источник истины */
+export function broadcastTimerTick(
+  io: SocketServer,
+  tournamentId: string,
+  data: { levelRemainingTimeSeconds: number; currentLevelNumber: number; isPaused: boolean }
+): void {
+  io.to(`tournament:${tournamentId}`).emit('timer_tick', data);
+}
+
 export function broadcastPlayerEliminated(io: SocketServer, tournamentId: string, playerData: unknown): void {
   io.to(`tournament:${tournamentId}`).emit('player_eliminated', playerData);
 }

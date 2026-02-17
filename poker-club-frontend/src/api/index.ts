@@ -3,6 +3,13 @@ import { authApi } from './auth';
 
 export { api, authApi };
 
+// Admin data — все данные из БД (только ADMIN)
+export const adminDataApi = {
+  getAll: () => api.get<Record<string, unknown[]>>('/admin/data'),
+  update: (table: string, id: string, data: Record<string, unknown>) =>
+    api.patch(`/admin/entity/${table}/${id}`, data),
+};
+
 // Tournament Series
 export const tournamentSeriesApi = {
   list: (params?: { clubId?: string }) =>
@@ -153,15 +160,56 @@ export const mmrApi = {
 };
 
 // Achievements
+export interface AchievementTypeDto {
+  id: string;
+  code?: string;
+  name: string;
+  description: string;
+  icon?: string;
+  iconUrl?: string;
+  statisticType?: string;
+  targetValue?: number;
+  conditionDescription?: string;
+  sortOrder: number;
+}
+export interface AchievementInstanceDto {
+  id: string;
+  achievementTypeId: string;
+  achievementType: AchievementTypeDto;
+  unlockedAt: string;
+  tournamentId?: string;
+}
 export const achievementsApi = {
-  getTypes: () => api.get('/achievements/types'),
-  getUser: (userId: string) => api.get(`/achievements/user/${userId}`),
-  getUserProgress: (userId: string) => api.get(`/achievements/user/${userId}/progress`),
+  getTypes: () => api.get<AchievementTypeDto[]>('/achievements/types'),
+  getUser: (userId: string) => api.get<AchievementInstanceDto[]>(`/achievements/user/${userId}`),
+  getUserProgress: (userId: string) =>
+    api.get<{ unlocked: AchievementInstanceDto[]; locked: AchievementTypeDto[]; pinnedTypeIds: string[]; total: number; unlockedCount: number }>(
+      `/achievements/user/${userId}/progress`
+    ),
+  setPins: (userId: string, achievementTypeIds: string[]) =>
+    api.patch(`/achievements/user/${userId}/pins`, { achievementTypeIds }),
+  createType: (data: { name: string; description: string; icon?: string; iconUrl?: string; statisticType?: string; targetValue?: number; conditionDescription?: string }) =>
+    api.post<AchievementTypeDto>('/achievements/types', data),
+  revokeInstance: (instanceId: string) => api.delete(`/achievements/instances/${instanceId}`),
+  seed: () => api.post('/achievements/seed'),
 };
 
 // Statistics
+export interface PlayerStatistics {
+  tournamentsPlayed: number;
+  winPercentage: number;
+  itmRate: number;
+  averageFinish: number;
+  bestFinish: number | null;
+  finishes: { first: number; second: number; third: number; others: number };
+  last7Performances: { date: string; place: number; totalPlayers: number; tournamentId: string }[];
+  seriesWins: number;
+  bestStreak: number;
+  participationChart?: { month: string; count: number }[];
+}
+
 export const statisticsApi = {
-  getFull: (userId: string) => api.get(`/statistics/user/${userId}`),
+  getFull: (userId: string) => api.get<PlayerStatistics & { profile?: unknown; lastTournament?: unknown }>(`/statistics/user/${userId}`),
 };
 
 // Menu & Orders
@@ -310,6 +358,7 @@ export interface TableSeat {
   playerName?: string;
   playerId?: string;
   clubCardNumber?: string;
+  avatarUrl?: string;
 }
 export interface LiveState {
   tournamentId: string;
@@ -323,7 +372,9 @@ export interface LiveState {
   liveStatus?: string;
   entriesCount?: number;
   totalParticipants?: number;
-  nextBreakTime?: string | null;
+  nextBreakBaseSeconds?: number | null;
+  lateRegBaseSeconds?: number | null;
+  tournamentStatus?: string;
   currentLevel?: {
     smallBlind: number;
     bigBlind: number;
@@ -403,6 +454,7 @@ export interface LeaderboardEntry {
   points?: number;
   ratingPoints?: number;
   mmr?: number;
+  rankCode?: string;
 }
 export interface TournamentSeries {
   id: string;

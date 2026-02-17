@@ -14,6 +14,17 @@ export enum AchievementCode {
   FINAL_TABLE = 'FINAL_TABLE',
   WIN = 'WIN',
   HOT_STREAK = 'HOT_STREAK',
+  SERIES_WINNER = 'SERIES_WINNER',
+}
+
+/** Тип статистики для настраиваемых достижений */
+export enum AchievementStatisticType {
+  TOURNAMENTS_PLAYED = 'TOURNAMENTS_PLAYED',
+  WINS = 'WINS',
+  CONSECUTIVE_WINS = 'CONSECUTIVE_WINS',
+  SERIES_WINS = 'SERIES_WINS',
+  FINAL_TABLE = 'FINAL_TABLE',
+  ITM_STREAK = 'ITM_STREAK',
 }
 
 @Entity('achievement_types')
@@ -22,11 +33,12 @@ export class AchievementType {
   id: string;
 
   @Column({
-    type: 'enum',
-    enum: AchievementCode,
+    type: 'varchar',
+    length: 50,
+    nullable: true,
     unique: true,
   })
-  code: AchievementCode;
+  code?: string;
 
   @Column({ type: 'varchar', length: 100 })
   name: string;
@@ -34,8 +46,25 @@ export class AchievementType {
   @Column({ type: 'text' })
   description: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  /** Base64 data URL или URL изображения иконки */
+  @Column({ type: 'text', nullable: true })
   iconUrl?: string;
+
+  /** Эмодзи или идентификатор иконки (например: 🏆, trophy) */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  icon?: string;
+
+  /** Тип статистики для настраиваемых достижений */
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  statisticType?: string;
+
+  /** Целевое значение (например: 2 победы подряд) */
+  @Column({ type: 'int', default: 0 })
+  targetValue: number;
+
+  /** Условие достижения (отображается при наведении) */
+  @Column({ type: 'text', nullable: true })
+  conditionDescription?: string;
 
   @Column({ type: 'int', default: 0 })
   sortOrder: number;

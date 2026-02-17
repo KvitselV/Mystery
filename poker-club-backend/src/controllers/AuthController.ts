@@ -72,6 +72,24 @@ export class AuthController {
     }
   }
 
+  static async updateProfile(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+      const { name, phone, avatarUrl } = req.body;
+      const user = await authService.updateProfile(req.user.userId, {
+        ...(name != null && { name }),
+        ...(phone != null && { phone }),
+        ...('avatarUrl' in req.body && { avatarUrl: avatarUrl ?? null }),
+      });
+
+      res.json(user);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update profile';
+      res.status(400).json({ error: message });
+    }
+  }
+
   static async promoteToAdmin(req: AuthRequest, res: Response) {
     try {
       if (!req.user) return res.status(401).json({ error: 'Unauthorized' });

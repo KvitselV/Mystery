@@ -1,45 +1,39 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * Обратный отсчёт времени уровня в реальном времени.
- * При достижении 0 вызывает onLevelEnd (для обновления данных).
+ * Плавный обратный отсчёт. Сервер — источник истины.
+ * При получении нового значения — обновляем базу; между обновлениями — локальная интерполяция.
  */
 export function useLevelCountdown(
   levelRemainingTimeSeconds: number | undefined,
-  isPaused: boolean,
-  onLevelEnd?: () => void
+  isPaused: boolean
 ): number {
-  const [displaySeconds, setDisplaySeconds] = useState(levelRemainingTimeSeconds ?? 0);
+  const baseRef = useRef(levelRemainingTimeSeconds ?? 0);
   const receivedAtRef = useRef(Date.now());
-  const prevLevelRef = useRef(levelRemainingTimeSeconds);
-  const onLevelEndRef = useRef(onLevelEnd);
-  onLevelEndRef.current = onLevelEnd;
+  const [displaySeconds, setDisplaySeconds] = useState(levelRemainingTimeSeconds ?? 0);
 
-  // Сброс при смене уровня (новые данные с сервера)
+  // Обновить базу при изменении значения с сервера
   useEffect(() => {
-    if (levelRemainingTimeSeconds !== prevLevelRef.current) {
-      prevLevelRef.current = levelRemainingTimeSeconds;
-      receivedAtRef.current = Date.now();
-      setDisplaySeconds(levelRemainingTimeSeconds ?? 0);
-    }
+    if (levelRemainingTimeSeconds == null) return;
+    baseRef.current = levelRemainingTimeSeconds;
+    receivedAtRef.current = Date.now();
+    setDisplaySeconds(levelRemainingTimeSeconds);
   }, [levelRemainingTimeSeconds]);
 
+  // Плавный обратный отсчёт (интерполяция между обновлениями сервера)
   useEffect(() => {
-    if (isPaused || levelRemainingTimeSeconds == null) return;
+    if (isPaused) return;
 
     const tick = () => {
       const elapsed = Math.floor((Date.now() - receivedAtRef.current) / 1000);
-      const remaining = Math.max(0, (levelRemainingTimeSeconds ?? 0) - elapsed);
+      const remaining = Math.max(0, baseRef.current - elapsed);
       setDisplaySeconds(remaining);
-      if (remaining <= 0) {
-        onLevelEndRef.current?.();
-      }
     };
 
     tick();
-    const id = setInterval(tick, 1000);
+    const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [levelRemainingTimeSeconds, isPaused]);
+  }, [isPaused]);
 
   return displaySeconds;
 }

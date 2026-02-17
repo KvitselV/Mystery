@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { format, addDays, startOfMonth, startOfWeek, addMonths, subMonths, isSameMonth, isToday } from 'date-fns';
+import { ru } from 'date-fns/locale';
 import { Routes, Route, NavLink } from 'react-router-dom';
 import {
   blindStructuresApi,
@@ -8,6 +10,7 @@ import {
   tournamentSeriesApi,
   tournamentsApi,
   authApi,
+  achievementsApi,
   type BlindStructure,
   type Club,
   type ClubSchedule,
@@ -19,11 +22,14 @@ import {
   type Tournament,
   type UpdateTournamentDto,
   type User,
+  type AchievementTypeDto,
+  type AchievementInstanceDto,
 } from '../../api';
 import { useClub } from '../../contexts/ClubContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { AdminReportModal } from '../../components/AdminReportModal';
 import { PlayerResultsModal } from '../../components/PlayerResultsModal';
+import AdminDataPanel from './AdminDataPanel';
 
 const DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 
@@ -62,8 +68,26 @@ export default function AdminPanelPage() {
         <NavLink to="/admin/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
           TV
         </NavLink>
+        <NavLink to="/admin/achievements" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+          Достижения
+        </NavLink>
+        <div className="mt-6 pt-4 border-t border-white/10">
+          <NavLink
+            to="/admin/data"
+            className={({ isActive }) =>
+              `flex items-center gap-2 px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`
+            }
+            title="Управление данными"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Данные
+          </NavLink>
+        </div>
       </nav>
-      <div className="flex-1 glass-card p-6">
+      <div className="flex-1 min-w-0 glass-card p-6 overflow-x-auto">
         <Routes>
           <Route path="/" element={<AdminHome />} />
           <Route path="/clubs" element={<AdminClubs onRefresh={refreshClubs} />} />
@@ -75,6 +99,8 @@ export default function AdminPanelPage() {
           <Route path="/seasons" element={<AdminSeasons />} />
           <Route path="/users" element={<AdminUsers />} />
           <Route path="/tv" element={<AdminTV />} />
+          <Route path="/achievements" element={<AdminAchievements />} />
+          <Route path="/data" element={<AdminDataPanel />} />
         </Routes>
       </div>
     </div>
@@ -549,8 +575,13 @@ function AdminFinancialReports() {
   );
 }
 
+function tournamentNameOnly(name: string): string {
+  return name.replace(/\s*-\s*\d{1,2}\.\d{1,2}(\.\d{4})?$/, '').trim();
+}
+
 function AdminTournaments() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [scheduleMonth, setScheduleMonth] = useState(() => startOfMonth(new Date()));
   const [series, setSeries] = useState<TournamentSeries[]>([]);
   const [clubs, setClubs] = useState<Club[]>([]);
   const [structures, setStructures] = useState<BlindStructure[]>([]);
@@ -743,19 +774,74 @@ function AdminTournaments() {
         </div>
       )}
 
-      <div className="space-y-2">
-        {tournaments.map((t) => (
-          <div key={t.id} className="flex justify-between items-center glass-card p-3">
-            <div>
-              <span className="text-white">{t.name}</span>
-              <span className="text-zinc-500 text-sm ml-2">{t.startTime?.slice(0, 16)} · {t.status}</span>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => startEdit(t)} className="text-amber-400 text-sm">Изменить</button>
-              <button onClick={() => remove(t.id)} className="text-red-400 text-sm">Удалить</button>
-            </div>
+      <div className="glass-card p-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-white">
+            {format(scheduleMonth, 'LLLL yyyy', { locale: ru })}
+          </h3>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setScheduleMonth(subMonths(scheduleMonth, 1))}
+              className="w-8 h-8 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-white/10"
+              title="Предыдущий месяц"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => setScheduleMonth(addMonths(scheduleMonth, 1))}
+              className="w-8 h-8 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-white/10"
+              title="Следующий месяц"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
           </div>
-        ))}
+        </div>
+        <div className="grid grid-cols-7 gap-px">
+          {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d) => (
+            <div key={d} className="py-2 text-center text-zinc-400 text-sm font-medium">
+              {d}
+            </div>
+          ))}
+          {(() => {
+            const monthStart = startOfMonth(scheduleMonth);
+            const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+            const cells: { date: Date }[] = [];
+            for (let i = 0; i < 42; i++) cells.push({ date: addDays(calendarStart, i) });
+            const getTournamentsForDate = (d: Date) =>
+              tournaments.filter((t) => new Date(t.startTime).toDateString() === d.toDateString());
+            return cells.map(({ date }) => {
+              const isCurrentMonth = isSameMonth(date, scheduleMonth);
+              const isTodayDate = isToday(date);
+              const dayTournaments = getTournamentsForDate(date);
+              return (
+                <div
+                  key={date.toISOString()}
+                  className={`min-h-[100px] p-2 border border-transparent rounded-lg ${
+                    isTodayDate ? 'border-blue-500/60 bg-blue-500/10' : ''
+                  } ${!isCurrentMonth ? 'opacity-50' : ''}`}
+                >
+                  <div className={`text-sm mb-2 ${isCurrentMonth ? 'text-white' : 'text-zinc-500'}`}>
+                    {format(date, 'd')}
+                  </div>
+                  <div className="space-y-1">
+                    {dayTournaments.map((t) => (
+                      <div key={t.id} className="glass-card p-2 rounded-lg text-left">
+                        <div className="text-white font-medium text-sm">{tournamentNameOnly(t.name)}</div>
+                        <div className="text-zinc-500 text-xs">{format(new Date(t.startTime), 'HH:mm')} · {t.status}</div>
+                        <div className="flex gap-1 mt-1">
+                          <button onClick={() => startEdit(t)} className="text-amber-400 text-xs hover:underline">Изменить</button>
+                          <button onClick={() => remove(t.id)} className="text-red-400 text-xs hover:underline">Удалить</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </div>
       </div>
     </div>
   );
@@ -1237,6 +1323,178 @@ function AdminUsers() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const ACHIEVEMENT_STAT_TYPES = [
+  { value: 'TOURNAMENTS_PLAYED', label: 'Турниров сыграно' },
+  { value: 'WINS', label: 'Побед' },
+  { value: 'CONSECUTIVE_WINS', label: 'Побед подряд' },
+  { value: 'SERIES_WINS', label: 'Побед в серии' },
+  { value: 'FINAL_TABLE', label: 'Финальных столов' },
+  { value: 'ITM_STREAK', label: 'Финишей в призах подряд' },
+];
+
+function AdminAchievements() {
+  const [types, setTypes] = useState<AchievementTypeDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    conditionDescription: '',
+    iconUrl: '' as string,
+    statisticType: '',
+    targetValue: 0,
+  });
+
+  const load = () => {
+    setLoading(true);
+    achievementsApi.getTypes()
+      .then((r) => setTypes(r.data ?? []))
+      .catch(() => setTypes([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!form.name.trim() || !form.description.trim()) return;
+    try {
+      await achievementsApi.createType({
+        name: form.name.trim(),
+        description: form.description.trim(),
+        conditionDescription: form.conditionDescription.trim() || form.description.trim(),
+        iconUrl: form.iconUrl || undefined,
+        statisticType: form.statisticType || undefined,
+        targetValue: form.targetValue || undefined,
+      });
+      setShowForm(false);
+      setForm({ name: '', description: '', conditionDescription: '', iconUrl: '', statisticType: '', targetValue: 0 });
+      setIconPreview(null);
+      load();
+    } catch {}
+  };
+
+  const seed = async () => {
+    try {
+      await achievementsApi.seed();
+      load();
+    } catch {}
+  };
+
+  if (loading) return <p className="text-zinc-400">Загрузка...</p>;
+
+  return (
+    <div>
+      <h2 className="text-lg font-bold text-white mb-4">Создание достижений</h2>
+      <p className="text-zinc-400 text-sm mb-4">Только администратор может создавать достижения. Выберите иконку, условие и статистику.</p>
+      <button onClick={() => setShowForm(!showForm)} className="glass-btn px-4 py-2 rounded-xl mb-4">
+        {showForm ? 'Отмена' : '+ Создать достижение'}
+      </button>
+
+      {showForm && (
+        <div className="glass-card p-6 mb-6 space-y-4 max-w-xl">
+          <div>
+            <label className="text-zinc-400 text-sm block mb-1">Название *</label>
+            <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Выиграть 2 раза подряд" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-sm block mb-1">Описание *</label>
+            <input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Выиграть турнир 2 раза подряд" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-sm block mb-1">Условие (подсказка при наведении)</label>
+            <input value={form.conditionDescription} onChange={(e) => setForm((p) => ({ ...p, conditionDescription: e.target.value }))} placeholder="Выиграть 2 турнира подряд" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          </div>
+          <div>
+            <label className="text-zinc-400 text-sm block mb-2">Иконка (изображение)</label>
+            <input
+              ref={iconInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file || !file.type.startsWith('image/')) return;
+                if (file.size > 200 * 1024) {
+                  alert('Размер изображения не более 200 КБ');
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result as string;
+                  setForm((p) => ({ ...p, iconUrl: dataUrl }));
+                  setIconPreview(dataUrl);
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => iconInputRef.current?.click()}
+                className="w-16 h-16 flex items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:border-amber-500/50 overflow-hidden shrink-0"
+              >
+                {iconPreview ? (
+                  <img src={iconPreview} alt="" className="w-full h-full object-contain" />
+                ) : (
+                  <span className="text-zinc-500 text-sm">+ Загрузить</span>
+                )}
+              </button>
+              {iconPreview && (
+                <button
+                  type="button"
+                  onClick={() => { setForm((p) => ({ ...p, iconUrl: '' })); setIconPreview(null); }}
+                  className="text-zinc-400 text-sm hover:text-white"
+                >
+                  Удалить
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Статистика</label>
+              <select value={form.statisticType} onChange={(e) => setForm((p) => ({ ...p, statisticType: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+                <option value="">— Не задана —</option>
+                {ACHIEVEMENT_STAT_TYPES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Целевое значение</label>
+              <input type="number" min={0} value={form.targetValue || ''} onChange={(e) => setForm((p) => ({ ...p, targetValue: parseInt(e.target.value) || 0 }))} placeholder="2" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            </div>
+          </div>
+          <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>
+        </div>
+      )}
+
+      <button onClick={seed} className="glass-btn px-4 py-2 rounded-xl mb-4 text-sm">Инициализировать стандартные достижения</button>
+      <h3 className="text-white font-medium mb-2">Типы достижений</h3>
+      <div className="space-y-2">
+        {types.map((t) => (
+          <div key={t.id} className="flex items-center gap-4 glass-card p-3">
+            {t.iconUrl ? (
+              <img src={t.iconUrl} alt="" className="w-10 h-10 object-contain rounded" />
+            ) : (
+              <span className="text-2xl">{t.icon ?? '🏅'}</span>
+            )}
+            <div>
+              <span className="text-white">{t.name}</span>
+              <span className="text-zinc-500 text-sm ml-2">{t.description}</span>
+              {t.statisticType && <span className="text-zinc-400 text-xs ml-2">({t.statisticType} ≥ {t.targetValue})</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-zinc-500 text-sm mt-4">Отзыв достижений у игроков — через раздел «Данные», таблица achievementInstances.</p>
     </div>
   );
 }

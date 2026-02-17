@@ -40,14 +40,17 @@ export function TVTimerBlock({
 }) {
   const displaySeconds = useLevelCountdown(
     liveState.levelRemainingTimeSeconds,
-    liveState.isPaused ?? false,
-    onRefresh ?? (() => {})
+    liveState.isPaused ?? false
   );
   const mins = Math.floor(displaySeconds / 60);
   const secs = displaySeconds % 60;
 
-  const nextBreakSeconds = liveState.nextBreakTime
-    ? Math.max(0, Math.floor((new Date(liveState.nextBreakTime).getTime() - Date.now()) / 1000))
+  const nextBreakSeconds = liveState.nextBreakBaseSeconds != null
+    ? liveState.nextBreakBaseSeconds + displaySeconds
+    : null;
+  const isLateReg = liveState.tournamentStatus === 'LATE_REG';
+  const lateRegSeconds = isLateReg && liveState.lateRegBaseSeconds != null
+    ? liveState.lateRegBaseSeconds + displaySeconds
     : null;
 
   const s = embedded
@@ -185,7 +188,9 @@ export function TVTimerBlock({
         </Cell>
         <Cell className="flex flex-col justify-center pl-4 md:pl-6 min-h-0">
           <span className="text-zinc-400" style={{ fontSize: s.label }}>Late Reg</span>
-          <span className="font-bold font-mono mt-1 text-zinc-100" style={{ fontSize: s.value }}>—</span>
+          <span className="font-bold font-mono mt-1 text-zinc-100" style={{ fontSize: s.value }}>
+            {lateRegSeconds != null ? formatHMS(lateRegSeconds) : '—'}
+          </span>
         </Cell>
         <div className="row-span-3 flex flex-col justify-center pl-4 md:pl-6 min-h-0 min-w-0 overflow-hidden tv-liquid-glass">
           <div className="text-zinc-200 space-y-2" style={{ fontSize: embedded ? 'clamp(11px, 2vmin, 24px)' : 'clamp(20px, 4vmin, 72px)' }}>

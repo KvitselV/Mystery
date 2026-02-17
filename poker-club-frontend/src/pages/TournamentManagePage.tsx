@@ -98,6 +98,13 @@ export default function TournamentManagePage() {
     socket.on('connect_error', () => setSocketConnected(false));
     socket.emit('join_tournament', live.id);
     socket.on('seating_change', () => setRefreshKey((k) => k + 1));
+    socket.on('timer_tick', (data: { levelRemainingTimeSeconds: number; currentLevelNumber: number; isPaused: boolean }) => {
+      setLiveState((prev) => prev ? { ...prev, ...data } : null);
+    });
+    socket.on('level_change', () => setRefreshKey((k) => k + 1));
+    socket.on('live_state_update', (data: { levelRemainingTimeSeconds?: number; currentLevelNumber?: number; isPaused?: boolean }) => {
+      setLiveState((prev) => prev ? { ...prev, ...data } : null);
+    });
     return () => {
       setSocketConnected(false);
       socket.emit('leave_tournament', live.id);
@@ -153,6 +160,7 @@ export default function TournamentManagePage() {
         tables={tables}
         onRefresh={refresh}
         onRefreshTables={refreshTablesAndState}
+        onOptimisticPauseChange={(isPaused) => setLiveState((prev) => (prev ? { ...prev, isPaused } : prev))}
         isAdmin={isAdmin}
       />
     </div>

@@ -184,7 +184,7 @@ export class TournamentService {
 
     const [tournaments, total] = await this.tournamentRepository.findAndCount({
       where,
-      relations: ['series', 'club', 'rewards', 'rewards.reward'],
+      relations: ['series', 'club', 'rewards', 'rewards.reward', 'blindStructure', 'blindStructure.levels'],
       order: { startTime: 'ASC' },
       take: filters?.limit || 50,
       skip: filters?.offset || 0,
@@ -412,12 +412,12 @@ export class TournamentService {
   }
 
   /**
-   * Получить турнир по ID
+   * Получить турнир по ID (полная загрузка — registrations, rewards и т.д.)
    */
   async getTournamentById(tournamentId: string): Promise<Tournament> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
-      relations: ['series', 'club', 'registrations', 'rewards', 'rewards.reward'],
+      relations: ['series', 'club', 'registrations', 'registrations.player', 'registrations.player.user', 'rewards', 'rewards.reward', 'blindStructure', 'blindStructure.levels'],
     });
 
     if (!tournament) {
@@ -425,6 +425,16 @@ export class TournamentService {
     }
 
     return tournament;
+  }
+
+  /**
+   * Облегчённый турнир для live — только blindStructure, без registrations, rewards и тяжёлых связей
+   */
+  async getTournamentForLive(tournamentId: string): Promise<Tournament | null> {
+    return this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+      relations: ['blindStructure', 'blindStructure.levels'],
+    });
   }
 
       /**

@@ -6,19 +6,66 @@ import { PlayerResultsModal } from '../components/PlayerResultsModal';
 
 type Tab = 'series' | 'seasonal' | 'mmr';
 
+/** Конвертация MMR в ранг (E–SS) — дублирует логику бэкенда */
+function mmrToRank(mmr: number): string {
+  if (mmr >= 3001) return 'SS';
+  if (mmr >= 2501) return 'S';
+  if (mmr >= 2001) return 'A';
+  if (mmr >= 1501) return 'B';
+  if (mmr >= 1001) return 'C';
+  if (mmr >= 501) return 'D';
+  return 'E';
+}
+
+/** Стили строки по рангу: E=дерево, C=бронза, B=серебро, A=золото, S=чернозолотой */
+function rankRowClass(rank: string): string {
+  switch (rank) {
+    case 'E': return 'bg-emerald-950/60 border-l-4 border-emerald-600/80';
+    case 'D': return 'bg-emerald-900/40 border-l-4 border-emerald-500/60';
+    case 'C': return 'bg-amber-900/50 border-l-4 border-amber-700';
+    case 'B': return 'bg-zinc-600/30 border-l-4 border-zinc-400';
+    case 'A': return 'bg-amber-600/30 border-l-4 border-amber-400';
+    case 'S': return 'bg-zinc-900/80 border-l-4 border-amber-500 shadow-[inset_0_0_20px_rgba(251,191,36,0.1)]';
+    case 'SS': return 'bg-zinc-950 border-l-4 border-amber-300 shadow-[inset_0_0_24px_rgba(251,191,36,0.15)]';
+    default: return 'border-l-4 border-transparent';
+  }
+}
+
+/** Цвет текста ранга для читаемости */
+function rankTextClass(rank: string): string {
+  switch (rank) {
+    case 'E': return 'text-emerald-400';
+    case 'D': return 'text-emerald-300';
+    case 'C': return 'text-amber-200';
+    case 'B': return 'text-zinc-200';
+    case 'A': return 'text-amber-300';
+    case 'S':
+    case 'SS': return 'text-amber-400';
+    default: return 'text-zinc-300';
+  }
+}
+
 function SeriesRatingTable({
   seriesLbs,
   clubSeriesIds,
   selectedClubId,
+  defaultSeriesId,
 }: {
   seriesLbs: Leaderboard[];
   clubSeriesIds: Set<string>;
   selectedClubId?: string;
+  defaultSeriesId?: string | null;
 }) {
-  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(null);
+  const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(defaultSeriesId ?? null);
   const [table, setTable] = useState<{ seriesName: string; columns: { date: string; dateLabel: string; tournamentId: string }[]; rows: SeriesRatingRow[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [reportTournament, setReportTournament] = useState<Tournament | null>(null);
+
+  useEffect(() => {
+    if (defaultSeriesId && !selectedSeriesId) {
+      setSelectedSeriesId(defaultSeriesId);
+    }
+  }, [defaultSeriesId, selectedSeriesId]);
 
   useEffect(() => {
     if (!selectedSeriesId) {
@@ -241,7 +288,7 @@ export default function RatingsPage() {
           onClick={() => setTab('mmr')}
           className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === 'mmr' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
         >
-          Рейтинг по рангу (MMR)
+          Рейтинг игроков
         </button>
       </div>
 
@@ -256,24 +303,33 @@ export default function RatingsPage() {
                   <tr>
                     <th className="px-6 py-4 text-zinc-400 font-medium">#</th>
                     <th className="px-6 py-4 text-zinc-400 font-medium">Игрок</th>
-                    <th className="px-6 py-4 text-zinc-400 font-medium">MMR</th>
+                    <th className="px-6 py-4 text-zinc-400 font-medium">Ранг</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {mmrEntries.map((e, i) => (
-                    <tr key={e.id} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="px-6 py-4 text-amber-400">{i + 1}</td>
-                      <td className="px-6 py-4 text-white">{e.playerName ?? '—'}</td>
-                      <td className="px-6 py-4 text-zinc-300">{e.mmr ?? e.ratingPoints ?? e.points}</td>
-                    </tr>
-                  ))}
+                  {mmrEntries.map((e, i) => {
+                    const mmr = e.mmr ?? e.ratingPoints ?? e.points ?? 0;
+                    const rank = e.rankCode ?? mmrToRank(typeof mmr === 'number' ? mmr : 0);
+                    return (
+                      <tr key={e.id ?? i} className={`border-b border-white/5 hover:bg-white/5 ${rankRowClass(rank)}`}>
+                        <td className="px-6 py-4 text-amber-400">{i + 1}</td>
+                        <td className="px-6 py-4 text-white">{e.playerName ?? '—'}</td>
+                        <td className={`px-6 py-4 font-bold ${rankTextClass(rank)}`}>{rank}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
 
           {tab === 'series' && (
-            <SeriesRatingTable seriesLbs={seriesLbs} clubSeriesIds={clubSeriesIds} selectedClubId={selectedClub?.id} />
+            <SeriesRatingTable
+              seriesLbs={seriesLbs}
+              clubSeriesIds={clubSeriesIds}
+              selectedClubId={selectedClub?.id}
+              defaultSeriesId={seriesLbs[0]?.seriesId ?? null}
+            />
           )}
 
           {tab === 'seasonal' && (

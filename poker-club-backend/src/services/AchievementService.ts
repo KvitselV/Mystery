@@ -1,69 +1,39 @@
 import { AppDataSource } from '../config/database';
-import { AchievementType, AchievementCode } from '../models/AchievementType';
+import { AchievementType, AchievementCode, AchievementStatisticType } from '../models/AchievementType';
 import { AchievementInstance } from '../models/AchievementInstance';
+import { PlayerAchievementPin } from '../models/PlayerAchievementPin';
 import { TournamentResult } from '../models/TournamentResult';
 import { PlayerProfile } from '../models/PlayerProfile';
+import { Tournament } from '../models/Tournament';
+import { StatisticsService } from './StatisticsService';
 
 export class AchievementService {
   private achievementTypeRepo = AppDataSource.getRepository(AchievementType);
   private achievementInstanceRepo = AppDataSource.getRepository(AchievementInstance);
+  private pinRepo = AppDataSource.getRepository(PlayerAchievementPin);
   private resultRepo = AppDataSource.getRepository(TournamentResult);
   private profileRepo = AppDataSource.getRepository(PlayerProfile);
+  private tournamentRepo = AppDataSource.getRepository(Tournament);
+  private statisticsService = new StatisticsService();
 
   /**
    * Инициализировать типы достижений
    */
   async seedAchievementTypes(): Promise<void> {
     const types = [
-      {
-        code: AchievementCode.FIRST_TOURNAMENT,
-        name: 'Первый турнир',
-        description: 'Сыграйте свой первый турнир',
-        iconUrl: '/achievements/first-tournament.png',
-        sortOrder: 1,
-      },
-      {
-        code: AchievementCode.FIVE_TOURNAMENTS,
-        name: 'Ветеран',
-        description: 'Сыграйте 5 турниров',
-        iconUrl: '/achievements/five-tournaments.png',
-        sortOrder: 2,
-      },
-      {
-        code: AchievementCode.TEN_TOURNAMENTS,
-        name: 'Постоялец',
-        description: 'Сыграйте 10 турниров',
-        iconUrl: '/achievements/ten-tournaments.png',
-        sortOrder: 3,
-      },
-      {
-        code: AchievementCode.FINAL_TABLE,
-        name: 'Финальный стол',
-        description: 'Попадите на финальный стол',
-        iconUrl: '/achievements/final-table.png',
-        sortOrder: 4,
-      },
-      {
-        code: AchievementCode.WIN,
-        name: 'Победитель',
-        description: 'Выиграйте турнир',
-        iconUrl: '/achievements/win.png',
-        sortOrder: 5,
-      },
-      {
-        code: AchievementCode.HOT_STREAK,
-        name: 'Горячая серия',
-        description: 'Финишируйте в призах 3 раза подряд',
-        iconUrl: '/achievements/hot-streak.png',
-        sortOrder: 6,
-      },
+      { code: AchievementCode.FIRST_TOURNAMENT, name: 'Первый турнир', description: 'Сыграйте свой первый турнир', icon: '🎯', conditionDescription: 'Сыграть 1 турнир', statisticType: AchievementStatisticType.TOURNAMENTS_PLAYED, targetValue: 1, sortOrder: 1 },
+      { code: AchievementCode.FIVE_TOURNAMENTS, name: 'Ветеран', description: 'Сыграйте 5 турниров', icon: '📊', conditionDescription: 'Сыграть 5 турниров', statisticType: AchievementStatisticType.TOURNAMENTS_PLAYED, targetValue: 5, sortOrder: 2 },
+      { code: AchievementCode.TEN_TOURNAMENTS, name: 'Постоялец', description: 'Сыграйте 10 турниров', icon: '🏠', conditionDescription: 'Сыграть 10 турниров', statisticType: AchievementStatisticType.TOURNAMENTS_PLAYED, targetValue: 10, sortOrder: 3 },
+      { code: AchievementCode.FINAL_TABLE, name: 'Финальный стол', description: 'Попадите на финальный стол', icon: '🪑', conditionDescription: 'Попасть на финальный стол', statisticType: AchievementStatisticType.FINAL_TABLE, targetValue: 1, sortOrder: 4 },
+      { code: AchievementCode.WIN, name: 'Победитель', description: 'Выиграйте турнир', icon: '🏆', conditionDescription: 'Выиграть 1 турнир', statisticType: AchievementStatisticType.WINS, targetValue: 1, sortOrder: 5 },
+      { code: AchievementCode.HOT_STREAK, name: 'Горячая серия', description: 'Финишируйте в призах 3 раза подряд', icon: '🔥', conditionDescription: 'Финишировать в призах 3 раза подряд', statisticType: AchievementStatisticType.ITM_STREAK, targetValue: 3, sortOrder: 6 },
+      { code: AchievementCode.SERIES_WINNER, name: 'Победитель серии', description: 'Выиграйте турнир из серии', icon: '⭐', conditionDescription: 'Выиграть турнир серии', statisticType: AchievementStatisticType.SERIES_WINS, targetValue: 1, sortOrder: 7 },
     ];
 
     for (const typeData of types) {
       const existing = await this.achievementTypeRepo.findOne({
         where: { code: typeData.code },
       });
-
       if (!existing) {
         const type = this.achievementTypeRepo.create(typeData);
         await this.achievementTypeRepo.save(type);
@@ -190,54 +160,105 @@ export class AchievementService {
     // 6. HOT_STREAK (3+ финиша в призах подряд)
     const recentResults = allResults.slice(-3);
     if (recentResults.length >= 3) {
-      const allInPrizes = recentResults.every(
-        (r) => r.isFinalTable );
+      const allInPrizes = recentResults.every((r) => r.isFinalTable);
       if (allInPrizes) {
-        const achievement = await this.grantAchievement(
-          userId,
-          AchievementCode.HOT_STREAK,
-          tournamentId,
-          { streak: 3 }
-        );
-        if (achievement) granted.push(achievement);
+        const a = await this.grantAchievement(userId, AchievementCode.HOT_STREAK, tournamentId, { streak: 3 });
+        if (a) granted.push(a);
+      }
+    }
+
+    // 7. SERIES_WINNER (1-е место в турнире серии)
+    const tournament = await this.tournamentRepo.findOne({
+      where: { id: tournamentId },
+      relations: ['series'],
+    });
+    if (result.finishPosition === 1 && tournament?.series) {
+      const a = await this.grantAchievement(userId, AchievementCode.SERIES_WINNER, tournamentId, { seriesWins: 1 });
+      if (a) granted.push(a);
+    }
+
+    // 8. Настраиваемые достижения (statisticType + targetValue)
+    const customTypes = await this.achievementTypeRepo.find({
+      where: {},
+      order: { sortOrder: 'ASC' },
+    });
+    const stats = await this.statisticsService.getPlayerFullStatistics(profile.id);
+    for (const t of customTypes) {
+      if (!t.statisticType || t.targetValue <= 0) continue;
+      const existing = await this.achievementInstanceRepo.findOne({
+        where: { userId, achievementTypeId: t.id },
+      });
+      if (existing) continue;
+
+      let value = 0;
+      if (t.statisticType === AchievementStatisticType.TOURNAMENTS_PLAYED) value = stats.tournamentsPlayed;
+      else if (t.statisticType === AchievementStatisticType.WINS) value = stats.finishes.first;
+      else if (t.statisticType === AchievementStatisticType.SERIES_WINS) value = stats.seriesWins;
+      else if (t.statisticType === AchievementStatisticType.FINAL_TABLE) {
+        const finalTableCount = await this.resultRepo.count({
+          where: { player: { id: profile.id }, isFinalTable: true },
+        });
+        value = finalTableCount;
+      }
+      else if (t.statisticType === AchievementStatisticType.ITM_STREAK) value = stats.bestStreak;
+      else if (t.statisticType === AchievementStatisticType.CONSECUTIVE_WINS) {
+        value = await this.getConsecutiveWins(profile.id);
+      }
+      if (value >= t.targetValue) {
+        const a = await this.grantAchievementByTypeId(userId, t.id, tournamentId, { value, target: t.targetValue });
+        if (a) granted.push(a);
       }
     }
 
     return granted;
   }
 
+  private async getConsecutiveWins(playerProfileId: string): Promise<number> {
+    const results = await this.resultRepo.find({
+      where: { player: { id: playerProfileId } },
+      relations: ['tournament'],
+      order: { id: 'DESC' },
+      take: 20,
+    });
+    let streak = 0;
+    for (const r of results) {
+      if (r.finishPosition === 1) streak++;
+      else break;
+    }
+    return streak;
+  }
+
   /**
-   * Выдать достижение (если ещё не выдано)
+   * Выдать достижение по коду (если ещё не выдано)
    */
   private async grantAchievement(
     userId: string,
-    achievementCode: AchievementCode,
+    achievementCode: string,
     tournamentId: string,
     metadata: Record<string, unknown>
   ): Promise<AchievementInstance | null> {
-    // Проверить, не выдано ли уже
-    const existing = await this.achievementInstanceRepo
-      .createQueryBuilder('instance')
-      .leftJoinAndSelect('instance.achievementType', 'type')
-      .where('instance.userId = :userId', { userId })
-      .andWhere('type.code = :code', { code: achievementCode })
-      .getOne();
+    const type = await this.achievementTypeRepo.findOne({ where: { code: achievementCode } });
+    if (!type) return null;
+    return this.grantAchievementByTypeId(userId, type.id, tournamentId, metadata);
+  }
 
-    if (existing) {
-      return null; // Уже выдано
-    }
-
-    // Найти тип достижения
-    const type = await this.achievementTypeRepo.findOne({
-      where: { code: achievementCode },
+  /**
+   * Выдать достижение по ID типа (если ещё не выдано)
+   */
+  async grantAchievementByTypeId(
+    userId: string,
+    achievementTypeId: string,
+    tournamentId: string,
+    metadata: Record<string, unknown>
+  ): Promise<AchievementInstance | null> {
+    const existing = await this.achievementInstanceRepo.findOne({
+      where: { userId, achievementTypeId },
     });
+    if (existing) return null;
 
-    if (!type) {
-      console.error(`Achievement type not found: ${achievementCode}`);
-      return null;
-    }
+    const type = await this.achievementTypeRepo.findOne({ where: { id: achievementTypeId } });
+    if (!type) return null;
 
-    // Создать экземпляр достижения (metadata в БД хранится как JSON-строка)
     const instance = this.achievementInstanceRepo.create({
       userId,
       achievementType: type,
@@ -245,21 +266,26 @@ export class AchievementService {
       metadata: JSON.stringify(metadata),
       unlockedAt: new Date(),
     });
-
     return this.achievementInstanceRepo.save(instance);
   }
 
   /**
-   * Получить прогресс достижений пользователя
+   * Получить прогресс достижений пользователя + закреплённые (до 4)
    */
   async getUserAchievementProgress(userId: string): Promise<{
     unlocked: AchievementInstance[];
     locked: AchievementType[];
+    pinnedTypeIds: string[];
     total: number;
     unlockedCount: number;
   }> {
     const allTypes = await this.getAllAchievementTypes();
     const unlocked = await this.getUserAchievements(userId);
+    const pins = await this.pinRepo.find({
+      where: { userId },
+      relations: ['achievementType'],
+      order: { sortOrder: 'ASC' },
+    });
 
     const unlockedTypeIds = unlocked.map((a) => a.achievementType.id);
     const locked = allTypes.filter((t) => !unlockedTypeIds.includes(t.id));
@@ -267,8 +293,60 @@ export class AchievementService {
     return {
       unlocked,
       locked,
+      pinnedTypeIds: pins.map((p) => p.achievementTypeId),
       total: allTypes.length,
       unlockedCount: unlocked.length,
     };
+  }
+
+  /**
+   * Установить закреплённые достижения (до 4)
+   */
+  async setPinnedAchievements(userId: string, achievementTypeIds: string[]): Promise<void> {
+    await this.pinRepo.delete({ userId });
+    const toInsert = achievementTypeIds.slice(0, 4).map((id, i) =>
+      this.pinRepo.create({ userId, achievementTypeId: id, sortOrder: i })
+    );
+    if (toInsert.length > 0) {
+      await this.pinRepo.save(toInsert);
+    }
+  }
+
+  /**
+   * Создать тип достижения (админ)
+   */
+  async createAchievementType(data: {
+    name: string;
+    description: string;
+    icon?: string;
+    iconUrl?: string;
+    statisticType?: string;
+    targetValue?: number;
+    conditionDescription?: string;
+  }): Promise<AchievementType> {
+    const maxOrder = await this.achievementTypeRepo
+      .createQueryBuilder('t')
+      .select('MAX(t.sortOrder)', 'max')
+      .getRawOne();
+    const sortOrder = (maxOrder?.max ?? 0) + 1;
+
+    const type = this.achievementTypeRepo.create({
+      name: data.name,
+      description: data.description,
+      icon: data.icon ?? undefined,
+      iconUrl: data.iconUrl ?? undefined,
+      statisticType: data.statisticType ?? undefined,
+      targetValue: data.targetValue ?? 0,
+      conditionDescription: data.conditionDescription ?? data.description ?? undefined,
+      sortOrder,
+    });
+    return this.achievementTypeRepo.save(type);
+  }
+
+  /**
+   * Отозвать достижение у игрока (только админ)
+   */
+  async revokeAchievement(instanceId: string): Promise<void> {
+    await this.achievementInstanceRepo.delete(instanceId);
   }
 }

@@ -37,6 +37,27 @@ export class LiveStateService {
     return `tournament:live:${tournamentId}`;
   }
 
+  private getTimerKey(tournamentId: string): string {
+    return `tournament:live:timer:${tournamentId}`;
+  }
+
+  /** Таймер в Redis — источник истины для тикера, снижает нагрузку на БД */
+  async getTimer(tournamentId: string): Promise<{ levelRemainingTimeSeconds: number; currentLevelNumber: number; isPaused: boolean } | null> {
+    if (!redisClient.isOpen) return null;
+    const raw = await redisClient.get(this.getTimerKey(tournamentId));
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as { levelRemainingTimeSeconds: number; currentLevelNumber: number; isPaused: boolean };
+    } catch {
+      return null;
+    }
+  }
+
+  async setTimer(tournamentId: string, data: { levelRemainingTimeSeconds: number; currentLevelNumber: number; isPaused: boolean }): Promise<void> {
+    if (!redisClient.isOpen) return;
+    await redisClient.set(this.getTimerKey(tournamentId), JSON.stringify(data), { EX: 86400 });
+  }
+
   private async getFromCache(tournamentId: string): Promise<LiveStateDto | null> {
     if (!redisClient.isOpen) return null;
 
@@ -103,6 +124,11 @@ export class LiveStateService {
       });
 
       await this.liveStateRepository.save(liveState);
+      await this.setTimer(tournamentId, {
+        levelRemainingTimeSeconds: liveState.levelRemainingTimeSeconds,
+        currentLevelNumber: liveState.currentLevelNumber,
+        isPaused: liveState.isPaused,
+      });
       console.log(`✅ Created Live State for tournament: ${tournamentId}`);
     }
 
@@ -124,7 +150,23 @@ export class LiveStateService {
 
     const updated = await this.liveStateRepository.save(liveState);
 
+    let timerMerged: { levelRemainingTimeSeconds: number; currentLevelNumber: number; isPaused: boolean } | null = null;
+    if (updates.levelRemainingTimeSeconds !== undefined || updates.currentLevelNumber !== undefined || updates.isPaused !== undefined) {
+      const existing = await this.getTimer(tournamentId);
+      timerMerged = {
+        levelRemainingTimeSeconds: updates.levelRemainingTimeSeconds ?? existing?.levelRemainingTimeSeconds ?? updated.levelRemainingTimeSeconds,
+        currentLevelNumber: updates.currentLevelNumber ?? existing?.currentLevelNumber ?? updated.currentLevelNumber,
+        isPaused: updates.isPaused ?? existing?.isPaused ?? updated.isPaused,
+      };
+      await this.setTimer(tournamentId, timerMerged);
+    }
+
     const dto = this.formatLiveState(updated);
+    if (timerMerged) {
+      dto.levelRemainingTimeSeconds = timerMerged.levelRemainingTimeSeconds;
+      dto.currentLevelNumber = timerMerged.currentLevelNumber;
+      dto.isPaused = timerMerged.isPaused;
+    }
     await this.saveToCache(tournamentId, dto);        // 👈 кэш
     broadcastLiveStateUpdate(io, tournamentId, dto);  // 🔥 вебсокет
 
@@ -287,7 +329,8 @@ export class LiveStateService {
       console.log(`🗑️ Deleted Live State for tournament ${tournamentId}`);
     }
 
-    await this.deleteFromCache(tournamentId); // 👈 чистим Redis
+    await this.deleteFromCache(tournamentId);
+    if (redisClient.isOpen) await redisClient.del(this.getTimerKey(tournamentId));
   }
 
   /**

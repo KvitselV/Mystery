@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.httpServer = exports.io = void 0;
 const express_1 = __importDefault(require("express"));
 const http_1 = require("http");
+const session_1 = require("./config/session");
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const financialRoutes_1 = __importDefault(require("./routes/financialRoutes"));
 const tournamentRoutes_1 = __importDefault(require("./routes/tournamentRoutes"));
@@ -21,6 +22,7 @@ const clubRoutes_1 = __importDefault(require("./routes/clubRoutes"));
 const tournamentSeriesRoutes_1 = __importDefault(require("./routes/tournamentSeriesRoutes"));
 const rewardRoutes_1 = __importDefault(require("./routes/rewardRoutes"));
 const billRoutes_1 = __importDefault(require("./routes/billRoutes"));
+const adminDataRoutes_1 = __importDefault(require("./routes/adminDataRoutes"));
 const app = (0, express_1.default)();
 const httpServer = (0, http_1.createServer)(app);
 exports.httpServer = httpServer;
@@ -46,6 +48,7 @@ const corsMiddleware = (req, res, next) => {
 };
 app.use(corsMiddleware);
 app.use(express_1.default.json());
+app.use(session_1.sessionMiddleware);
 // Routes
 app.use('/auth', authRoutes_1.default);
 app.use('/user', financialRoutes_1.default);
@@ -61,6 +64,7 @@ app.use('/orders', orders_1.default);
 app.use('/clubs', clubRoutes_1.default);
 app.use('/rewards', rewardRoutes_1.default);
 app.use('/bills', billRoutes_1.default);
+app.use('/admin', adminDataRoutes_1.default);
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date() });

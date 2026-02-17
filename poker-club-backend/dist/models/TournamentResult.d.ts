@@ -6,6 +6,7 @@ export declare class TournamentResult {
     player: PlayerProfile;
     finishPosition: number;
     mmrGained: number;
+    points: number;
     isFinalTable: boolean;
 }
 //# sourceMappingURL=TournamentResult.d.ts.map

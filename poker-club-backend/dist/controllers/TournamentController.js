@@ -2,10 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TournamentController = void 0;
 const TournamentService_1 = require("../services/TournamentService");
+const AuthService_1 = require("../services/AuthService");
 const database_1 = require("../config/database");
 const PlayerProfile_1 = require("../models/PlayerProfile");
+const User_1 = require("../models/User");
 const tournamentService = new TournamentService_1.TournamentService();
+const authService = new AuthService_1.AuthService();
 const playerProfileRepository = database_1.AppDataSource.getRepository(PlayerProfile_1.PlayerProfile);
+const userRepository = database_1.AppDataSource.getRepository(User_1.User);
 class TournamentController {
     static async createTournament(req, res) {
         try {
@@ -123,23 +127,105 @@ class TournamentController {
         }
     }
     /**
+     * POST /tournaments/:id/register-guest - Зарегистрировать гостя (админ создаёт аккаунт и записывает на турнир)
+     */
+    static async registerGuest(req, res) {
+        try {
+            const tournamentId = req.params.id || '';
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+            const { name, clubCardNumber, phone, password } = req.body;
+            if (!name || !clubCardNumber || !phone || !password) {
+                return res.status(400).json({ error: 'Обязательные поля: имя, номер клубной карты, телефон, пароль' });
+            }
+            const { playerProfileId } = await authService.createUserAsGuest({
+                name,
+                clubCardNumber,
+                phone,
+                password,
+            });
+            const registration = await tournamentService.registerPlayer(tournamentId, playerProfileId, 'CASH', true);
+            res.status(201).json({
+                message: 'Гость зарегистрирован и записан на турнир',
+                registration: {
+                    id: registration.id,
+                    playerId: registration.player?.id,
+                    playerName: name,
+                    clubCardNumber,
+                    isArrived: registration.isArrived,
+                },
+            });
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
+    /**
+     * POST /tournaments/:id/register-by-card - Записать на турнир по номеру клубной карты
+     */
+    static async registerByCard(req, res) {
+        try {
+            const tournamentId = req.params.id || '';
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+            const { clubCardNumber } = req.body;
+            if (!clubCardNumber || typeof clubCardNumber !== 'string') {
+                return res.status(400).json({ error: 'Номер клубной карты обязателен' });
+            }
+            const user = await userRepository.findOne({
+                where: { clubCardNumber: clubCardNumber.trim() },
+            });
+            if (!user) {
+                return res.status(404).json({ error: 'Игрок с таким номером карты не найден' });
+            }
+            const playerProfile = await playerProfileRepository.findOne({
+                where: { user: { id: user.id } },
+            });
+            if (!playerProfile) {
+                return res.status(404).json({ error: 'Профиль игрока не найден' });
+            }
+            const registration = await tournamentService.registerPlayer(tournamentId, playerProfile.id, 'CASH', true);
+            res.status(201).json({
+                message: 'Игрок записан на турнир',
+                registration: {
+                    id: registration.id,
+                    playerId: registration.player?.id,
+                    playerName: user.name,
+                    clubCardNumber: user.clubCardNumber,
+                    isArrived: registration.isArrived,
+                },
+            });
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
+    /**
      * GET /tournaments/:id/players - Получить участников турнира
      */
     static async getTournamentPlayers(req, res) {
         try {
             const tournamentIdRaw = req.params.id;
             const tournamentId = Array.isArray(tournamentIdRaw) ? tournamentIdRaw[0] : tournamentIdRaw;
-            const players = await tournamentService.getTournamentPlayers(tournamentId);
+            const [players, eliminatedPlayerIds] = await Promise.all([
+                tournamentService.getTournamentPlayers(tournamentId),
+                tournamentService.getEliminatedPlayerIds(tournamentId),
+            ]);
             res.json({
-                players: players.map((p) => ({
-                    id: p.id,
-                    playerId: p.player?.id,
-                    playerName: `${p.player.user.firstName} ${p.player.user.lastName}`,
-                    registeredAt: p.registeredAt,
-                    paymentMethod: p.paymentMethod,
-                    isActive: p.isActive,
-                    isArrived: p.isArrived ?? true,
-                })),
+                players: players.map((p) => {
+                    const playerId = p.player?.id;
+                    const isEliminated = playerId ? eliminatedPlayerIds.has(playerId) : false;
+                    return {
+                        id: p.id,
+                        playerId,
+                        playerName: p.player?.user?.name,
+                        clubCardNumber: p.player?.user?.clubCardNumber,
+                        registeredAt: p.registeredAt,
+                        paymentMethod: p.paymentMethod,
+                        isActive: isEliminated ? false : p.isActive,
+                        isArrived: p.isArrived ?? true,
+                    };
+                }),
             });
         }
         catch (error) {

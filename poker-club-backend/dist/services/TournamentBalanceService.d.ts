@@ -2,10 +2,13 @@ import { TournamentPayment } from '../models/TournamentPayment';
 export interface TournamentPlayerBalance {
     playerId: string;
     playerName: string;
+    clubCardNumber?: string;
     balance: number;
     buyInAmount: number;
     rebuysAmount: number;
+    rebuyCount: number;
     addonsAmount: number;
+    addonCount: number;
     ordersAmount: number;
     paidAmount: number;
 }

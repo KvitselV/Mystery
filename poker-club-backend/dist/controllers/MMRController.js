@@ -14,7 +14,7 @@ class MMRController {
             res.json({
                 players: players.map((player) => ({
                     id: player.id,
-                    name: `${player.user.firstName} ${player.user.lastName}`,
+                    name: player.user.name,
                     mmrValue: player.mmrValue,
                     rankCode: player.rankCode,
                 })),
@@ -42,7 +42,7 @@ class MMRController {
                 rankCode,
                 players: players.map((player) => ({
                     id: player.id,
-                    name: `${player.user.firstName} ${player.user.lastName}`,
+                    name: player.user.name,
                     mmrValue: player.mmrValue,
                     rankCode: player.rankCode,
                 })),

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TournamentService = void 0;
 const database_1 = require("../config/database");
 const Tournament_1 = require("../models/Tournament");
+const TournamentResult_1 = require("../models/TournamentResult");
 const TournamentSeries_1 = require("../models/TournamentSeries");
 const TournamentRegistration_1 = require("../models/TournamentRegistration");
 const TournamentReward_1 = require("../models/TournamentReward");
@@ -46,6 +47,12 @@ class TournamentService {
         if (data.clubId && !club) {
             throw new Error('Club not found');
         }
+        const startDate = new Date(data.startTime);
+        const today = new Date();
+        const isToday = startDate.getFullYear() === today.getFullYear() &&
+            startDate.getMonth() === today.getMonth() &&
+            startDate.getDate() === today.getDate();
+        const initialStatus = isToday ? 'REG_OPEN' : 'ANNOUNCED';
         const tournament = this.tournamentRepository.create({
             name: data.name,
             series: series || undefined,
@@ -61,7 +68,7 @@ class TournamentService {
             maxRebuys: data.maxRebuys ?? 0,
             maxAddons: data.maxAddons ?? 0,
             blindStructureId: data.blindStructureId,
-            status: 'REG_OPEN',
+            status: initialStatus,
             currentLevelNumber: 0,
         });
         const saved = await this.tournamentRepository.save(tournament);
@@ -77,6 +84,30 @@ class TournamentService {
             }
         }
         return await this.getTournamentById(saved.id);
+    }
+    /**
+     * Синхронизация статусов по дате: турниры с startTime сегодня и статусом ANNOUNCED
+     * переводятся в REG_OPEN. Вызывается периодически (каждый час).
+     * Админ по‑прежнему может вручную открыть регистрацию для любого турнира.
+     */
+    async syncTournamentStatusByDate() {
+        const today = new Date();
+        const tournaments = await this.tournamentRepository.find({
+            where: { status: 'ANNOUNCED' },
+        });
+        let updated = 0;
+        for (const t of tournaments) {
+            const start = new Date(t.startTime);
+            const isToday = start.getFullYear() === today.getFullYear() &&
+                start.getMonth() === today.getMonth() &&
+                start.getDate() === today.getDate();
+            if (isToday) {
+                t.status = 'REG_OPEN';
+                await this.tournamentRepository.save(t);
+                updated++;
+            }
+        }
+        return updated;
     }
     /**
      * Установить награды турнира (место -> награда). Заменяет текущий список.
@@ -114,7 +145,7 @@ class TournamentService {
         }
         const [tournaments, total] = await this.tournamentRepository.findAndCount({
             where,
-            relations: ['series', 'club', 'rewards', 'rewards.reward'],
+            relations: ['series', 'club', 'rewards', 'rewards.reward', 'blindStructure', 'blindStructure.levels'],
             order: { startTime: 'ASC' },
             take: filters?.limit || 50,
             skip: filters?.offset || 0,
@@ -122,8 +153,9 @@ class TournamentService {
         return { tournaments, total };
     }
     /**
-     * Регистрация игрока на турнир
-     * @param isArrived - если false, игрок зарегистрировался сам и ещё не прибыл в клуб
+     * Регистрация игрока на турнир.
+     * Разрешена только при REG_OPEN (до старта) или LATE_REG (поздняя регистрация).
+     * При RUNNING регистрация закрыта (после перерыва "конец поздней регистрации").
      */
     async registerPlayer(tournamentId, playerProfileId, paymentMethod = 'DEPOSIT', isArrived = true) {
         const tournament = await this.tournamentRepository.findOne({
@@ -183,6 +215,18 @@ class TournamentService {
             relations: ['player', 'player.user'],
             order: { registeredAt: 'ASC' },
         });
+    }
+    /**
+     * ID игроков, имеющих результат в турнире (вылетевших)
+     */
+    async getEliminatedPlayerIds(tournamentId) {
+        const resultRepo = database_1.AppDataSource.getRepository(TournamentResult_1.TournamentResult);
+        const results = await resultRepo.find({
+            where: { tournament: { id: tournamentId } },
+            select: ['player'],
+            relations: ['player'],
+        });
+        return new Set(results.map((r) => r.player?.id).filter(Boolean));
     }
     /** Отметить игрока как прибывшего в клуб (управляющий нажал «Прибыл») */
     async markPlayerArrived(tournamentId, registrationId, managedClubId) {
@@ -265,8 +309,8 @@ class TournamentService {
         });
         if (!tournament)
             throw new Error('Tournament not found');
-        if (!options?.force && tournament.status !== 'REG_OPEN' && tournament.status !== 'ARCHIVED') {
-            throw new Error('Can only delete tournaments in REG_OPEN or ARCHIVED status');
+        if (!options?.force && tournament.status !== 'ANNOUNCED' && tournament.status !== 'REG_OPEN' && tournament.status !== 'ARCHIVED') {
+            throw new Error('Can only delete tournaments in ANNOUNCED, REG_OPEN or ARCHIVED status');
         }
         // Явно удаляем связанные записи (обходим FK-ограничения при старом schema)
         await this.liveStateService.deleteLiveState(tournamentId);
@@ -285,20 +329,34 @@ class TournamentService {
             throw new Error('Tournament not found');
         }
         tournament.status = status;
-        return await this.tournamentRepository.save(tournament);
+        const saved = await this.tournamentRepository.save(tournament);
+        // При переходе в RUNNING/LATE_REG — пересчитать live state (игроки, входы, стек) для таймера
+        if (status === 'RUNNING' || status === 'LATE_REG') {
+            await this.liveStateService.recalculateStats(tournamentId);
+        }
+        return saved;
     }
     /**
-     * Получить турнир по ID
+     * Получить турнир по ID (полная загрузка — registrations, rewards и т.д.)
      */
     async getTournamentById(tournamentId) {
         const tournament = await this.tournamentRepository.findOne({
             where: { id: tournamentId },
-            relations: ['series', 'club', 'registrations', 'rewards', 'rewards.reward'],
+            relations: ['series', 'club', 'registrations', 'registrations.player', 'registrations.player.user', 'rewards', 'rewards.reward', 'blindStructure', 'blindStructure.levels'],
         });
         if (!tournament) {
             throw new Error('Tournament not found');
         }
         return tournament;
+    }
+    /**
+     * Облегчённый турнир для live — только blindStructure, без registrations, rewards и тяжёлых связей
+     */
+    async getTournamentForLive(tournamentId) {
+        return this.tournamentRepository.findOne({
+            where: { id: tournamentId },
+            relations: ['blindStructure', 'blindStructure.levels'],
+        });
     }
     /**
  * Отменить регистрацию на турнир

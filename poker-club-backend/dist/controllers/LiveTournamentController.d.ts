@@ -4,6 +4,7 @@ export declare class LiveTournamentController {
     static rebuy(req: AuthRequest, res: Response): Promise<void>;
     static addon(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     static eliminatePlayer(req: AuthRequest, res: Response): Promise<void>;
+    static returnEliminatedPlayer(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     /**
      * PATCH /tournaments/:id/level/next - Перейти на следующий уровень
      * Только для администраторов

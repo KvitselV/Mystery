@@ -9,6 +9,7 @@ router.get('/', BlindStructureController_1.BlindStructureController.getAllStruct
 router.get('/:id', BlindStructureController_1.BlindStructureController.getStructureById);
 router.post('/', (0, authMiddleware_1.requireAdminOrController)(), BlindStructureController_1.BlindStructureController.createStructure);
 router.post('/:id/levels', (0, authMiddleware_1.requireAdminOrController)(), BlindStructureController_1.BlindStructureController.addLevel);
+router.post('/:id/levels/with-coefficient', (0, authMiddleware_1.requireAdminOrController)(), BlindStructureController_1.BlindStructureController.addLevelWithCoefficient);
 router.delete('/:id', (0, authMiddleware_1.requireAdminOrController)(), BlindStructureController_1.BlindStructureController.deactivateStructure);
 exports.default = router;
 //# sourceMappingURL=blindStructureRoutes.js.map

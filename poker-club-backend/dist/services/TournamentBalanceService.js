@@ -42,6 +42,7 @@ class TournamentBalanceService {
                 },
             });
             const rebuysKopecks = rebuyOps.reduce((s, o) => s + o.amount * 100, 0);
+            const rebuyCount = rebuyOps.length;
             const addonOps = await this.operationRepo.find({
                 where: {
                     playerProfile: { id: player.id },
@@ -50,6 +51,7 @@ class TournamentBalanceService {
                 },
             });
             const addonsKopecks = addonOps.reduce((s, o) => s + o.amount * 100, 0);
+            const addonCount = addonOps.length;
             let ordersKopecks = 0;
             if (player.user?.id) {
                 const orders = await this.orderRepo.find({
@@ -74,16 +76,18 @@ class TournamentBalanceService {
             });
             const paidAmount = payments.reduce((s, p) => s + p.cashAmount + p.nonCashAmount, 0);
             const balance = buyInKopecks + rebuysKopecks + addonsKopecks + ordersKopecks - paidAmount;
-            const playerName = player.user?.firstName && player.user?.lastName
-                ? `${player.user.firstName} ${player.user.lastName}`.trim()
-                : 'Игрок';
+            const playerName = player.user?.name?.trim() || 'Игрок';
+            const clubCardNumber = player.user?.clubCardNumber;
             result.push({
                 playerId: player.id,
                 playerName,
+                clubCardNumber,
                 balance,
                 buyInAmount: buyInKopecks,
                 rebuysAmount: rebuysKopecks,
+                rebuyCount,
                 addonsAmount: addonsKopecks,
+                addonCount,
                 ordersAmount: ordersKopecks,
                 paidAmount,
             });

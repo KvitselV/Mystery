@@ -20,6 +20,10 @@ export declare class BlindStructureController {
      */
     static addLevel(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     /**
+     * POST /blind-structures/:id/levels/with-coefficient - Добавить уровень по коэффициенту
+     */
+    static addLevelWithCoefficient(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    /**
      * DELETE /blind-structures/:id - Деактивировать структуру
      * Только для администраторов
      */

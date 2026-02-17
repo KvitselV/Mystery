@@ -38,6 +38,12 @@ export declare class TournamentService {
         }[];
     }): Promise<Tournament>;
     /**
+     * Синхронизация статусов по дате: турниры с startTime сегодня и статусом ANNOUNCED
+     * переводятся в REG_OPEN. Вызывается периодически (каждый час).
+     * Админ по‑прежнему может вручную открыть регистрацию для любого турнира.
+     */
+    syncTournamentStatusByDate(): Promise<number>;
+    /**
      * Установить награды турнира (место -> награда). Заменяет текущий список.
      */
     setTournamentRewards(tournamentId: string, rewards: {
@@ -58,14 +64,19 @@ export declare class TournamentService {
         total: number;
     }>;
     /**
-     * Регистрация игрока на турнир
-     * @param isArrived - если false, игрок зарегистрировался сам и ещё не прибыл в клуб
+     * Регистрация игрока на турнир.
+     * Разрешена только при REG_OPEN (до старта) или LATE_REG (поздняя регистрация).
+     * При RUNNING регистрация закрыта (после перерыва "конец поздней регистрации").
      */
     registerPlayer(tournamentId: string, playerProfileId: string, paymentMethod?: 'CASH' | 'DEPOSIT', isArrived?: boolean): Promise<TournamentRegistration>;
     /**
      * Получить участников турнира
      */
     getTournamentPlayers(tournamentId: string): Promise<TournamentRegistration[]>;
+    /**
+     * ID игроков, имеющих результат в турнире (вылетевших)
+     */
+    getEliminatedPlayerIds(tournamentId: string): Promise<Set<string>>;
     /** Отметить игрока как прибывшего в клуб (управляющий нажал «Прибыл») */
     markPlayerArrived(tournamentId: string, registrationId: string, managedClubId?: string | null): Promise<TournamentRegistration>;
     ensureTournamentBelongsToClub(tournamentId: string, managedClubId?: string | null): Promise<Tournament>;
@@ -87,11 +98,15 @@ export declare class TournamentService {
     deleteTournament(tournamentId: string, managedClubId?: string | null, options?: {
         force?: boolean;
     }): Promise<void>;
-    updateTournamentStatus(tournamentId: string, status: 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED', managedClubId?: string | null): Promise<Tournament>;
+    updateTournamentStatus(tournamentId: string, status: 'ANNOUNCED' | 'REG_OPEN' | 'LATE_REG' | 'RUNNING' | 'FINISHED' | 'ARCHIVED', managedClubId?: string | null): Promise<Tournament>;
     /**
-     * Получить турнир по ID
+     * Получить турнир по ID (полная загрузка — registrations, rewards и т.д.)
      */
     getTournamentById(tournamentId: string): Promise<Tournament>;
+    /**
+     * Облегчённый турнир для live — только blindStructure, без registrations, rewards и тяжёлых связей
+     */
+    getTournamentForLive(tournamentId: string): Promise<Tournament | null>;
     /**
  * Отменить регистрацию на турнир
  */

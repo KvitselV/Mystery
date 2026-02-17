@@ -5,22 +5,19 @@ export interface JwtPayload {
     exp: number;
 }
 export interface AuthResponse {
-    accessToken: string;
-    refreshToken: string;
     user: {
         id: string;
-        firstName: string;
-        lastName: string;
+        name: string;
+        clubCardNumber: string;
         phone: string;
         role: string;
         managedClubId?: string | null;
     };
 }
 export interface RegisterDto {
-    firstName: string;
-    lastName: string;
+    name: string;
+    clubCardNumber: string;
     phone: string;
-    email?: string;
     password: string;
 }
 export interface LoginDto {

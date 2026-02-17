@@ -31,9 +31,12 @@ class StatisticsController {
                 return;
             }
             const stats = await statisticsService.getPlayerFullStatistics(profile.id);
-            res.json(stats);
+            // Не возвращаем raw-сущности (profile, lastTournament) — они могут вызвать ошибки сериализации
+            const { profile: _p, lastTournament: _t, ...serializable } = stats;
+            res.json(serializable);
         }
         catch (error) {
+            console.error('Error fetching full statistics:', error);
             res.status(500).json({ error: 'Failed to fetch full statistics' });
         }
     }

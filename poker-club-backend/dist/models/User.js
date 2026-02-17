@@ -24,19 +24,15 @@ __decorate([
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
     __metadata("design:type", String)
-], User.prototype, "firstName", void 0);
+], User.prototype, "name", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, unique: true }),
     __metadata("design:type", String)
-], User.prototype, "lastName", void 0);
+], User.prototype, "clubCardNumber", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 20, unique: true }),
     __metadata("design:type", String)
 ], User.prototype, "phone", void 0);
-__decorate([
-    (0, typeorm_1.Column)({ type: 'varchar', length: 255, unique: true, nullable: true }),
-    __metadata("design:type", String)
-], User.prototype, "email", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 255 }),
     __metadata("design:type", String)
@@ -58,6 +54,10 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'boolean', default: true }),
     __metadata("design:type", Boolean)
 ], User.prototype, "isActive", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", Object)
+], User.prototype, "avatarUrl", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

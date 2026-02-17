@@ -4,6 +4,8 @@ exports.SeatingController = void 0;
 const SeatingService_1 = require("../services/SeatingService");
 const LiveStateService_1 = require("../services/LiveStateService");
 const TournamentService_1 = require("../services/TournamentService");
+const app_1 = require("../app");
+const websocket_1 = require("../websocket");
 const seatingService = new SeatingService_1.SeatingService();
 const liveStateService = new LiveStateService_1.LiveStateService();
 const tournamentService = new TournamentService_1.TournamentService();
@@ -28,11 +30,21 @@ class SeatingController {
             const tournamentId = req.params.id;
             const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
             await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
-            const result = await seatingService.autoSeating(tournamentId);
+            const moves = req.body?.moves;
+            const result = await seatingService.autoSeating(tournamentId, moves);
+            if (result.needInput) {
+                return res.status(409).json({
+                    code: 'NEED_INPUT',
+                    message: 'Specify UTG seat or select players to move',
+                    ...result,
+                });
+            }
             await liveStateService.recalculateStats(tournamentId);
+            (0, websocket_1.broadcastSeatingChange)(app_1.io, tournamentId, { type: 'auto_seating' });
             res.json({
                 message: 'Auto seating completed successfully',
-                ...result,
+                tablesCreated: result.tablesCreated,
+                seatsAssigned: result.seatsAssigned,
             });
         }
         catch (error) {
@@ -51,6 +63,7 @@ class SeatingController {
                 });
             }
             const seat = await seatingService.manualReseating(tournamentId, playerId, newTableId, newSeatNumber);
+            (0, websocket_1.broadcastSeatingChange)(app_1.io, tournamentId, { type: 'manual_reseat', playerId, newTableId, newSeatNumber });
             res.json({
                 message: 'Player reseated successfully',
                 seat: {
@@ -98,6 +111,8 @@ class SeatingController {
                         status: seat.status,
                         playerName: seat.playerName,
                         playerId: seat.player?.id,
+                        clubCardNumber: seat.player?.user?.clubCardNumber,
+                        avatarUrl: seat.player?.user?.avatarUrl ?? undefined,
                     })),
                 })),
             });
@@ -134,6 +149,8 @@ class SeatingController {
                         playerName: seat.playerName,
                         playerId: seat.player?.id,
                         playerRank: seat.player?.rankCode,
+                        clubCardNumber: seat.player?.user?.clubCardNumber,
+                        avatarUrl: seat.player?.user?.avatarUrl ?? undefined,
                     })),
                 },
             });
@@ -156,15 +173,17 @@ class SeatingController {
             if (!finishPosition) {
                 return res.status(400).json({ error: 'finishPosition is required' });
             }
-            const seat = await seatingService.eliminatePlayer(playerId, finishPosition);
+            const seat = await seatingService.eliminatePlayer(playerId, finishPosition, req.params.id);
             res.json({
                 message: 'Player eliminated successfully',
-                seat: {
-                    id: seat.id,
-                    tableId: seat.table.id,
-                    status: seat.status,
-                    playerName: seat.playerName,
-                },
+                seat: seat
+                    ? {
+                        id: seat.id,
+                        tableId: seat.table.id,
+                        status: seat.status,
+                        playerName: seat.playerName,
+                    }
+                    : null,
             });
         }
         catch (error) {

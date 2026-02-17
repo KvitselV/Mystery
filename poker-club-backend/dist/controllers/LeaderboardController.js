@@ -43,7 +43,7 @@ class LeaderboardController {
                 entries: entries.map((entry) => ({
                     id: entry.id,
                     rankPosition: entry.rankPosition,
-                    playerName: `${entry.playerProfile.user.firstName} ${entry.playerProfile.user.lastName}`,
+                    playerName: entry.playerProfile.user.name,
                     tournamentsCount: entry.tournamentsCount,
                     averageFinish: entry.averageFinish,
                     ratingPoints: entry.ratingPoints,
@@ -113,7 +113,7 @@ class LeaderboardController {
                 },
                 entries: entries.map((entry) => ({
                     rankPosition: entry.rankPosition,
-                    playerName: `${entry.playerProfile.user.firstName} ${entry.playerProfile.user.lastName}`,
+                    playerName: entry.playerProfile.user.name,
                     rankCode: entry.playerProfile.rankCode,
                     ratingPoints: entry.ratingPoints,
                     tournamentsCount: entry.tournamentsCount,

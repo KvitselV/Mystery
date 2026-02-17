@@ -4,17 +4,23 @@ export declare class AuthService {
     private userRepository;
     private playerRepository;
     private balanceRepository;
-    private jwtService;
     register(data: RegisterDto): Promise<AuthResponse>;
-    login(data: LoginDto): Promise<AuthResponse>;
-    refreshAccessToken(refreshToken: string): Promise<{
-        accessToken: string;
+    /** Создать пользователя без токенов (для регистрации гостя админом). Возвращает playerProfileId. */
+    createUserAsGuest(data: RegisterDto): Promise<{
+        userId: string;
+        playerProfileId: string;
     }>;
+    login(data: LoginDto): Promise<AuthResponse>;
     getUserById(userId: string): Promise<User | null>;
+    updateProfile(userId: string, data: {
+        name?: string;
+        phone?: string;
+        avatarUrl?: string | null;
+    }): Promise<User>;
     getAllUsers(): Promise<Array<{
         id: string;
-        firstName: string;
-        lastName: string;
+        name: string;
+        clubCardNumber: string;
         phone: string;
         role: string;
         managedClubId: string | null;

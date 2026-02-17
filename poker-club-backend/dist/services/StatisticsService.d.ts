@@ -4,6 +4,7 @@ export declare class StatisticsService {
     private profileRepo;
     private resultRepo;
     private tournamentRepo;
+    private registrationRepo;
     updatePlayerStatistics(userId: string, tournamentId: string): Promise<void>;
     /**
      * Рассчитать процент финальных столов (winRate)
@@ -22,6 +23,19 @@ export declare class StatisticsService {
      */
     private updateStreak;
     /**
+     * Получить последние N выступлений (дата, место, всего участников)
+     */
+    getLastPerformances(playerProfileId: string, limit?: number): Promise<{
+        date: string;
+        place: number;
+        totalPlayers: number;
+        tournamentId: string;
+    }[]>;
+    /**
+     * Победы в турнирах серий (1-е место, турнир с seriesId)
+     */
+    getSeriesWins(playerProfileId: string): Promise<number>;
+    /**
      * Получить полную статистику игрока (по playerProfileId)
      */
     getPlayerFullStatistics(playerProfileId: string): Promise<{
@@ -37,6 +51,19 @@ export declare class StatisticsService {
             count: number;
         }[];
         lastTournament: Tournament | null;
+        tournamentsPlayed: number;
+        winPercentage: number;
+        itmRate: number;
+        averageFinish: number;
+        bestFinish: number | null;
+        last7Performances: {
+            date: string;
+            place: number;
+            totalPlayers: number;
+            tournamentId: string;
+        }[];
+        seriesWins: number;
+        bestStreak: number;
     }>;
     /**
      * Получить статистику финишей игрока

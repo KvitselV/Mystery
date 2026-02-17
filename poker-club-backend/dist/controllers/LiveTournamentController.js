@@ -5,7 +5,10 @@ const LiveTournamentService_1 = require("../services/LiveTournamentService");
 const LiveStateService_1 = require("../services/LiveStateService");
 const TournamentService_1 = require("../services/TournamentService");
 const TournamentBalanceService_1 = require("../services/TournamentBalanceService");
+const BillService_1 = require("../services/BillService");
+const PlayerBill_1 = require("../models/PlayerBill");
 const liveTournamentService = new LiveTournamentService_1.LiveTournamentService();
+const billService = new BillService_1.BillService();
 const tournamentBalanceService = new TournamentBalanceService_1.TournamentBalanceService();
 const liveStateService = new LiveStateService_1.LiveStateService();
 const tournamentService = new TournamentService_1.TournamentService();
@@ -78,6 +81,23 @@ class LiveTournamentController {
             res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
         }
     }
+    static async returnEliminatedPlayer(req, res) {
+        try {
+            const tournamentId = req.params.id;
+            const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
+            await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
+            const playerId = req.params.playerId;
+            const { tableId, seatNumber } = req.body;
+            if (!tableId || typeof seatNumber !== 'number' || seatNumber < 1) {
+                return res.status(400).json({ error: 'tableId и seatNumber обязательны' });
+            }
+            const result = await liveTournamentService.returnEliminatedPlayer(tournamentId, playerId, tableId, seatNumber);
+            res.json(result);
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
     /**
      * PATCH /tournaments/:id/level/next - Перейти на следующий уровень
      * Только для администраторов
@@ -88,9 +108,7 @@ class LiveTournamentController {
             const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
             await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const { tournament, currentLevel } = await liveTournamentService.moveToNextLevel(tournamentId);
-            const durationSeconds = currentLevel?.isBreak
-                ? 300
-                : (currentLevel?.durationMinutes ?? 20) * 60;
+            const durationSeconds = (currentLevel?.durationMinutes ?? (currentLevel?.isBreak ? 5 : 20)) * 60;
             await liveStateService.updateLiveState(tournamentId, {
                 currentLevelNumber: tournament.currentLevelNumber,
                 levelRemainingTimeSeconds: durationSeconds,
@@ -111,6 +129,7 @@ class LiveTournamentController {
                         durationMinutes: currentLevel.durationMinutes,
                         isBreak: currentLevel.isBreak,
                         breakName: currentLevel.breakName,
+                        breakType: currentLevel.breakType,
                     }
                     : null,
             });
@@ -128,9 +147,7 @@ class LiveTournamentController {
             const managedClubId = req.user?.role === 'CONTROLLER' ? req.user.managedClubId : undefined;
             await tournamentService.ensureTournamentBelongsToClub(tournamentId, managedClubId);
             const { tournament, currentLevel } = await liveTournamentService.moveToPrevLevel(tournamentId);
-            const durationSeconds = currentLevel?.isBreak
-                ? 300
-                : (currentLevel?.durationMinutes ?? 20) * 60;
+            const durationSeconds = (currentLevel?.durationMinutes ?? (currentLevel?.isBreak ? 5 : 20)) * 60;
             await liveStateService.updateLiveState(tournamentId, {
                 currentLevelNumber: tournament.currentLevelNumber,
                 levelRemainingTimeSeconds: durationSeconds,
@@ -151,6 +168,7 @@ class LiveTournamentController {
                         durationMinutes: currentLevel.durationMinutes,
                         isBreak: currentLevel.isBreak,
                         breakName: currentLevel.breakName,
+                        breakType: currentLevel.breakType,
                     }
                     : null,
             });
@@ -178,6 +196,7 @@ class LiveTournamentController {
                     durationMinutes: currentLevel.durationMinutes,
                     isBreak: currentLevel.isBreak,
                     breakName: currentLevel.breakName,
+                    breakType: currentLevel.breakType,
                 },
             });
         }
@@ -220,6 +239,16 @@ class LiveTournamentController {
                 if (playersCount !== 1) {
                     return res.status(400).json({
                         error: 'Контроллер может завершить турнир только когда остался один игрок после поздней регистрации',
+                    });
+                }
+                const { total: unpaidBillsCount } = await billService.getAllBills({
+                    tournamentId,
+                    status: PlayerBill_1.PlayerBillStatus.PENDING,
+                    limit: 1,
+                });
+                if (unpaidBillsCount > 0) {
+                    return res.status(400).json({
+                        error: 'Нельзя завершить турнир: у некоторых игроков есть неоплаченные счета. Закройте все счета перед завершением.',
                     });
                 }
             }

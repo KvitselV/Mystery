@@ -6,18 +6,19 @@ const authService = new AuthService_1.AuthService();
 class AuthController {
     static async register(req, res) {
         try {
-            const { firstName, lastName, phone, email, password } = req.body;
-            // Базовая валидация
-            if (!firstName || !lastName || !phone || !password) {
-                return res.status(400).json({ error: 'Missing required fields' });
+            const { name, clubCardNumber, phone, password } = req.body;
+            if (!name || !clubCardNumber || !phone || !password) {
+                return res.status(400).json({ error: 'Обязательные поля: имя, номер клубной карты, телефон, пароль' });
             }
             const result = await authService.register({
-                firstName,
-                lastName,
+                name,
+                clubCardNumber,
                 phone,
-                email,
                 password,
             });
+            req.session.userId = result.user.id;
+            req.session.role = result.user.role;
+            await new Promise((res, rej) => req.session.save((err) => (err ? rej(err) : res())));
             res.status(201).json(result);
         }
         catch (error) {
@@ -32,6 +33,10 @@ class AuthController {
                 return res.status(400).json({ error: 'Phone and password are required' });
             }
             const result = await authService.login({ phone, password });
+            req.session.userId = result.user.id;
+            req.session.role = result.user.role;
+            req.session.managedClubId = result.user.managedClubId ?? null;
+            await new Promise((res, rej) => req.session.save((err) => (err ? rej(err) : res())));
             res.json(result);
         }
         catch (error) {
@@ -39,19 +44,8 @@ class AuthController {
             res.status(401).json({ error: message });
         }
     }
-    static async refresh(req, res) {
-        try {
-            const { refreshToken } = req.body;
-            if (!refreshToken) {
-                return res.status(400).json({ error: 'Refresh token is required' });
-            }
-            const result = await authService.refreshAccessToken(refreshToken);
-            res.json(result);
-        }
-        catch (error) {
-            const message = error instanceof Error ? error.message : 'Invalid refresh token';
-            res.status(401).json({ error: message });
-        }
+    static async logout(req, res) {
+        req.session.destroy(() => res.json({ ok: true }));
     }
     static async getMe(req, res) {
         try {
@@ -66,6 +60,23 @@ class AuthController {
             res.status(400).json({ error: message });
         }
     }
+    static async updateProfile(req, res) {
+        try {
+            if (!req.user)
+                return res.status(401).json({ error: 'Unauthorized' });
+            const { name, phone, avatarUrl } = req.body;
+            const user = await authService.updateProfile(req.user.userId, {
+                ...(name != null && { name }),
+                ...(phone != null && { phone }),
+                ...('avatarUrl' in req.body && { avatarUrl: avatarUrl ?? null }),
+            });
+            res.json(user);
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to update profile';
+            res.status(400).json({ error: message });
+        }
+    }
     static async promoteToAdmin(req, res) {
         try {
             if (!req.user)
@@ -73,6 +84,8 @@ class AuthController {
             const result = await authService.promoteToAdmin(req.user.userId);
             if (!result)
                 return res.status(403).json({ error: 'Promotion not allowed' });
+            req.session.role = 'ADMIN';
+            await new Promise((res, rej) => req.session.save((err) => (err ? rej(err) : res())));
             res.json(result);
         }
         catch (error) {

@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LiveStateService = void 0;
 const database_1 = require("../config/database");
-const typeorm_1 = require("typeorm");
 const redis_1 = require("../config/redis");
 const TournamentLiveState_1 = require("../models/TournamentLiveState");
 const Tournament_1 = require("../models/Tournament");
@@ -22,6 +21,28 @@ class LiveStateService {
     // ---------- Redis helpers ----------
     getLiveStateKey(tournamentId) {
         return `tournament:live:${tournamentId}`;
+    }
+    getTimerKey(tournamentId) {
+        return `tournament:live:timer:${tournamentId}`;
+    }
+    /** Таймер в Redis — источник истины для тикера, снижает нагрузку на БД */
+    async getTimer(tournamentId) {
+        if (!redis_1.redisClient.isOpen)
+            return null;
+        const raw = await redis_1.redisClient.get(this.getTimerKey(tournamentId));
+        if (!raw)
+            return null;
+        try {
+            return JSON.parse(raw);
+        }
+        catch {
+            return null;
+        }
+    }
+    async setTimer(tournamentId, data) {
+        if (!redis_1.redisClient.isOpen)
+            return;
+        await redis_1.redisClient.set(this.getTimerKey(tournamentId), JSON.stringify(data), { EX: 86400 });
     }
     async getFromCache(tournamentId) {
         if (!redis_1.redisClient.isOpen)
@@ -82,6 +103,11 @@ class LiveStateService {
                 liveStatus: 'RUNNING',
             });
             await this.liveStateRepository.save(liveState);
+            await this.setTimer(tournamentId, {
+                levelRemainingTimeSeconds: liveState.levelRemainingTimeSeconds,
+                currentLevelNumber: liveState.currentLevelNumber,
+                isPaused: liveState.isPaused,
+            });
             console.log(`✅ Created Live State for tournament: ${tournamentId}`);
         }
         return liveState;
@@ -95,7 +121,22 @@ class LiveStateService {
         Object.assign(liveState, updates);
         liveState.updatedAt = new Date();
         const updated = await this.liveStateRepository.save(liveState);
+        let timerMerged = null;
+        if (updates.levelRemainingTimeSeconds !== undefined || updates.currentLevelNumber !== undefined || updates.isPaused !== undefined) {
+            const existing = await this.getTimer(tournamentId);
+            timerMerged = {
+                levelRemainingTimeSeconds: updates.levelRemainingTimeSeconds ?? existing?.levelRemainingTimeSeconds ?? updated.levelRemainingTimeSeconds,
+                currentLevelNumber: updates.currentLevelNumber ?? existing?.currentLevelNumber ?? updated.currentLevelNumber,
+                isPaused: updates.isPaused ?? existing?.isPaused ?? updated.isPaused,
+            };
+            await this.setTimer(tournamentId, timerMerged);
+        }
         const dto = this.formatLiveState(updated);
+        if (timerMerged) {
+            dto.levelRemainingTimeSeconds = timerMerged.levelRemainingTimeSeconds;
+            dto.currentLevelNumber = timerMerged.currentLevelNumber;
+            dto.isPaused = timerMerged.isPaused;
+        }
         await this.saveToCache(tournamentId, dto); // 👈 кэш
         (0, websocket_1.broadcastLiveStateUpdate)(app_1.io, tournamentId, dto); // 🔥 вебсокет
         return updated;
@@ -117,25 +158,23 @@ class LiveStateService {
         const totalParticipants = await this.registrationRepository.count({
             where: { tournament: { id: tournamentId } },
         });
-        const rebuyCount = await this.operationRepository.count({
-            where: {
-                tournament: { id: tournamentId },
-                operationType: 'REBUY',
-            },
-        });
+        const [rebuyCount, addonCount] = await Promise.all([
+            this.operationRepository.count({
+                where: { tournament: { id: tournamentId }, operationType: 'REBUY' },
+            }),
+            this.operationRepository.count({
+                where: { tournament: { id: tournamentId }, operationType: 'ADDON' },
+            }),
+        ]);
         const totalEntries = totalParticipants + rebuyCount;
-        let totalChipsInPlay = 0;
-        if (activePlayerIds.length > 0) {
-            const activeRegs = await this.registrationRepository.find({
-                where: {
-                    tournament: { id: tournamentId },
-                    player: { id: (0, typeorm_1.In)(activePlayerIds) },
-                },
-            });
-            totalChipsInPlay = activeRegs.reduce((sum, r) => sum + (r.currentStack ?? 0), 0);
-        }
+        // Общее количество фишек = бай-ины + ребаи + аддоны. Не уменьшается при вылете — вылетевший отдал фишки победителю.
+        const startingStack = liveState.tournament?.startingStack ?? 0;
+        const rebuyChips = liveState.tournament?.rebuyChips ?? 0;
+        const addonChips = liveState.tournament?.addonChips ?? 0;
+        const totalChipsInPlay = totalParticipants * startingStack + rebuyCount * rebuyChips + addonCount * addonChips;
         const playersCount = activePlayerIds.length;
-        const averageStack = playersCount > 0 ? Math.floor(totalChipsInPlay / playersCount) : 0;
+        const divisor = playersCount > 0 ? playersCount : totalParticipants;
+        const averageStack = divisor > 0 ? Math.floor(totalChipsInPlay / divisor) : (liveState.tournament?.startingStack ?? 0);
         liveState.playersCount = playersCount;
         liveState.totalParticipants = totalParticipants;
         liveState.totalEntries = totalEntries;
@@ -228,7 +267,9 @@ class LiveStateService {
             await this.liveStateRepository.remove(liveState);
             console.log(`🗑️ Deleted Live State for tournament ${tournamentId}`);
         }
-        await this.deleteFromCache(tournamentId); // 👈 чистим Redis
+        await this.deleteFromCache(tournamentId);
+        if (redis_1.redisClient.isOpen)
+            await redis_1.redisClient.del(this.getTimerKey(tournamentId));
     }
     /**
      * Форматировать Live State для ответа и WebSocket

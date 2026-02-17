@@ -8,6 +8,7 @@ router.use(authMiddleware_1.authMiddleware);
 router.post('/:id/player/:playerId/rebuy', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.rebuy);
 router.post('/:id/player/:playerId/addon', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.addon);
 router.post('/:id/player/:playerId/eliminate', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.eliminatePlayer);
+router.post('/:id/player/:playerId/return', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.returnEliminatedPlayer);
 router.patch('/:id/level/next', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.moveToNextLevel);
 router.patch('/:id/level/prev', (0, authMiddleware_1.requireAdminOrController)(), LiveTournamentController_1.LiveTournamentController.moveToPrevLevel);
 router.get('/:id/level/current', LiveTournamentController_1.LiveTournamentController.getCurrentLevel);

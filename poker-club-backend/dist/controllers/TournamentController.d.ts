@@ -16,6 +16,14 @@ export declare class TournamentController {
      */
     static registerForTournament(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     /**
+     * POST /tournaments/:id/register-guest - Зарегистрировать гостя (админ создаёт аккаунт и записывает на турнир)
+     */
+    static registerGuest(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    /**
+     * POST /tournaments/:id/register-by-card - Записать на турнир по номеру клубной карты
+     */
+    static registerByCard(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    /**
      * GET /tournaments/:id/players - Получить участников турнира
      */
     static getTournamentPlayers(req: AuthRequest, res: Response): Promise<void>;

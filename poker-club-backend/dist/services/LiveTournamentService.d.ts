@@ -8,6 +8,8 @@ export declare class LiveTournamentService {
     private operationRepository;
     private registrationRepository;
     private resultRepository;
+    private paymentRepository;
+    private adminReportRepository;
     private blindStructureRepository;
     private levelRepository;
     private liveStateService;
@@ -27,6 +29,13 @@ export declare class LiveTournamentService {
      * (следующее место после уже вылетевших).
      */
     eliminatePlayer(tournamentId: string, playerProfileId: string, finishPosition?: number): Promise<TournamentResult>;
+    /**
+     * Вернуть вылетевшего игрока: ребай + реактивация + посадка на стол.
+     * Доступно только во время поздней регистрации и при наличии неиспользованного ребая.
+     */
+    returnEliminatedPlayer(tournamentId: string, playerProfileId: string, tableId: string, seatNumber: number): Promise<{
+        message: string;
+    }>;
     moveToNextLevel(tournamentId: string): Promise<{
         tournament: Tournament;
         currentLevel: TournamentLevel | null;
@@ -45,5 +54,9 @@ export declare class LiveTournamentService {
      * Завершить турнир и обновить все рейтинги
      */
     finishTournament(tournamentId: string): Promise<void>;
+    /**
+     * Вызывается воркером для выполнения тяжёлых операций после завершения турнира
+     */
+    processFinishTournamentJobs(tournamentId: string): Promise<void>;
 }
 //# sourceMappingURL=LiveTournamentService.d.ts.map

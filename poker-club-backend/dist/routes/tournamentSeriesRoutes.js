@@ -7,6 +7,7 @@ const router = (0, express_1.Router)();
 router.use(authMiddleware_1.authMiddleware);
 router.get('/', TournamentSeriesController_1.TournamentSeriesController.getAll);
 router.get('/:id', TournamentSeriesController_1.TournamentSeriesController.getById);
+router.get('/:id/rating-table', TournamentSeriesController_1.TournamentSeriesController.getRatingTable);
 router.post('/', (0, authMiddleware_1.requireAdminOrController)(), TournamentSeriesController_1.TournamentSeriesController.create);
 router.patch('/:id', (0, authMiddleware_1.requireAdminOrController)(), TournamentSeriesController_1.TournamentSeriesController.update);
 router.delete('/:id', (0, authMiddleware_1.requireAdminOrController)(), TournamentSeriesController_1.TournamentSeriesController.delete);

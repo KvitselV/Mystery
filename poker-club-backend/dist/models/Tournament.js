@@ -33,7 +33,7 @@ __decorate([
     __metadata("design:type", Date)
 ], Tournament.prototype, "startTime", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'enum', enum: ['REG_OPEN', 'LATE_REG', 'RUNNING', 'FINISHED', 'ARCHIVED'], default: 'REG_OPEN' }),
+    (0, typeorm_1.Column)({ type: 'enum', enum: ['ANNOUNCED', 'REG_OPEN', 'LATE_REG', 'RUNNING', 'FINISHED', 'ARCHIVED'], default: 'ANNOUNCED' }),
     __metadata("design:type", String)
 ], Tournament.prototype, "status", void 0);
 __decorate([

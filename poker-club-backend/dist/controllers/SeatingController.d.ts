@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 export declare class SeatingController {
     static initTablesFromClub(req: AuthRequest, res: Response): Promise<void>;
-    static autoSeating(req: AuthRequest, res: Response): Promise<void>;
+    static autoSeating(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     static manualReseating(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     /**
      * GET /tournaments/:id/tables - Получить все столы турнира

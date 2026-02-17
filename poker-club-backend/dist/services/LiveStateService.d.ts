@@ -21,6 +21,18 @@ export declare class LiveStateService {
     private registrationRepository;
     private operationRepository;
     private getLiveStateKey;
+    private getTimerKey;
+    /** Таймер в Redis — источник истины для тикера, снижает нагрузку на БД */
+    getTimer(tournamentId: string): Promise<{
+        levelRemainingTimeSeconds: number;
+        currentLevelNumber: number;
+        isPaused: boolean;
+    } | null>;
+    setTimer(tournamentId: string, data: {
+        levelRemainingTimeSeconds: number;
+        currentLevelNumber: number;
+        isPaused: boolean;
+    }): Promise<void>;
     private getFromCache;
     private saveToCache;
     private deleteFromCache;

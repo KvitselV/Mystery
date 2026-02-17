@@ -4,6 +4,8 @@ exports.TournamentSeriesService = void 0;
 const typeorm_1 = require("typeorm");
 const database_1 = require("../config/database");
 const TournamentSeries_1 = require("../models/TournamentSeries");
+const TournamentResult_1 = require("../models/TournamentResult");
+const Tournament_1 = require("../models/Tournament");
 const LeaderboardService_1 = require("./LeaderboardService");
 const TournamentService_1 = require("./TournamentService");
 class TournamentSeriesService {
@@ -54,6 +56,12 @@ class TournamentSeriesService {
                 buyInCost: buyIn,
                 startingStack,
                 blindStructureId: data.defaultBlindStructureId,
+                addonChips: data.defaultAddonChips ?? 0,
+                addonCost: data.defaultAddonCost ?? 0,
+                rebuyChips: data.defaultRebuyChips ?? 0,
+                rebuyCost: data.defaultRebuyCost ?? 0,
+                maxRebuys: data.defaultMaxRebuys ?? 0,
+                maxAddons: data.defaultMaxAddons ?? 0,
             });
         }
         return this.getSeriesById(saved.id);
@@ -116,6 +124,55 @@ class TournamentSeriesService {
         return series.daysOfWeek
             ? series.daysOfWeek.split(',').map((s) => parseInt(s, 10))
             : [];
+    }
+    /**
+     * Таблица рейтинга серии: игроки, итого очков, очки по датам турниров.
+     * Колонки: Имя (№ карты) | Итого | Дата1 | Дата2 | ... (новые даты добавляются в 3-ю колонку)
+     */
+    async getSeriesRatingTable(seriesId) {
+        const series = await this.getSeriesById(seriesId);
+        const tournamentRepo = database_1.AppDataSource.getRepository(Tournament_1.Tournament);
+        const resultRepo = database_1.AppDataSource.getRepository(TournamentResult_1.TournamentResult);
+        const tournaments = await tournamentRepo.find({
+            where: { series: { id: seriesId }, status: (0, typeorm_1.In)(['ARCHIVED', 'FINISHED']) },
+            order: { startTime: 'DESC' },
+        });
+        const columns = tournaments.map((t) => ({
+            date: new Date(t.startTime).toISOString().slice(0, 10),
+            dateLabel: new Date(t.startTime).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            tournamentId: t.id,
+        }));
+        const results = await resultRepo.find({
+            where: { tournament: { id: (0, typeorm_1.In)(tournaments.map((t) => t.id)) } },
+            relations: ['player', 'player.user', 'tournament'],
+        });
+        const byPlayer = new Map();
+        for (const r of results) {
+            const pid = r.player?.id;
+            if (!pid)
+                continue;
+            const dateKey = r.tournament ? new Date(r.tournament.startTime).toISOString().slice(0, 10) : '';
+            const pts = r.points ?? 0;
+            const pos = r.finishPosition ?? 0;
+            if (!byPlayer.has(pid)) {
+                byPlayer.set(pid, {
+                    playerId: pid,
+                    playerName: r.player?.user?.name || 'Игрок',
+                    clubCardNumber: r.player?.user?.clubCardNumber,
+                    totalPoints: 0,
+                    pointsByDate: {},
+                    positionByDate: {},
+                });
+            }
+            const row = byPlayer.get(pid);
+            row.totalPoints += pts;
+            if (dateKey) {
+                row.pointsByDate[dateKey] = pts;
+                row.positionByDate[dateKey] = pos;
+            }
+        }
+        const rows = Array.from(byPlayer.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+        return { seriesName: series.name, columns, rows };
     }
 }
 exports.TournamentSeriesService = TournamentSeriesService;

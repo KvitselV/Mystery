@@ -54,6 +54,10 @@ __decorate([
     (0, typeorm_1.Column)({ type: 'varchar', length: 100, nullable: true }),
     __metadata("design:type", String)
 ], TournamentLevel.prototype, "breakName", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 30, nullable: true }),
+    __metadata("design:type", String)
+], TournamentLevel.prototype, "breakType", void 0);
 exports.TournamentLevel = TournamentLevel = __decorate([
     (0, typeorm_1.Entity)('tournament_levels')
 ], TournamentLevel);

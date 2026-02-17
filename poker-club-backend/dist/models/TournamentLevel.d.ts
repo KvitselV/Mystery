@@ -9,5 +9,7 @@ export declare class TournamentLevel {
     durationMinutes: number;
     isBreak: boolean;
     breakName?: string;
+    /** Тип перерыва: REGULAR | END_LATE_REG | ADDON | END_LATE_REG_AND_ADDON */
+    breakType?: string;
 }
 //# sourceMappingURL=TournamentLevel.d.ts.map

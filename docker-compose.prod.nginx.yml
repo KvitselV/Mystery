@@ -1,0 +1,10 @@
+# Вариант для использования с внешним Nginx (домен + HTTPS)
+# Запуск: docker compose -f docker-compose.prod.yml -f docker-compose.prod.nginx.yml up -d
+# Frontend на 8080, чтобы порт 80 был свободен для Nginx на хосте
+
+version: '3.8'
+
+services:
+  frontend:
+    ports:
+      - "8080:80"

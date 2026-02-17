@@ -5,11 +5,13 @@ const database_1 = require("../config/database");
 const PlayerProfile_1 = require("../models/PlayerProfile");
 const TournamentResult_1 = require("../models/TournamentResult");
 const Tournament_1 = require("../models/Tournament");
+const TournamentRegistration_1 = require("../models/TournamentRegistration");
 class StatisticsService {
     constructor() {
         this.profileRepo = database_1.AppDataSource.getRepository(PlayerProfile_1.PlayerProfile);
         this.resultRepo = database_1.AppDataSource.getRepository(TournamentResult_1.TournamentResult);
         this.tournamentRepo = database_1.AppDataSource.getRepository(Tournament_1.Tournament);
+        this.registrationRepo = database_1.AppDataSource.getRepository(TournamentRegistration_1.TournamentRegistration);
     }
     async updatePlayerStatistics(userId, tournamentId) {
         // Найти профиль по user_id через связь
@@ -103,6 +105,48 @@ class StatisticsService {
         }
     }
     /**
+     * Получить последние N выступлений (дата, место, всего участников)
+     */
+    async getLastPerformances(playerProfileId, limit = 7) {
+        const results = await this.resultRepo
+            .createQueryBuilder('result')
+            .leftJoinAndSelect('result.tournament', 'tournament')
+            .where('result.player_id = :playerId', { playerId: playerProfileId })
+            .orderBy('tournament.startTime', 'DESC')
+            .take(limit)
+            .getMany();
+        const tournamentIds = [...new Set(results.map((r) => r.tournament?.id).filter(Boolean))];
+        const countRows = tournamentIds.length > 0
+            ? await this.registrationRepo
+                .createQueryBuilder('r')
+                .select('r.tournament_id', 'tid')
+                .addSelect('COUNT(*)', 'cnt')
+                .where('r.tournament_id IN (:...ids)', { ids: tournamentIds })
+                .groupBy('r.tournament_id')
+                .getRawMany()
+            : [];
+        const totalByTid = Object.fromEntries(countRows.map((c) => [c.tid, parseInt(String(c.cnt), 10)]));
+        return results
+            .filter((r) => r.tournament?.startTime && r.tournament?.id)
+            .map((r) => ({
+            date: new Date(r.tournament.startTime).toISOString().slice(0, 10),
+            place: r.finishPosition,
+            totalPlayers: r.tournament.id ? (totalByTid[r.tournament.id] ?? r.finishPosition) : r.finishPosition,
+            tournamentId: r.tournament.id,
+        }))
+            .reverse(); // хронологический порядок для графика (от старых к новым)
+    }
+    /**
+     * Победы в турнирах серий (1-е место, турнир с seriesId)
+     */
+    async getSeriesWins(playerProfileId) {
+        const results = await this.resultRepo.find({
+            where: { player: { id: playerProfileId }, finishPosition: 1 },
+            relations: ['tournament', 'tournament.series'],
+        });
+        return results.filter((r) => r.tournament?.series != null).length;
+    }
+    /**
      * Получить полную статистику игрока (по playerProfileId)
      */
     async getPlayerFullStatistics(playerProfileId) {
@@ -110,22 +154,44 @@ class StatisticsService {
             where: { id: playerProfileId },
             relations: ['user', 'balance'],
         });
-        if (!profile) {
-            return {
-                profile: null,
-                finishes: { first: 0, second: 0, third: 0, others: 0 },
-                participationChart: [],
-                lastTournament: null,
-            };
-        }
-        const finishes = await this.getFinishStatistics(playerProfileId);
-        const participationChart = await this.getParticipationChart(playerProfileId);
-        const lastTournament = await this.getLastTournament(playerProfileId);
+        const empty = {
+            profile: null,
+            finishes: { first: 0, second: 0, third: 0, others: 0 },
+            participationChart: [],
+            lastTournament: null,
+            tournamentsPlayed: 0,
+            winPercentage: 0,
+            itmRate: 0,
+            averageFinish: 0,
+            bestFinish: null,
+            last7Performances: [],
+            seriesWins: 0,
+            bestStreak: 0,
+        };
+        if (!profile)
+            return empty;
+        const [finishes, participationChart, lastTournament, last7Performances, seriesWins] = await Promise.all([
+            this.getFinishStatistics(playerProfileId),
+            this.getParticipationChart(playerProfileId),
+            this.getLastTournament(playerProfileId),
+            this.getLastPerformances(playerProfileId, 7),
+            this.getSeriesWins(playerProfileId),
+        ]);
+        const total = finishes.first + finishes.second + finishes.third + finishes.others;
+        const winPercentage = total > 0 ? parseFloat(((finishes.first / total) * 100).toFixed(1)) : 0;
         return {
             profile,
             finishes,
             participationChart,
             lastTournament,
+            tournamentsPlayed: total,
+            winPercentage,
+            itmRate: profile.winRate ?? 0,
+            averageFinish: profile.averageFinish ?? 0,
+            bestFinish: profile.bestFinish ?? null,
+            last7Performances,
+            seriesWins,
+            bestStreak: profile.bestStreak ?? 0,
         };
     }
     /**
@@ -147,19 +213,21 @@ class StatisticsService {
      * Получить график участия (по месяцам)
      */
     async getParticipationChart(playerProfileId) {
-        const results = await this.resultRepo
-            .createQueryBuilder('result')
-            .leftJoin('result.tournament', 'tournament')
-            .select("TO_CHAR(tournament.startTime, 'YYYY-MM')", 'month')
-            .addSelect('COUNT(*)', 'count')
-            .where('result.player_id = :playerId', { playerId: playerProfileId })
-            .groupBy('month')
-            .orderBy('month', 'ASC')
-            .getRawMany();
-        return results.map((r) => ({
-            month: r.month,
-            count: parseInt(r.count),
-        }));
+        const results = await this.resultRepo.find({
+            where: { player: { id: playerProfileId } },
+            relations: ['tournament'],
+        });
+        const byMonth = new Map();
+        for (const r of results) {
+            if (r.tournament?.startTime) {
+                const d = new Date(r.tournament.startTime);
+                const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                byMonth.set(month, (byMonth.get(month) ?? 0) + 1);
+            }
+        }
+        return Array.from(byMonth.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([month, count]) => ({ month, count }));
     }
     /**
      * Получить последний сыгранный турнир

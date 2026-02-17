@@ -1,32 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireAdmin = exports.requireAdminOrController = exports.requireRole = exports.authMiddleware = void 0;
-const JwtService_1 = require("../services/JwtService");
 const database_1 = require("../config/database");
 const User_1 = require("../models/User");
-const jwtService = new JwtService_1.JwtService();
 const userRepository = database_1.AppDataSource.getRepository(User_1.User);
 const authMiddleware = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Missing or invalid authorization header' });
+    const sid = req.session?.userId;
+    if (!sid) {
+        return res.status(401).json({ error: 'Unauthorized: no session' });
     }
-    const token = authHeader.slice(7);
-    try {
-        const payload = jwtService.verifyAccessToken(token);
-        req.user = {
-            userId: payload.userId,
-            role: payload.role,
-        };
-        if (payload.role === 'CONTROLLER') {
-            const u = await userRepository.findOne({ where: { id: payload.userId }, select: ['managedClubId'] });
-            req.user.managedClubId = u?.managedClubId ?? null;
-        }
-        next();
+    req.user = {
+        userId: req.session.userId,
+        role: req.session.role,
+        managedClubId: req.session.managedClubId ?? null,
+    };
+    if (req.user.role === 'CONTROLLER') {
+        const u = await userRepository.findOne({ where: { id: req.user.userId }, select: ['managedClubId'] });
+        req.user.managedClubId = u?.managedClubId ?? null;
     }
-    catch (error) {
-        return res.status(401).json({ error: 'Invalid or expired token' });
-    }
+    next();
 };
 exports.authMiddleware = authMiddleware;
 const requireRole = (roles) => {

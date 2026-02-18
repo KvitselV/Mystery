@@ -2,12 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { tournamentsApi, liveStateApi, seatingApi, liveTournamentApi, blindStructuresApi, type Tournament, type LiveState, type TournamentTable, type TournamentPlayer, type TournamentPlayerBalance } from '../api';
+import { tournamentsApi, liveStateApi, seatingApi, liveTournamentApi, blindStructuresApi, statisticsApi, achievementsApi, type Tournament, type LiveState, type TournamentTable, type TournamentPlayer, type TournamentPlayerBalance, type PlayerStatistics, type AchievementInstanceDto } from '../api';
 import { AdminReportModal } from '../components/AdminReportModal';
 import { PlayerResultsModal } from '../components/PlayerResultsModal';
 import { useClub } from '../contexts/ClubContext';
 import { useAuth } from '../contexts/AuthContext';
-import { format, addDays, startOfDay, startOfMonth, startOfWeek, addMonths, subMonths, isSameMonth, isToday } from 'date-fns';
+import { format, addDays, startOfMonth, startOfWeek, addMonths, subMonths, isSameMonth, isToday } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { TVTimerBlock } from '../components/TVTimerBlock';
 
@@ -782,6 +782,7 @@ function LiveTournamentBlock({
   onRefresh?: () => void;
 }) {
   const navigate = useNavigate();
+  const [guestProfileModal, setGuestProfileModal] = useState<{ playerProfileId: string; playerName?: string; clubCardNumber?: string } | null>(null);
   return (
     <div className="space-y-6">
       <div className="glass-card p-6">
@@ -808,10 +809,33 @@ function LiveTournamentBlock({
         <h3 className="text-lg font-bold text-white mb-4">Столы</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {tables.map((table) => (
-            <Table2D key={table.id} table={table} showAdmin={false} tournamentId={tournament.id} />
+            <Table2D
+              key={table.id}
+              table={table}
+              showAdmin={false}
+              tournamentId={tournament.id}
+              onGuestClick={(seat) => {
+                if (seat.playerId) {
+                  setGuestProfileModal({
+                    playerProfileId: seat.playerId,
+                    playerName: seat.playerName,
+                    clubCardNumber: seat.clubCardNumber,
+                  });
+                }
+              }}
+            />
           ))}
         </div>
       </div>
+      {guestProfileModal && (
+        <GuestProfileModal
+          playerProfileId={guestProfileModal.playerProfileId}
+          playerName={guestProfileModal.playerName}
+          clubCardNumber={guestProfileModal.clubCardNumber}
+          onClose={() => setGuestProfileModal(null)}
+          onViewProfile={(userId) => navigate(`/profile/${userId}`)}
+        />
+      )}
     </div>
   );
 }
@@ -822,8 +846,9 @@ const TOUCH_DRAG_THRESHOLD = 10;
 function Table2D({
   table,
   showAdmin,
-  tournamentId,
+  tournamentId: _tournamentId,
   onPlayerClick,
+  onGuestClick,
   onEmptySeatClick,
   onEmptySeatDrop,
   onTouchDragStart,
@@ -834,6 +859,7 @@ function Table2D({
   showAdmin: boolean;
   tournamentId: string;
   onPlayerClick?: (seat: { id: string; seatNumber: number; playerId?: string; playerName?: string; status?: string }) => void;
+  onGuestClick?: (seat: { id: string; seatNumber: number; playerId?: string; playerName?: string; clubCardNumber?: string }) => void;
   onEmptySeatClick?: (tableId: string, seatNumber: number) => void;
   onEmptySeatDrop?: (tableId: string, seatNumber: number, playerId: string) => void;
   onTouchDragStart?: (playerId: string, playerName: string) => (e: React.TouchEvent) => void;
@@ -852,6 +878,7 @@ function Table2D({
         style={{ aspectRatio: '2.44 / 1.2', minHeight: 120 }}
       >
         <div className="absolute inset-0 flex items-center justify-center text-amber-400 font-bold text-lg pointer-events-none">Стол {table.tableNumber}</div>
+
         {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seatNum) => {
           const seat = seatByNumber[seatNum];
           const pos = positions[seatNum - 1];
@@ -861,6 +888,7 @@ function Table2D({
           const canClickEmpty = showAdmin && !isOccupied && !!onEmptySeatClick;
           const canDrop = showAdmin && !isOccupied && !!onEmptySeatDrop;
           const canClick = canClickOccupied || canClickEmpty;
+          const canClickGuest = !showAdmin && isOccupied && !isEliminated && !!onGuestClick;
           const canDragOccupied = showAdmin && isOccupied && !isEliminated && !!onEmptySeatDrop;
           // Для гостей показываем только занятые места; пустые боксы скрыты
           if (!showAdmin && !isOccupied) return null;
@@ -869,6 +897,10 @@ function Table2D({
               <div
                 key={seat?.id ?? `empty-${seatNum}`}
                 onClick={() => {
+                  if (canClickGuest && isOccupied && seat) {
+                    onGuestClick?.({ id: seat.id, seatNumber: seatNum, playerId: seat.playerId, playerName: seat.playerName, clubCardNumber: seat.clubCardNumber });
+                    return;
+                  }
                   if (!canClick) return;
                   if (isOccupied && seat) onPlayerClick?.(seat);
                   else onEmptySeatClick?.(table.id, seatNum);
@@ -890,7 +922,7 @@ function Table2D({
                   onTouchMove: onTouchDragMove,
                   onTouchEnd: onTouchDragEnd,
                 })}
-                className={`absolute w-12 h-12 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden flex flex-col items-center justify-center text-xs shrink-0 p-0 box-border ${canClick || canDrop ? 'cursor-pointer hover:border-2 hover:border-amber-400' : ''} ${canDragOccupied ? 'cursor-grab active:cursor-grabbing' : ''} ${(canDragOccupied || canDrop) ? 'touch-none' : ''} ${isOccupied ? 'glass-card border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]' : 'border border-dashed border-zinc-500/50 bg-zinc-800/30 hover:bg-zinc-700/40'}`}
+                className={`absolute w-12 h-12 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden flex flex-col items-center justify-center text-xs shrink-0 p-0 box-border ${canClick || canDrop || canClickGuest ? 'cursor-pointer hover:border-2 hover:border-amber-400' : ''} ${canDragOccupied ? 'cursor-grab active:cursor-grabbing' : ''} ${(canDragOccupied || canDrop) ? 'touch-none' : ''} ${isOccupied ? 'glass-card border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]' : 'border border-dashed border-zinc-500/50 bg-zinc-800/30 hover:bg-zinc-700/40'}`}
                 style={{ left: `${pos.x}%`, top: `${pos.y}%`, padding: 0, borderRadius: '50%' }}
               >
                 {isOccupied ? (
@@ -1284,6 +1316,183 @@ function AutoSeatModal({
           >
             Выполнить
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuestProfileModal({
+  playerProfileId,
+  playerName,
+  clubCardNumber,
+  onClose,
+  onViewProfile,
+}: {
+  playerProfileId: string;
+  playerName?: string;
+  clubCardNumber?: string;
+  onClose: () => void;
+  onViewProfile: (userId: string) => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<PlayerStatistics & { user?: { id: string; name: string; clubCardNumber: string; avatarUrl?: string | null; createdAt: string } } | null>(null);
+  const [achievements, setAchievements] = useState<AchievementInstanceDto[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [statsRes, achievementsRes] = await Promise.all([
+          statisticsApi.getByPlayerProfileId(playerProfileId),
+          achievementsApi.getByPlayerProfileId(playerProfileId),
+        ]);
+        setStats(statsRes.data);
+        setAchievements(achievementsRes.data);
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { error?: string } } };
+        setError(err.response?.data?.error ?? 'Ошибка загрузки данных');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [playerProfileId]);
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+        <div className="glass-card p-8 rounded-2xl max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-400"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+        <div className="glass-card p-8 rounded-2xl max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="text-red-400 text-center">{error}</div>
+          <button onClick={onClose} className="mt-4 glass-btn px-4 py-2 rounded-xl text-sm w-full">Закрыть</button>
+        </div>
+      </div>
+    );
+  }
+
+  const displayName = playerName || stats?.user?.name || 'Игрок';
+  const displayCardNumber = clubCardNumber || stats?.user?.clubCardNumber || '';
+  const registrationDate = stats?.user?.createdAt ? format(new Date(stats.user.createdAt), 'dd.MM.yyyy', { locale: ru }) : '—';
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="glass-card p-6 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            {stats?.user?.avatarUrl && (
+              <img src={stats.user.avatarUrl} alt="" className="w-16 h-16 rounded-full object-cover" />
+            )}
+            <div>
+              <h2 className="text-2xl font-bold text-amber-400">{displayName}</h2>
+              {displayCardNumber && <p className="text-zinc-400 text-sm">Карта: {displayCardNumber}</p>}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-white text-2xl">&times;</button>
+        </div>
+
+        <div className="space-y-6">
+          {/* Основная информация */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="glass-card p-4 rounded-xl">
+              <div className="text-zinc-400 text-sm mb-1">Всего турниров</div>
+              <div className="text-2xl font-bold text-amber-400">{stats?.tournamentsPlayed ?? 0}</div>
+            </div>
+            <div className="glass-card p-4 rounded-xl">
+              <div className="text-zinc-400 text-sm mb-1">Дата регистрации</div>
+              <div className="text-lg font-semibold text-white">{registrationDate}</div>
+            </div>
+          </div>
+
+          {/* Статистика */}
+          {stats && stats.tournamentsPlayed > 0 && (
+            <div>
+              <h3 className="text-lg font-bold text-white mb-3">Статистика</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="glass-card p-3 rounded-xl">
+                  <div className="text-zinc-400 text-xs mb-1">Побед</div>
+                  <div className="text-xl font-bold text-amber-400">{stats.finishes.first}</div>
+                </div>
+                <div className="glass-card p-3 rounded-xl">
+                  <div className="text-zinc-400 text-xs mb-1">2-е место</div>
+                  <div className="text-xl font-bold text-amber-400">{stats.finishes.second}</div>
+                </div>
+                <div className="glass-card p-3 rounded-xl">
+                  <div className="text-zinc-400 text-xs mb-1">3-е место</div>
+                  <div className="text-xl font-bold text-amber-400">{stats.finishes.third}</div>
+                </div>
+                <div className="glass-card p-3 rounded-xl">
+                  <div className="text-zinc-400 text-xs mb-1">Среднее место</div>
+                  <div className="text-xl font-bold text-amber-400">{stats.averageFinish.toFixed(1)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Последние 7 турниров */}
+          {stats && stats.last7Performances && stats.last7Performances.length > 0 && (
+            <div>
+              <h3 className="text-lg font-bold text-white mb-3">Последние 7 турниров</h3>
+              <div className="space-y-2">
+                {stats.last7Performances.map((perf, idx) => (
+                  <div key={idx} className="glass-card p-3 rounded-xl flex items-center justify-between">
+                    <div className="text-sm text-zinc-300">{format(new Date(perf.date), 'dd.MM.yyyy', { locale: ru })}</div>
+                    <div className="text-sm font-semibold text-amber-400">
+                      {perf.place} из {perf.totalPlayers}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Достижения */}
+          {achievements.length > 0 && (
+            <div>
+              <h3 className="text-lg font-bold text-white mb-3">Достижения ({achievements.length})</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {achievements.map((ach) => (
+                  <div key={ach.id} className="glass-card p-3 rounded-xl flex items-center gap-2">
+                    {ach.achievementType.iconUrl && (
+                      <img src={ach.achievementType.iconUrl} alt="" className="w-8 h-8 rounded" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-amber-400 truncate">{ach.achievementType.name}</div>
+                      <div className="text-xs text-zinc-400 truncate">{ach.achievementType.description}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Кнопка перейти в профиль */}
+          {stats?.user?.id && (
+            <div className="pt-4 border-t border-zinc-700">
+              <button
+                onClick={() => {
+                  onViewProfile(stats.user!.id);
+                  onClose();
+                }}
+                className="glass-btn px-6 py-3 rounded-xl text-sm bg-amber-600 hover:bg-amber-500 w-full font-semibold"
+              >
+                Перейти в профиль
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

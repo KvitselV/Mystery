@@ -39,6 +39,7 @@ function App() {
         <Route path="tournaments/manage" element={<TournamentManagePage />} />
         <Route path="ratings" element={<RatingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="profile/:userId" element={<ProfilePage />} />
         <Route path="settings/*" element={<SettingsPage />} />
         <Route path="admin/*" element={<AdminRoute><AdminPanelPage /></AdminRoute>} />
       </Route>

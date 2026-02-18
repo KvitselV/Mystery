@@ -1,8 +1,11 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { AchievementService } from '../services/AchievementService';
+import { AppDataSource } from '../config/database';
+import { PlayerProfile } from '../models/PlayerProfile';
 
 const achievementService = new AchievementService();
+const profileRepo = AppDataSource.getRepository(PlayerProfile);
 
 function canAccessUser(req: AuthRequest, userId: string): boolean {
   if (!req.user) return false;
@@ -133,6 +136,30 @@ export class AchievementController {
       res.json({ message: 'Pins updated' });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to set pins' });
+    }
+  }
+
+  /**
+   * GET /achievements/profile/:playerProfileId — получить достижения по playerProfileId (доступно всем авторизованным)
+   */
+  static async getAchievementsByPlayerProfileId(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const playerProfileId = req.params.playerProfileId as string;
+
+      const profile = await profileRepo.findOne({
+        where: { id: playerProfileId },
+        relations: ['user'],
+      });
+
+      if (!profile) {
+        res.status(404).json({ error: 'Player profile not found' });
+        return;
+      }
+
+      const achievements = await achievementService.getUserAchievements(profile.user.id);
+      res.json(achievements);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch achievements' });
     }
   }
 }

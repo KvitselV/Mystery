@@ -194,6 +194,7 @@ export const achievementsApi = {
     api.post<AchievementTypeDto>('/achievements/types', data),
   revokeInstance: (instanceId: string) => api.delete(`/achievements/instances/${instanceId}`),
   seed: () => api.post('/achievements/seed'),
+  getByPlayerProfileId: (playerProfileId: string) => api.get<AchievementInstanceDto[]>(`/achievements/profile/${playerProfileId}`),
 };
 
 // Statistics
@@ -212,6 +213,8 @@ export interface PlayerStatistics {
 
 export const statisticsApi = {
   getFull: (userId: string) => api.get<PlayerStatistics & { profile?: unknown; lastTournament?: unknown }>(`/statistics/user/${userId}`),
+  getByPlayerProfileId: (playerProfileId: string) => api.get<PlayerStatistics & { user?: { id: string; name: string; clubCardNumber: string; avatarUrl?: string | null; createdAt: string } }>(`/statistics/profile/${playerProfileId}`),
+  getPublicByUserId: (userId: string) => api.get<PlayerStatistics & { user?: { id: string; name: string; clubCardNumber: string; avatarUrl?: string | null; createdAt: string } }>(`/statistics/user/${userId}/public`),
 };
 
 // Menu & Orders

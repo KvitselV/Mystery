@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth';
 import { achievementsApi, statisticsApi, tournamentsApi, type PlayerStatistics, type Tournament, type AchievementTypeDto, type AchievementInstanceDto } from '../api';
@@ -182,7 +183,9 @@ function PerformanceChart({ data }: { data: PerfItem[] }) {
 }
 
 export default function ProfilePage() {
+  const { userId: urlUserId } = useParams<{ userId?: string }>();
   const { user, promoteToAdmin, isAdmin, refreshUser } = useAuth();
+  const [viewingUser, setViewingUser] = useState<{ id: string; name?: string; clubCardNumber?: string; avatarUrl?: string | null; createdAt?: string } | null>(null);
   const [promoting, setPromoting] = useState(false);
   const [achievementProgress, setAchievementProgress] = useState<{
     unlocked: AchievementInstanceDto[];
@@ -201,16 +204,41 @@ export default function ProfilePage() {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    achievementsApi.getUserProgress(user.id).then((r) => setAchievementProgress(r.data)).catch(() => setAchievementProgress(null));
-    statisticsApi.getFull(user.id).then((r) => setStats(r.data as PlayerStatistics)).catch(() => setStats(null));
-  }, [user?.id]);
+  // Определяем, чей профиль показывать: из URL или текущего пользователя
+  const targetUserId = urlUserId || user?.id;
+  const isOwnProfile = !urlUserId || urlUserId === user?.id;
 
   useEffect(() => {
-    setEditName(user?.name ?? '');
-    setEditPhone(user?.phone ?? '');
-  }, [user?.name, user?.phone]);
+    if (!targetUserId) return;
+    
+    // Если просматриваем чужой профиль, загружаем данные пользователя
+    if (urlUserId && urlUserId !== user?.id) {
+      // Для чужого профиля используем публичный endpoint
+      statisticsApi.getPublicByUserId(targetUserId).then((r) => {
+        const data = r.data as PlayerStatistics & { user?: { id: string; name: string; clubCardNumber: string; avatarUrl?: string | null; createdAt: string } };
+        if (data.user) {
+          setViewingUser(data.user);
+        }
+        setStats(data);
+      }).catch(() => {
+        setStats(null);
+        setViewingUser(null);
+      });
+      achievementsApi.getUserProgress(targetUserId).then((r) => setAchievementProgress(r.data)).catch(() => setAchievementProgress(null));
+    } else {
+      // Свой профиль
+      setViewingUser(null);
+      achievementsApi.getUserProgress(targetUserId).then((r) => setAchievementProgress(r.data)).catch(() => setAchievementProgress(null));
+      statisticsApi.getFull(targetUserId).then((r) => setStats(r.data as PlayerStatistics)).catch(() => setStats(null));
+    }
+  }, [targetUserId, urlUserId, user?.id]);
+
+  useEffect(() => {
+    if (isOwnProfile) {
+      setEditName(user?.name ?? '');
+      setEditPhone(user?.phone ?? '');
+    }
+  }, [user?.name, user?.phone, isOwnProfile]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -251,11 +279,19 @@ export default function ProfilePage() {
     e.target.value = '';
   };
 
+  const displayUser = viewingUser || user;
+  const displayName = viewingUser?.name || user?.name || 'Игрок';
+  const displayCardNumber = viewingUser?.clubCardNumber || user?.clubCardNumber || '';
+  // Для чужого профиля используем только avatarUrl просматриваемого пользователя (даже если null)
+  // Для своего профиля используем avatarUrl текущего пользователя
+  const displayAvatarUrl = isOwnProfile ? user?.avatarUrl : (viewingUser?.avatarUrl ?? null);
+  const displayCreatedAt = viewingUser?.createdAt || user?.createdAt;
+
   return (
     <div className="max-w-2xl space-y-8">
       <div className="glass-card p-6">
-        <h2 className="text-xl font-bold text-white mb-4">Информация о себе</h2>
-        {!isAdmin && import.meta.env.DEV && (
+        <h2 className="text-xl font-bold text-white mb-4">{isOwnProfile ? 'Информация о себе' : `Профиль: ${displayName}`}</h2>
+        {isOwnProfile && !isAdmin && import.meta.env.DEV && (
           <button
             onClick={async () => { setPromoting(true); try { await promoteToAdmin(); } catch {} setPromoting(false); }}
             disabled={promoting}
@@ -266,29 +302,41 @@ export default function ProfilePage() {
         )}
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="flex flex-col items-center">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={avatarLoading}
-              className="w-24 h-24 rounded-full overflow-hidden glass-card border-2 border-amber-500/30 hover:border-amber-500/60 transition-colors flex items-center justify-center shrink-0"
-            >
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-4xl text-zinc-500">👤</span>
-              )}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-            />
-            <span className="text-zinc-500 text-xs mt-2">Нажмите для смены</span>
+            {isOwnProfile ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={avatarLoading}
+                  className="w-24 h-24 rounded-full overflow-hidden glass-card border-2 border-amber-500/30 hover:border-amber-500/60 transition-colors flex items-center justify-center shrink-0"
+                >
+                  {displayAvatarUrl ? (
+                    <img src={displayAvatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-4xl text-zinc-500">👤</span>
+                  )}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
+                <span className="text-zinc-500 text-xs mt-2">Нажмите для смены</span>
+              </>
+            ) : (
+              <div className="w-24 h-24 rounded-full overflow-hidden glass-card border-2 border-amber-500/30 flex items-center justify-center shrink-0">
+                {displayAvatarUrl ? (
+                  <img src={displayAvatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-4xl text-zinc-500">👤</span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex-1 space-y-3">
-            {editMode ? (
+            {isOwnProfile && editMode ? (
               <>
                 <div>
                   <label className="text-zinc-500 text-sm">Имя</label>
@@ -317,13 +365,13 @@ export default function ProfilePage() {
               </>
             ) : (
               <>
-                <p className="text-zinc-300"><span className="text-zinc-500">Имя:</span> {user?.name}</p>
-                <p className="text-zinc-300"><span className="text-zinc-500">Телефон:</span> {user?.phone}</p>
-                <button onClick={() => setEditMode(true)} className="text-amber-400 text-sm hover:underline">Изменить имя и телефон</button>
+                <p className="text-zinc-300"><span className="text-zinc-500">Имя:</span> {displayName}</p>
+                {isOwnProfile && <p className="text-zinc-300"><span className="text-zinc-500">Телефон:</span> {user?.phone}</p>}
+                {isOwnProfile && <button onClick={() => setEditMode(true)} className="text-amber-400 text-sm hover:underline">Изменить имя и телефон</button>}
               </>
             )}
-            {user?.clubCardNumber && <p className="text-zinc-500 text-sm">Номер клубной карты: {user.clubCardNumber}</p>}
-            <p className="text-zinc-500 text-sm">Дата регистрации: {formatRegistrationDate(user?.createdAt)}</p>
+            {displayCardNumber && <p className="text-zinc-500 text-sm">Номер клубной карты: {displayCardNumber}</p>}
+            <p className="text-zinc-500 text-sm">Дата регистрации: {formatRegistrationDate(displayCreatedAt)}</p>
           </div>
         </div>
       </div>
@@ -421,9 +469,9 @@ export default function ProfilePage() {
         <h2 className="text-xl font-bold text-white mb-4">Достижения</h2>
         <AchievementsBlock
           progress={achievementProgress}
-          userId={user?.id}
+          userId={isOwnProfile ? user?.id : targetUserId}
           onPinsChange={() => {
-            if (user?.id) achievementsApi.getUserProgress(user.id).then((r) => setAchievementProgress(r.data)).catch(() => {});
+            if (targetUserId) achievementsApi.getUserProgress(targetUserId).then((r) => setAchievementProgress(r.data)).catch(() => {});
           }}
         />
       </div>

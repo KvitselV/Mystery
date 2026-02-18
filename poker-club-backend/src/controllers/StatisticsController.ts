@@ -153,4 +153,76 @@ export class StatisticsController {
       res.status(500).json({ error: 'Failed to update statistics' });
     }
   }
+
+  /**
+   * GET /statistics/profile/:playerProfileId — получить профиль по playerProfileId (доступно всем авторизованным)
+   */
+  static async getProfileByPlayerProfileId(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const playerProfileId = req.params.playerProfileId as string;
+
+      const profile = await profileRepo.findOne({
+        where: { id: playerProfileId },
+        relations: ['user'],
+      });
+
+      if (!profile) {
+        res.status(404).json({ error: 'Player profile not found' });
+        return;
+      }
+
+      const stats = await statisticsService.getPlayerFullStatistics(profile.id);
+      // Возвращаем только сериализуемые данные
+      const { profile: _p, lastTournament: _t, ...serializable } = stats;
+      res.json({
+        ...serializable,
+        user: {
+          id: profile.user.id,
+          name: profile.user.name,
+          clubCardNumber: profile.user.clubCardNumber,
+          avatarUrl: profile.user.avatarUrl,
+          createdAt: profile.user.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching profile by playerProfileId:', error);
+      res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+  }
+
+  /**
+   * GET /statistics/user/:userId/public — получить профиль по userId (доступно всем авторизованным, для просмотра чужих профилей)
+   */
+  static async getPublicProfileByUserId(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.params.userId as string;
+
+      const profile = await profileRepo.findOne({
+        where: { user: { id: userId } },
+        relations: ['user'],
+      });
+
+      if (!profile) {
+        res.status(404).json({ error: 'Player profile not found' });
+        return;
+      }
+
+      const stats = await statisticsService.getPlayerFullStatistics(profile.id);
+      // Возвращаем только сериализуемые данные
+      const { profile: _p, lastTournament: _t, ...serializable } = stats;
+      res.json({
+        ...serializable,
+        user: {
+          id: profile.user.id,
+          name: profile.user.name,
+          clubCardNumber: profile.user.clubCardNumber,
+          avatarUrl: profile.user.avatarUrl,
+          createdAt: profile.user.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching public profile by userId:', error);
+      res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+  }
 }

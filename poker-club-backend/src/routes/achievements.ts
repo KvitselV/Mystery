@@ -23,4 +23,7 @@ router.delete('/instances/:id', requireRole(['ADMIN']), AchievementController.re
 // Закреплённые достижения (свой userId или ADMIN)
 router.patch('/user/:userId/pins', AchievementController.setPins);
 
+// Получить достижения по playerProfileId (доступно всем авторизованным)
+router.get('/profile/:playerProfileId', AchievementController.getAchievementsByPlayerProfileId);
+
 export default router;

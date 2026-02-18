@@ -275,10 +275,15 @@ function ScheduleCalendar({
   );
 }
 
+type BlindLevel = { id: string; levelNumber?: number; smallBlind?: number; bigBlind?: number; ante?: number; durationMinutes?: number; isBreak?: boolean; breakName?: string | null };
+
 function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tournaments: Tournament[]; isAdmin?: boolean; onRefresh?: () => void }) {
   const t = tournaments[0];
   const [reg, setReg] = useState(false);
   const [fullTournament, setFullTournament] = useState<Tournament | null>(null);
+  const [blindStructureModalOpen, setBlindStructureModalOpen] = useState(false);
+  const [blindLevelsForModal, setBlindLevelsForModal] = useState<BlindLevel[] | null>(null);
+  const [blindStructureLoading, setBlindStructureLoading] = useState(false);
 
   useEffect(() => {
     if (!t?.id) return;
@@ -287,13 +292,65 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
 
   const displayT = fullTournament || t;
 
+  const handleShowBlindStructure = () => {
+    const levels = displayT?.blindStructure?.levels;
+    if (levels?.length) {
+      setBlindLevelsForModal(levels as BlindLevel[]);
+      setBlindStructureModalOpen(true);
+      return;
+    }
+    if (displayT?.blindStructureId) {
+      setBlindStructureLoading(true);
+      blindStructuresApi.getById(displayT.blindStructureId)
+        .then((r) => {
+          const loaded = r.data?.structure?.levels ?? [];
+          setBlindLevelsForModal(loaded as BlindLevel[]);
+          setBlindStructureModalOpen(true);
+        })
+        .catch(() => setBlindLevelsForModal([]))
+        .finally(() => setBlindStructureLoading(false));
+      return;
+    }
+    setBlindLevelsForModal([]);
+    setBlindStructureModalOpen(true);
+  };
+
   if (!t) return <div className="glass-card p-6"><p className="text-zinc-400">Нет предстоящих турниров</p></div>;
 
   const start = new Date(displayT.startTime);
   const now = new Date();
-  const diffMs = start.getTime() - now.getTime();
+  const diffMs = Math.max(0, start.getTime() - now.getTime());
   const diffH = Math.floor(diffMs / 3600000);
   const diffM = Math.floor((diffMs % 3600000) / 60000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  const { timeValue, timeUnit } = (() => {
+    if (diffMs >= 86400000) {
+      const n = diffDays;
+      const word = n === 1 ? 'день' : n >= 2 && n <= 4 ? 'дня' : 'дней';
+      return { timeValue: n, timeUnit: word };
+    }
+    if (diffMs >= 3600000) return { timeValue: diffH, timeUnit: 'ч' };
+    if (diffMs >= 60000) return { timeValue: diffM, timeUnit: 'мин' };
+    return { timeValue: 0, timeUnit: 'мин' };
+  })();
+
+  const statusConfig = displayT.status === 'REG_OPEN'
+    ? { text: 'Регистрация открыта', colorClass: 'text-emerald-400', borderClass: 'border-emerald-400' }
+    : displayT.status === 'LATE_REG'
+      ? { text: 'Поздняя регистрация', colorClass: 'text-red-400', borderClass: 'border-red-400' }
+      : { text: 'Регистрация не открыта', colorClass: 'text-zinc-400', borderClass: 'border-zinc-500' };
+
+  const estimatedDurationMinutes = (() => {
+    const levels = displayT.blindStructure?.levels;
+    if (!levels?.length) return null;
+    return levels
+      .filter((l) => !l.isBreak)
+      .reduce((sum, l) => sum + (l.durationMinutes ?? 0), 0);
+  })();
+  const estimatedDurationStr = estimatedDurationMinutes != null
+    ? `${Math.floor(estimatedDurationMinutes / 60)}ч ${estimatedDurationMinutes % 60}м`
+    : '—';
 
   const [starting, setStarting] = useState(false);
   const handleRegister = async () => {
@@ -335,29 +392,78 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
     <div className="glass-card p-6 space-y-4">
       <h2 className="text-2xl font-bold text-white">Предстоящий турнир</h2>
       <div className="text-amber-400">{displayT.name}</div>
+
+      {/* Блок статуса и обратного отсчёта */}
+      <div className="flex items-stretch gap-4">
+        <div className={`flex shrink-0 w-20 h-20 rounded-full border-4 ${statusConfig.borderClass} bg-black/40 flex flex-col items-center justify-center`} aria-hidden>
+          <span className={`font-bold text-xl leading-tight ${statusConfig.colorClass}`}>{timeValue}</span>
+          <span className={`text-xs leading-tight ${statusConfig.colorClass}`}>{timeUnit}</span>
+        </div>
+        <div className="flex flex-col justify-center gap-0.5 min-w-0">
+          <div className={`font-medium ${statusConfig.colorClass}`}>{statusConfig.text}</div>
+          <div className="text-zinc-500 text-sm">Время начала: {format(start, 'dd.MM.yyyy HH:mm', { locale: ru })}</div>
+          <div className="text-zinc-500 text-sm">Расчётная длительность: {estimatedDurationStr}</div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div><span className="text-zinc-500">До начала:</span> {diffH}ч {diffM}м</div>
         <div><span className="text-zinc-500">Зарегистрировано:</span> {displayT.registrations?.length ?? 0}</div>
         <div><span className="text-zinc-500">Стартовый стек:</span> {displayT.startingStack}</div>
-        <div><span className="text-zinc-500">Блайнды:</span> см. структуру</div>
-      </div>
-      {displayT.blindStructure?.levels && (
         <div>
-          <h3 className="text-white font-medium mb-2">Структура блайндов</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-zinc-300">
-              <thead>
-                <tr><th className="text-left">Ур.</th><th className="text-left">SB</th><th className="text-left">BB</th><th className="text-left">Анте</th><th className="text-left">Мин</th></tr>
-              </thead>
-              <tbody>
-                {displayT.blindStructure!.levels!.map((l) => (
-                  <tr key={l.id}><td>{l.levelNumber}</td><td>{l.smallBlind}</td><td>{l.bigBlind}</td><td>{l.ante ?? 0}</td><td>{l.durationMinutes}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <span className="text-zinc-500">Блайнды:</span>{' '}
+          <button
+            type="button"
+            onClick={handleShowBlindStructure}
+            disabled={blindStructureLoading}
+            className="text-amber-400 hover:text-amber-300 underline underline-offset-2 focus:outline-none focus:ring-0 disabled:opacity-50"
+          >
+            {blindStructureLoading ? 'Загрузка…' : 'см. структуру'}
+          </button>
         </div>
-      )}
+      </div>
+      {blindStructureModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setBlindStructureModalOpen(false)} role="dialog" aria-modal="true" aria-labelledby="blind-structure-title">
+            <div className="glass-card p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-4">
+                <h3 id="blind-structure-title" className="text-xl font-bold text-amber-400">Структура блайндов</h3>
+                <button type="button" onClick={() => setBlindStructureModalOpen(false)} className="text-zinc-400 hover:text-white text-2xl leading-none" aria-label="Закрыть">×</button>
+              </div>
+              {blindLevelsForModal?.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-zinc-300">
+                    <thead>
+                      <tr className="border-b border-white/10 text-zinc-400">
+                        <th className="text-left py-2 px-2">Ур.</th>
+                        <th className="text-left py-2 px-2">SB</th>
+                        <th className="text-left py-2 px-2">BB</th>
+                        <th className="text-left py-2 px-2">Анте</th>
+                        <th className="text-left py-2 px-2">Мин</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {blindLevelsForModal.map((l) => (
+                        <tr key={l.id} className="border-b border-white/5">
+                          <td className="py-2 px-2">{l.levelNumber}</td>
+                          <td className="py-2 px-2">{l.smallBlind}</td>
+                          <td className="py-2 px-2">{l.bigBlind}</td>
+                          <td className="py-2 px-2">{l.ante ?? 0}</td>
+                          <td className="py-2 px-2">{l.isBreak ? (l.breakName || '—') : l.durationMinutes}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-zinc-400">Структура блайндов не указана.</p>
+              )}
+              <button type="button" onClick={() => setBlindStructureModalOpen(false)} className="mt-4 glass-btn px-4 py-2 rounded-xl text-zinc-400 hover:text-white">
+                Закрыть
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
       <div className="flex flex-wrap gap-2">
         <button
           onClick={handleRegister}
@@ -741,73 +847,89 @@ function Table2D({
 
   return (
     <div className="glass-card p-5 relative min-w-0">
-      <div className="absolute top-3 left-3 text-amber-400 font-bold text-lg">Стол {table.tableNumber}</div>
       <div
-        className="w-full max-w-[min(320px,100%)] mx-auto my-8 relative rounded-2xl border-2 border-amber-500/30 bg-zinc-800/50"
+        className="w-full max-w-[min(320px,100%)] mx-auto my-8 relative rounded-full border-2 border-amber-500/30 bg-zinc-800/50"
         style={{ aspectRatio: '2.44 / 1.2', minHeight: 120 }}
       >
+        <div className="absolute inset-0 flex items-center justify-center text-amber-400 font-bold text-lg pointer-events-none">Стол {table.tableNumber}</div>
         {Array.from({ length: maxSeats }, (_, i) => i + 1).map((seatNum) => {
           const seat = seatByNumber[seatNum];
           const pos = positions[seatNum - 1];
-          const isOccupied = seat?.isOccupied && seat?.playerId;
+          const isOccupied = !!(seat?.isOccupied && seat?.playerId);
           const isEliminated = seat?.status === 'ELIMINATED';
           const canClickOccupied = showAdmin && isOccupied && !isEliminated;
           const canClickEmpty = showAdmin && !isOccupied && !!onEmptySeatClick;
           const canDrop = showAdmin && !isOccupied && !!onEmptySeatDrop;
           const canClick = canClickOccupied || canClickEmpty;
           const canDragOccupied = showAdmin && isOccupied && !isEliminated && !!onEmptySeatDrop;
+          // Для гостей показываем только занятые места; пустые боксы скрыты
+          if (!showAdmin && !isOccupied) return null;
           return (
-            <div
-              key={seat?.id ?? `empty-${seatNum}`}
-              onClick={() => {
-                if (!canClick) return;
-                if (isOccupied && seat) onPlayerClick?.(seat);
-                else onEmptySeatClick?.(table.id, seatNum);
-              }}
-              draggable={canDragOccupied}
-              onDragStart={canDragOccupied && seat?.playerId ? (e) => {
-                e.dataTransfer.setData(DRAG_PLAYER_KEY, seat.playerId!);
-                e.dataTransfer.effectAllowed = 'move';
-              } : undefined}
-              onDragOver={canDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
-              onDrop={canDrop ? (e) => {
-                e.preventDefault();
-                const playerId = e.dataTransfer.getData(DRAG_PLAYER_KEY);
-                if (playerId) onEmptySeatDrop?.(table.id, seatNum, playerId);
-              } : undefined}
-              {...(canDrop && { 'data-droptarget': true, 'data-table-id': table.id, 'data-seat-number': seatNum })}
-              {...(canDragOccupied && seat?.playerId && onTouchDragStart && onTouchDragMove && onTouchDragEnd && {
-                onTouchStart: onTouchDragStart(seat.playerId, seat.playerName || 'Игрок'),
-                onTouchMove: onTouchDragMove,
-                onTouchEnd: onTouchDragEnd,
-              })}
-              className={`absolute w-10 h-10 -translate-x-1/2 -translate-y-1/2 rounded-lg flex flex-col items-center justify-center text-xs shrink-0 ${canClick || canDrop ? 'cursor-pointer hover:border-2 hover:border-amber-400' : ''} ${canDragOccupied ? 'cursor-grab active:cursor-grabbing' : ''} ${(canDragOccupied || canDrop) ? 'touch-none' : ''} ${isOccupied ? 'glass-card border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]' : 'border border-dashed border-zinc-500/50 bg-zinc-800/30 hover:bg-zinc-700/40'}`}
-              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            >
-              {isOccupied ? (
-                <>
-                  {seat.avatarUrl ? (
-                    <div className="flex flex-col items-center w-full">
-                      <img src={seat.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
-                      <span className="text-amber-300 font-medium truncate max-w-full text-[9px] leading-tight">
-                        {seat.clubCardNumber || seat.playerName || 'Гость'}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-amber-300 font-medium truncate max-w-full px-1 text-[11px] leading-tight">
-                      {seat.clubCardNumber || seat.playerName || 'Гость'}
-                    </span>
-                  )}
-                  <span className="absolute -top-0.5 -left-0.5 text-zinc-500 text-[9px]">{seatNum}</span>
-                  {isEliminated && <span className="absolute -top-0.5 -right-0.5 text-red-400 text-[9px]">✕</span>}
-                </>
-              ) : (
-                <span className={`flex flex-col items-center leading-tight ${canClickEmpty ? 'text-amber-500/70' : 'text-zinc-500'}`}>
-                  <span className="text-base">+</span>
-                  <span className="text-[11px] opacity-80">{seatNum}</span>
+            <>
+              <div
+                key={seat?.id ?? `empty-${seatNum}`}
+                onClick={() => {
+                  if (!canClick) return;
+                  if (isOccupied && seat) onPlayerClick?.(seat);
+                  else onEmptySeatClick?.(table.id, seatNum);
+                }}
+                draggable={canDragOccupied}
+                onDragStart={canDragOccupied && seat?.playerId ? (e) => {
+                  e.dataTransfer.setData(DRAG_PLAYER_KEY, seat.playerId!);
+                  e.dataTransfer.effectAllowed = 'move';
+                } : undefined}
+                onDragOver={canDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } : undefined}
+                onDrop={canDrop ? (e) => {
+                  e.preventDefault();
+                  const playerId = e.dataTransfer.getData(DRAG_PLAYER_KEY);
+                  if (playerId) onEmptySeatDrop?.(table.id, seatNum, playerId);
+                } : undefined}
+                {...(canDrop && { 'data-droptarget': true, 'data-table-id': table.id, 'data-seat-number': seatNum })}
+                {...(canDragOccupied && seat?.playerId && onTouchDragStart && onTouchDragMove && onTouchDragEnd && {
+                  onTouchStart: onTouchDragStart(seat.playerId, seat.playerName || 'Игрок'),
+                  onTouchMove: onTouchDragMove,
+                  onTouchEnd: onTouchDragEnd,
+                })}
+                className={`absolute w-12 h-12 -translate-x-1/2 -translate-y-1/2 rounded-full overflow-hidden flex flex-col items-center justify-center text-xs shrink-0 p-0 box-border ${canClick || canDrop ? 'cursor-pointer hover:border-2 hover:border-amber-400' : ''} ${canDragOccupied ? 'cursor-grab active:cursor-grabbing' : ''} ${(canDragOccupied || canDrop) ? 'touch-none' : ''} ${isOccupied ? 'glass-card border-2 border-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]' : 'border border-dashed border-zinc-500/50 bg-zinc-800/30 hover:bg-zinc-700/40'}`}
+                style={{ left: `${pos.x}%`, top: `${pos.y}%`, padding: 0, borderRadius: '50%' }}
+              >
+                {isOccupied ? (
+                  <>
+                    {seat.avatarUrl ? (
+                      <div className="relative w-full h-full flex items-center justify-center">
+                        <img src={seat.avatarUrl} alt="" className="w-full h-full rounded-full object-cover shrink-0" />
+                      </div>
+                    ) : (
+                      <div className="relative w-full h-full flex items-center justify-center" style={{ borderRadius: '50%' }}>
+                        <span className="text-amber-300 font-medium truncate max-w-full px-1 text-[11px] leading-none">
+                          {seat.clubCardNumber || seat.playerName || 'Гость'}
+                        </span>
+                      </div>
+                    )}
+                    <span className="absolute -top-0.5 -left-0.5 text-zinc-500 text-[9px]">{seatNum}</span>
+                    {isEliminated && <span className="absolute -top-0.5 -right-0.5 text-red-400 text-[9px]">✕</span>}
+                  </>
+                ) : (
+                  <span className={`flex flex-col items-center leading-tight ${canClickEmpty ? 'text-amber-500/70' : 'text-zinc-500'}`}>
+                    <span className="text-base">+</span>
+                    <span className="text-[11px] opacity-80">{seatNum}</span>
+                  </span>
+                )}
+              </div>
+              {isOccupied && seat.avatarUrl && (
+                <span
+                  className="absolute -translate-x-1/2 text-center text-amber-300 font-semibold truncate max-w-full text-[11px] leading-none rounded-full px-1 py-0.5 glass-card border border-amber-400/40 shadow-[0_0_6px_rgba(251,191,36,0.25)]"
+                  style={{
+                    left: `${pos.x}%`,
+                    top: `calc(${pos.y}% + 8px + 2px)`,
+                    textShadow:
+                      '0 0 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7), -1px -1px 0 rgba(0,0,0,1), 1px -1px 0 rgba(0,0,0,1), -1px 1px 0 rgba(0,0,0,1), 1px 1px 0 rgba(0,0,0,1)',
+                  }}
+                >
+                  {seat.clubCardNumber || seat.playerName || 'Гость'}
                 </span>
               )}
-            </div>
+            </>
           );
         })}
       </div>
@@ -1175,14 +1297,22 @@ function AutoSeatModal({
 function generatePokerSeatPositions(n: number): { x: number; y: number }[] {
   const cx = 50;
   const cy = 50;
-  const r = 50;
+  const r = 54;
   const startDeg = 60;
   const endDeg = -240;
   const arcDeg = startDeg - endDeg; // 300°
   const step = n > 1 ? arcDeg / (n - 1) : 0;
   const out: { x: number; y: number }[] = [];
   for (let i = 0; i < n; i++) {
-    const deg = startDeg - i * step;
+    let deg = startDeg - i * step;
+    // Для 9-местного стола чуть раздвигаем пары 2–3 и 7–8,
+    // чтобы между ними было больше расстояние.
+    if (n === 9) {
+      if (i === 1) deg += 4; // seat 2 ближе к 1
+      if (i === 2) deg -= 4; // seat 3 ближе к 4
+      if (i === 6) deg += 4; // seat 7 ближе к 6
+      if (i === 7) deg -= 4; // seat 8 ближе к 9
+    }
     const a = (deg * Math.PI) / 180;
     out.push({
       x: cx + r * Math.cos(a),
@@ -1347,9 +1477,9 @@ export function AdminTournamentPanel({
       }
     };
     const cleanup = () => {
-      document.removeEventListener('touchmove', onMove, { passive: false });
-      document.removeEventListener('touchend', onEnd, { passive: false });
-      document.removeEventListener('touchcancel', onEnd, { passive: false });
+      document.removeEventListener('touchmove', onMove as any, { passive: false } as any);
+      document.removeEventListener('touchend', onEnd as any, { passive: false } as any);
+      document.removeEventListener('touchcancel', onEnd as any, { passive: false } as any);
       setPreviewRef.current(null);
     };
     const onEnd = (ev: TouchEvent) => {
@@ -1367,9 +1497,9 @@ export function AdminTournamentPanel({
         if (tableId && seatNum) handleSeatOrMovePlayer(state.playerId, { tableId, seatNumber: parseInt(seatNum, 10) });
       }
     };
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onEnd, { passive: false });
-    document.addEventListener('touchcancel', onEnd, { passive: false });
+    document.addEventListener('touchmove', onMove as any, { passive: false } as any);
+    document.addEventListener('touchend', onEnd as any, { passive: false } as any);
+    document.addEventListener('touchcancel', onEnd as any, { passive: false } as any);
   }, [handleSeatOrMovePlayer]);
 
   const touchDragMove = useCallback(() => {}, []); // не используется — preventDefault через document
@@ -1496,7 +1626,7 @@ export function AdminTournamentPanel({
                 const amount = bal?.balance ?? 0;
                 const rubles = amount >= 100 ? (amount / 100).toFixed(0) : String(amount);
                 const arrived = p.isArrived !== false;
-                const canDrag = p.playerId && p.isActive !== false && arrived;
+                const canDrag = !!(p.playerId && p.isActive !== false && arrived);
                 return (
                   <div
                     key={p.id}

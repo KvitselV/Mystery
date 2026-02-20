@@ -94,8 +94,12 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
       setLiveState((prev) => prev ? { ...prev, ...data } : null);
     });
     socket.on('level_change', () => setRefreshKey((k) => k + 1));
-    socket.on('live_state_update', (data: { levelRemainingTimeSeconds?: number; currentLevelNumber?: number; isPaused?: boolean }) => {
-      setLiveState((prev) => prev ? { ...prev, ...data } : null);
+    socket.on('live_state_update', (data: Partial<LiveState>) => {
+      setLiveState((prev) => {
+        if (prev) return { ...prev, ...data };
+        if (data?.tournamentId || data?.tournamentName) return data as LiveState;
+        return null;
+      });
     });
     return () => {
       setSocketConnected(false);
@@ -104,7 +108,7 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
     };
   }, [live?.id, waiter, user]);
 
-  // Фоновое обновление: 15s при подключённом сокете, 4s при отключении (fallback)
+  // Фоновое обновление каждые 15s/4s (начальные данные уже загружены в main useEffect)
   useEffect(() => {
     if (!live?.id) return;
     const refreshLive = async () => {
@@ -933,11 +937,10 @@ function Table2D({
                     ) : (
                       <div className="relative w-full h-full flex items-center justify-center" style={{ borderRadius: '50%' }}>
                         <span className="text-amber-300 font-medium truncate max-w-full px-1 text-[11px] leading-none">
-                          {seat.clubCardNumber || seat.playerName || 'Гость'}
+                          {showAdmin ? `(${seatNum})` : ''}{seat.clubCardNumber || seat.playerName || 'Гость'}
                         </span>
                       </div>
                     )}
-                    <span className="absolute -top-0.5 -left-0.5 text-zinc-500 text-[9px]">{seatNum}</span>
                     {isEliminated && <span className="absolute -top-0.5 -right-0.5 text-red-400 text-[9px]">✕</span>}
                   </>
                 ) : (
@@ -957,7 +960,7 @@ function Table2D({
                       '0 0 2px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7), -1px -1px 0 rgba(0,0,0,1), 1px -1px 0 rgba(0,0,0,1), -1px 1px 0 rgba(0,0,0,1), 1px 1px 0 rgba(0,0,0,1)',
                   }}
                 >
-                  {seat.clubCardNumber || seat.playerName || 'Гость'}
+                  {showAdmin ? `(${seatNum}) ` : ''}{seat.clubCardNumber || seat.playerName || 'Гость'}
                 </span>
               )}
             </React.Fragment>

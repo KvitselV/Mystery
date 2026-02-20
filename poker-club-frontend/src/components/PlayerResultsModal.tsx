@@ -28,9 +28,28 @@ export function PlayerResultsModal({ tournament, onClose }: { tournament: Tourna
         ) : (
           <div className="space-y-2">
             {results.map((r) => (
-              <div key={r.playerId} className={`flex justify-between items-center py-2 border-b border-white/5 ${medalClass(r.finishPosition)}`}>
-                <span>{r.finishPosition}. {r.playerName}{r.clubCardNumber ? ` (${r.clubCardNumber})` : ''}</span>
-                <span>{r.points} очк.</span>
+              <div key={r.playerId} className={`flex justify-between items-center gap-3 py-2 border-b border-white/5 ${medalClass(r.finishPosition)}`}>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className="shrink-0">{r.finishPosition}.</span>
+                  {r.avatarUrl && (
+                    <div className="shrink-0 w-9 h-9 rounded-full overflow-hidden flex items-center justify-center">
+                      <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <span className="truncate">{r.playerName}{r.clubCardNumber ? ` (${r.clubCardNumber})` : ''}</span>
+                  {(r.achievements?.length ?? 0) > 0 && (
+                    <div className="flex shrink-0 gap-1" title={r.achievements!.map((a) => a.achievementType?.name).filter(Boolean).join(', ')}>
+                      {r.achievements!.map((a) => (
+                        a.achievementType?.iconUrl ? (
+                          <img key={a.id} src={a.achievementType.iconUrl} alt={a.achievementType.name} className="w-6 h-6 rounded object-contain" title={a.achievementType.name} />
+                        ) : (
+                          <span key={a.id} className="w-6 h-6 flex items-center justify-center text-base" title={a.achievementType?.name}>{a.achievementType?.icon || '🏆'}</span>
+                        )
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span className="shrink-0">{r.points} очк.</span>
               </div>
             ))}
             {results.length === 0 && <p className="text-zinc-500">Нет результатов</p>}

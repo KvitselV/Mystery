@@ -102,8 +102,12 @@ export default function TournamentManagePage() {
       setLiveState((prev) => prev ? { ...prev, ...data } : null);
     });
     socket.on('level_change', () => setRefreshKey((k) => k + 1));
-    socket.on('live_state_update', (data: { levelRemainingTimeSeconds?: number; currentLevelNumber?: number; isPaused?: boolean }) => {
-      setLiveState((prev) => prev ? { ...prev, ...data } : null);
+    socket.on('live_state_update', (data: Partial<LiveState>) => {
+      setLiveState((prev) => {
+        if (prev) return { ...prev, ...data };
+        if (data?.tournamentId || data?.tournamentName) return data as LiveState;
+        return null;
+      });
     });
     return () => {
       setSocketConnected(false);
@@ -112,7 +116,7 @@ export default function TournamentManagePage() {
     };
   }, [live?.id, user]);
 
-  // Фоновое обновление: 15s при подключённом сокете, 4s при отключении (fallback)
+  // Фоновое обновление каждые 15s/4s (начальные данные уже загружены в main useEffect)
   useEffect(() => {
     if (!live?.id) return;
     const refreshLive = async () => {

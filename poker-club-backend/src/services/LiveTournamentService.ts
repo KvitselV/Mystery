@@ -584,7 +584,7 @@ export class LiveTournamentService {
       .createQueryBuilder('result')
       .leftJoinAndSelect('result.player', 'player')
       .leftJoinAndSelect('player.user', 'user')
-      .where('result.tournamentId = :tournamentId', { tournamentId })
+      .where('result.tournament_id = :tournamentId', { tournamentId })
       .getMany();
 
     for (const result of results) {

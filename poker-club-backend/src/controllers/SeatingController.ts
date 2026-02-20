@@ -79,6 +79,7 @@ export class SeatingController {
         newSeatNumber
       );
 
+      await liveStateService.recalculateStats(tournamentId);
       broadcastSeatingChange(io, tournamentId, { type: 'manual_reseat', playerId, newTableId, newSeatNumber });
 
       res.json({

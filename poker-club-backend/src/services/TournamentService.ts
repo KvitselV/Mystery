@@ -400,11 +400,19 @@ export class TournamentService {
     }
 
     tournament.status = status;
+    if ((status === 'RUNNING' || status === 'LATE_REG') && (tournament.currentLevelNumber ?? 0) < 1) {
+      tournament.currentLevelNumber = 1;
+    }
 
     const saved = await this.tournamentRepository.save(tournament);
 
-    // При переходе в RUNNING/LATE_REG — пересчитать live state (игроки, входы, стек) для таймера
+    // При переходе в RUNNING/LATE_REG — инициализировать столы и пересчитать live state для таймера
     if (status === 'RUNNING' || status === 'LATE_REG') {
+      try {
+        await this.seatingService.ensureTournamentTablesExist(tournamentId);
+      } catch (err) {
+        console.warn('Ensure tournament tables failed:', err instanceof Error ? err.message : err);
+      }
       await this.liveStateService.recalculateStats(tournamentId);
     }
 

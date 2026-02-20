@@ -262,7 +262,9 @@ export interface TournamentPlayerResult {
   playerId: string;
   playerName: string;
   clubCardNumber?: string;
+  avatarUrl?: string;
   points: number;
+  achievements?: { id: string; achievementType: { id: string; name: string; description: string; iconUrl?: string; icon?: string; sortOrder: number }; unlockedAt: string; tournamentId?: string }[];
 }
 export interface SeriesRatingRow {
   playerId: string;

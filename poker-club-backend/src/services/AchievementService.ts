@@ -51,6 +51,17 @@ export class AchievementService {
   }
 
   /**
+   * Получить достижения, выданные за турнир (по tournamentId)
+   */
+  async getAchievementsByTournamentId(tournamentId: string): Promise<AchievementInstance[]> {
+    return this.achievementInstanceRepo.find({
+      where: { tournamentId },
+      relations: ['achievementType'],
+      order: { unlockedAt: 'ASC' },
+    });
+  }
+
+  /**
    * Получить достижения пользователя
    */
   async getUserAchievements(userId: string): Promise<AchievementInstance[]> {

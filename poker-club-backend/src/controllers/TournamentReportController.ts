@@ -2,11 +2,13 @@ import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { TournamentAdminReportService } from '../services/TournamentAdminReportService';
 import { TournamentService } from '../services/TournamentService';
+import { AchievementService } from '../services/AchievementService';
 import { AppDataSource } from '../config/database';
 import { TournamentResult } from '../models/TournamentResult';
 
 const adminReportService = new TournamentAdminReportService();
 const tournamentService = new TournamentService();
+const achievementService = new AchievementService();
 
 export class TournamentReportController {
   /**
@@ -89,11 +91,28 @@ export class TournamentReportController {
         order: { finishPosition: 'ASC' },
       });
 
+      const achievementsForTournament = await achievementService.getAchievementsByTournamentId(tournamentId);
+      const achievementsByUserId = new Map<string, typeof achievementsForTournament>();
+      for (const a of achievementsForTournament) {
+        const list = achievementsByUserId.get(a.userId) ?? [];
+        list.push(a);
+        achievementsByUserId.set(a.userId, list);
+      }
+
       // Дедупликация: один игрок — одно место (берём лучшее по finishPosition)
-      const seen = new Map<string, { finishPosition: number; playerId: string; playerName: string; clubCardNumber?: string; points: number }>();
+      const seen = new Map<string, {
+        finishPosition: number;
+        playerId: string;
+        playerName: string;
+        clubCardNumber?: string;
+        avatarUrl?: string;
+        userId?: string;
+        points: number;
+      }>();
       for (const r of allResults) {
         const pid = r.player?.id;
         if (!pid) continue;
+        const userId = r.player?.user?.id;
         const existing = seen.get(pid);
         if (!existing || r.finishPosition < existing.finishPosition) {
           seen.set(pid, {
@@ -101,6 +120,8 @@ export class TournamentReportController {
             playerId: pid,
             playerName: r.player?.user?.name || 'Игрок',
             clubCardNumber: r.player?.user?.clubCardNumber,
+            avatarUrl: r.player?.user?.avatarUrl ?? undefined,
+            userId,
             points: r.points ?? 0,
           });
         }
@@ -108,13 +129,31 @@ export class TournamentReportController {
       const results = Array.from(seen.values()).sort((a, b) => a.finishPosition - b.finishPosition);
 
       res.json({
-        results: results.map((r) => ({
-          finishPosition: r.finishPosition,
-          playerId: r.playerId,
-          playerName: r.playerName,
-          clubCardNumber: r.clubCardNumber,
-          points: r.points,
-        })),
+        results: results.map((r) => {
+          const achievements = (r.userId ? achievementsByUserId.get(r.userId) : undefined) ?? [];
+          return {
+            finishPosition: r.finishPosition,
+            playerId: r.playerId,
+            playerName: r.playerName,
+            clubCardNumber: r.clubCardNumber,
+            avatarUrl: r.avatarUrl,
+            points: r.points,
+            achievements: achievements.map((a) => ({
+              id: a.id,
+              achievementTypeId: a.achievementTypeId,
+              achievementType: a.achievementType ? {
+                id: a.achievementType.id,
+                name: a.achievementType.name,
+                description: a.achievementType.description,
+                iconUrl: a.achievementType.iconUrl,
+                icon: a.achievementType.icon,
+                sortOrder: a.achievementType.sortOrder,
+              } : undefined,
+              unlockedAt: a.unlockedAt,
+              tournamentId: a.tournamentId,
+            })),
+          };
+        }),
       });
     } catch (error: unknown) {
       res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });

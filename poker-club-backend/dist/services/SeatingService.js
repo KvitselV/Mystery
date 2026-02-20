@@ -59,6 +59,46 @@ class SeatingService {
         return { tablesCreated: tables.length };
     }
     /**
+     * Убедиться, что у турнира есть столы.
+     * Вызывается при старте турнира (LATE_REG/RUNNING).
+     * Если столы уже есть — ничего не делает.
+     * Если турнир привязан к клубу — создаёт столы из club.tables.
+     * Иначе — создаёт столы по количеству arrived-участников.
+     */
+    async ensureTournamentTablesExist(tournamentId) {
+        const existing = await this.tableRepository.count({ where: { tournament: { id: tournamentId } } });
+        if (existing > 0)
+            return { tablesCreated: 0 };
+        const tournament = await this.tournamentRepository.findOne({
+            where: { id: tournamentId },
+            relations: ['club', 'club.tables'],
+        });
+        if (!tournament)
+            throw new Error('Tournament not found');
+        if (tournament.clubId) {
+            try {
+                return await this.initializeTablesFromClub(tournamentId);
+            }
+            catch (err) {
+                console.warn('Initialize tables from club failed:', err instanceof Error ? err.message : err);
+            }
+        }
+        const regCount = await this.registrationRepository.count({
+            where: { tournament: { id: tournamentId }, isActive: true, isArrived: true },
+        });
+        const n = Math.max(1, Math.ceil(regCount / this.maxSeatsPerTable));
+        for (let i = 0; i < n; i++) {
+            await this.tableRepository.save(this.tableRepository.create({
+                tournament,
+                tableNumber: i + 1,
+                maxSeats: this.maxSeatsPerTable,
+                occupiedSeats: 0,
+                status: 'INACTIVE',
+            }));
+        }
+        return { tablesCreated: n };
+    }
+    /**
      * Авторассадка: только рассаживает игроков.
      * Берёт число участников НЕ за столами. Если их больше чем вмещает один стол —
      * добавляет на второй стол и забирает с первого UTG и дальше (или добровольцев).
@@ -83,23 +123,10 @@ class SeatingService {
             order: { tableNumber: 'ASC' },
         });
         if (tables.length === 0) {
-            if (tournament.clubId && tournament.club?.tables?.length) {
-                await this.initializeTablesFromClub(tournamentId);
-            }
-            else {
-                const n = Math.max(1, Math.ceil(registrations.length / this.maxSeatsPerTable));
-                for (let i = 0; i < n; i++) {
-                    await this.tableRepository.save(this.tableRepository.create({
-                        tournament,
-                        tableNumber: i + 1,
-                        maxSeats: this.maxSeatsPerTable,
-                        occupiedSeats: 0,
-                        status: 'INACTIVE',
-                    }));
-                }
-            }
+            await this.ensureTournamentTablesExist(tournamentId);
             tables = await this.tableRepository.find({
                 where: { tournament: { id: tournamentId } },
+                relations: ['clubTable'],
                 order: { tableNumber: 'ASC' },
             });
         }

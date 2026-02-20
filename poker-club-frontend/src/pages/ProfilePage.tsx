@@ -17,13 +17,15 @@ function AchievementIcon({ type }: { type: AchievementTypeDto }) {
   return <span className="text-3xl">{icon ?? '🏅'}</span>;
 }
 
-/** Блок достижений: 4 закреплённых + развёрнутый список всех */
+/** Блок достижений: 4 закреплённых + развёрнутый список всех. Просмотр доступен всем, редактирование (закрепление) — только владельцу профиля. */
 function AchievementsBlock({
   progress,
+  canEdit,
   userId,
   onPinsChange,
 }: {
   progress: { unlocked: AchievementInstanceDto[]; locked: AchievementTypeDto[]; pinnedTypeIds: string[]; total: number; unlockedCount: number } | null;
+  canEdit: boolean;
   userId?: string;
   onPinsChange?: () => void;
 }) {
@@ -40,19 +42,23 @@ function AchievementsBlock({
   const typeById = Object.fromEntries(allTypes.map((a) => [a.type.id, a]));
 
   const pinnedIds = progress.pinnedTypeIds ?? [];
+  const MAX_PINS = 4;
   const pinnedTypes = pinnedIds
     .map((id) => typeById[id])
-    .filter(Boolean)
-    .slice(0, 4);
-  const displayPins = pinnedTypes.length >= 4
-    ? pinnedTypes
-    : [...pinnedTypes, ...allTypes.filter((a) => !pinnedIds.includes(a.type.id)).slice(0, 4 - pinnedTypes.length)];
+    .filter((a): a is { type: AchievementTypeDto; unlocked: boolean; instance: AchievementInstanceDto | null } => Boolean(a) && a.unlocked)
+    .slice(0, MAX_PINS);
+  const displayPins = pinnedTypes;
 
-  const handleTogglePin = async (typeId: string) => {
-    if (!userId || !onPinsChange || pinning) return;
+  const handleTogglePin = async (typeId: string, unlocked: boolean) => {
+    if (!canEdit || !userId || !onPinsChange || pinning) return;
+    if (!unlocked) return;
     const current = progress.pinnedTypeIds ?? [];
     const has = current.includes(typeId);
-    const next = has ? current.filter((id) => id !== typeId) : [...current, typeId].slice(0, 4);
+    if (!has && current.length >= MAX_PINS) {
+      alert('Максимум 4 достижения можно отображать');
+      return;
+    }
+    const next = has ? current.filter((id) => id !== typeId) : [...current, typeId].slice(0, MAX_PINS);
     setPinning(true);
     try {
       await achievementsApi.setPins(userId, next);
@@ -66,17 +72,23 @@ function AchievementsBlock({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3">
-        {displayPins.slice(0, 4).map((a) => (
-          <div
-            key={a.type.id}
-            className={`glass-card p-3 flex flex-col items-center justify-center min-h-[80px] transition-opacity ${a.unlocked ? '' : 'opacity-50'}`}
-            title={a.type.conditionDescription ?? a.type.description}
-          >
-            <AchievementIcon type={a.type} />
-            <span className="text-amber-400 font-medium text-sm mt-1 truncate w-full text-center">{a.type.name}</span>
-          </div>
-        ))}
+      <div className="grid grid-cols-4 gap-3 min-h-[80px]">
+        {displayPins.length === 0 ? (
+          <p className="col-span-4 text-zinc-500 text-sm py-4">
+            {canEdit ? 'Выберите полученные достижения в разделе «Все достижения»' : 'Нет отображаемых достижений'}
+          </p>
+        ) : (
+          displayPins.map((a) => (
+            <div
+              key={a.type.id}
+              className="glass-card p-3 flex flex-col items-center justify-center min-h-[80px] transition-opacity"
+              title={a.type.conditionDescription ?? a.type.description}
+            >
+              <AchievementIcon type={a.type} />
+              <span className="text-amber-400 font-medium text-sm mt-1 truncate w-full text-center">{a.type.name}</span>
+            </div>
+          ))
+        )}
       </div>
 
       <button
@@ -89,19 +101,33 @@ function AchievementsBlock({
 
       {expanded && (
         <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3 pt-2">
-          {allTypes.map((a) => (
-            <div
-              key={a.type.id}
-              className={`glass-card p-2 flex flex-col items-center cursor-pointer transition-all hover:scale-105 ${
-                a.unlocked ? '' : 'opacity-50 grayscale'
-              } ${(progress.pinnedTypeIds ?? []).includes(a.type.id) ? 'ring-2 ring-amber-500' : ''}`}
-              title={a.type.conditionDescription ?? a.type.description}
-              onClick={() => userId && handleTogglePin(a.type.id)}
-            >
-              <AchievementIcon type={a.type} />
-              <span className="text-xs text-zinc-400 truncate w-full text-center mt-1">{a.type.name}</span>
-            </div>
-          ))}
+          {allTypes.map((a) => {
+            const isPinned = (progress.pinnedTypeIds ?? []).includes(a.type.id);
+            const canPin = a.unlocked && canEdit;
+            return (
+              <div
+                key={a.type.id}
+                className={`glass-card p-2 flex flex-col items-center relative transition-all ${
+                  a.unlocked ? (canEdit ? 'cursor-pointer hover:scale-105' : 'cursor-default') : 'opacity-50 grayscale cursor-default'
+                } ${isPinned ? 'ring-2 ring-amber-500' : ''}`}
+                title={a.type.conditionDescription ?? a.type.description}
+                onClick={() => canPin && handleTogglePin(a.type.id, a.unlocked)}
+              >
+                {canPin && (
+                  <span
+                    className={`absolute top-1 left-1 w-5 h-5 flex items-center justify-center rounded text-xs font-bold border ${
+                      isPinned ? 'bg-amber-500 text-black border-amber-500' : 'bg-white/10 border-white/30 text-zinc-400'
+                    }`}
+                    title={isPinned ? 'Убрать из отображаемых' : 'Показать в профиле'}
+                  >
+                    {isPinned ? '✓' : '○'}
+                  </span>
+                )}
+                <AchievementIcon type={a.type} />
+                <span className="text-xs text-zinc-400 truncate w-full text-center mt-1">{a.type.name}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -469,10 +495,15 @@ export default function ProfilePage() {
         <h2 className="text-xl font-bold text-white mb-4">Достижения</h2>
         <AchievementsBlock
           progress={achievementProgress}
-          userId={isOwnProfile ? user?.id : targetUserId}
-          onPinsChange={() => {
-            if (targetUserId) achievementsApi.getUserProgress(targetUserId).then((r) => setAchievementProgress(r.data)).catch(() => {});
-          }}
+          canEdit={isOwnProfile}
+          userId={isOwnProfile ? user?.id : undefined}
+          onPinsChange={
+            isOwnProfile
+              ? () => {
+                  if (targetUserId) achievementsApi.getUserProgress(targetUserId).then((r) => setAchievementProgress(r.data)).catch(() => {});
+                }
+              : undefined
+          }
         />
       </div>
 

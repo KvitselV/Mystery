@@ -6,12 +6,20 @@ const PlayerProfile_1 = require("../models/PlayerProfile");
 const TournamentResult_1 = require("../models/TournamentResult");
 const Tournament_1 = require("../models/Tournament");
 const TournamentRegistration_1 = require("../models/TournamentRegistration");
+const statistics_1 = require("./statistics");
 class StatisticsService {
     constructor() {
         this.profileRepo = database_1.AppDataSource.getRepository(PlayerProfile_1.PlayerProfile);
         this.resultRepo = database_1.AppDataSource.getRepository(TournamentResult_1.TournamentResult);
         this.tournamentRepo = database_1.AppDataSource.getRepository(Tournament_1.Tournament);
         this.registrationRepo = database_1.AppDataSource.getRepository(TournamentRegistration_1.TournamentRegistration);
+        this.pokerStats = statistics_1.PokerStatisticsService.getInstance();
+    }
+    static getInstance() {
+        if (!StatisticsService.instance) {
+            StatisticsService.instance = new StatisticsService();
+        }
+        return StatisticsService.instance;
     }
     async updatePlayerStatistics(userId, tournamentId) {
         // Найти профиль по user_id через связь
@@ -39,18 +47,19 @@ class StatisticsService {
         }
         // 3. Обновить любимый турнир (наиболее частый)
         profile.favoriteTournamentId = await this.getMostPlayedTournament(profile.id);
-        // 4. Обновить streak (серия финишей в призах)
-        await this.updateStreak(profile, result);
-        // 5. Обновить winRate (процент финальных столов)
-        profile.winRate = await this.calculateWinRate(profile.id);
+        // 4. Обновить streak (серия финишей в призах) — полный пересчёт по хронологии
+        await this.recalculateStreak(profile);
+        // 5. Обновить winRate (процент финальных столов = final table rate / ITM)
+        profile.winRate = await this.calculateFinalTableRate(profile.id);
         // 6. Обновить averageFinish
         profile.averageFinish = await this.calculateAverageFinish(profile.id);
         await this.profileRepo.save(profile);
     }
     /**
-     * Рассчитать процент финальных столов (winRate)
+     * Рассчитать процент финальных столов (ITM / final table rate).
+     * Сохраняется в profile.winRate.
      */
-    async calculateWinRate(playerProfileId) {
+    async calculateFinalTableRate(playerProfileId) {
         const results = await this.resultRepo
             .createQueryBuilder('result')
             .where('result.player_id = :playerId', { playerId: playerProfileId })
@@ -89,23 +98,34 @@ class StatisticsService {
         return result?.tournamentId;
     }
     /**
-     * Обновить серию финишей в призах
+     * Пересчитать streak по всем результатам в хронологическом порядке.
+     * «В призах» = финальный стол (isFinalTable).
      */
-    async updateStreak(profile, result) {
-        // Финиш «в призах» = финальный стол (место в турнире, без денежных призов)
-        const isInPrizes = result.isFinalTable;
-        if (isInPrizes) {
-            profile.currentStreak += 1;
-            if (profile.currentStreak > profile.bestStreak) {
-                profile.bestStreak = profile.currentStreak;
+    async recalculateStreak(profile) {
+        const results = await this.resultRepo
+            .createQueryBuilder('result')
+            .leftJoin('result.tournament', 'tournament')
+            .where('result.player_id = :playerId', { playerId: profile.id })
+            .orderBy('tournament.startTime', 'ASC')
+            .getMany();
+        let currentStreak = 0;
+        let bestStreak = 0;
+        for (const r of results) {
+            if (r.isFinalTable) {
+                currentStreak += 1;
+                if (currentStreak > bestStreak)
+                    bestStreak = currentStreak;
+            }
+            else {
+                currentStreak = 0;
             }
         }
-        else {
-            profile.currentStreak = 0;
-        }
+        profile.currentStreak = currentStreak;
+        profile.bestStreak = bestStreak;
     }
     /**
      * Получить последние N выступлений (дата, место, всего участников)
+     * @deprecated Специфичная логика; для универсальной статистики используйте PokerStatisticsService
      */
     async getLastPerformances(playerProfileId, limit = 7) {
         const results = await this.resultRepo
@@ -116,28 +136,47 @@ class StatisticsService {
             .take(limit)
             .getMany();
         const tournamentIds = [...new Set(results.map((r) => r.tournament?.id).filter(Boolean))];
-        const countRows = tournamentIds.length > 0
-            ? await this.registrationRepo
+        let totalByTid = {};
+        let maxPosByTid = {};
+        if (tournamentIds.length > 0) {
+            const registrationCounts = await this.registrationRepo
                 .createQueryBuilder('r')
                 .select('r.tournament_id', 'tid')
                 .addSelect('COUNT(*)', 'cnt')
                 .where('r.tournament_id IN (:...ids)', { ids: tournamentIds })
                 .groupBy('r.tournament_id')
-                .getRawMany()
-            : [];
-        const totalByTid = Object.fromEntries(countRows.map((c) => [c.tid, parseInt(String(c.cnt), 10)]));
+                .getRawMany();
+            totalByTid = Object.fromEntries(registrationCounts.map((c) => [c.tid, parseInt(String(c.cnt), 10)]));
+            try {
+                const maxPositionRows = await this.resultRepo
+                    .createQueryBuilder('result')
+                    .select('result.tournament_id', 'tid')
+                    .addSelect('MAX(result.finishPosition)', 'maxPos')
+                    .where('result.tournament_id IN (:...ids)', { ids: tournamentIds })
+                    .groupBy('result.tournament_id')
+                    .getRawMany();
+                maxPosByTid = Object.fromEntries(maxPositionRows.map((c) => [c.tid, parseInt(String(c.maxPos), 10)]));
+            }
+            catch (e) {
+                console.warn('getLastPerformances: could not fetch max finishPosition per tournament', e);
+            }
+        }
+        const resolveTotalPlayers = (tid, finishPosition) => totalByTid[tid] ?? maxPosByTid[tid] ?? finishPosition;
         return results
             .filter((r) => r.tournament?.startTime && r.tournament?.id)
             .map((r) => ({
             date: new Date(r.tournament.startTime).toISOString().slice(0, 10),
             place: r.finishPosition,
-            totalPlayers: r.tournament.id ? (totalByTid[r.tournament.id] ?? r.finishPosition) : r.finishPosition,
+            totalPlayers: r.tournament.id
+                ? resolveTotalPlayers(r.tournament.id, r.finishPosition)
+                : r.finishPosition,
             tournamentId: r.tournament.id,
         }))
             .reverse(); // хронологический порядок для графика (от старых к новым)
     }
     /**
      * Победы в турнирах серий (1-е место, турнир с seriesId)
+     * @deprecated Специфичная логика; для универсальной статистики используйте PokerStatisticsService
      */
     async getSeriesWins(playerProfileId) {
         const results = await this.resultRepo.find({
@@ -148,6 +187,7 @@ class StatisticsService {
     }
     /**
      * Получить полную статистику игрока (по playerProfileId)
+     * @deprecated Используйте PokerStatisticsService + profile/lastTournament по необходимости
      */
     async getPlayerFullStatistics(playerProfileId) {
         const profile = await this.profileRepo.findOne({
@@ -196,41 +236,33 @@ class StatisticsService {
     }
     /**
      * Получить статистику финишей игрока
+     * @deprecated Используйте PokerStatisticsService.getPlayerStatisticsByProfileId с метриками wins, secondPlaces, thirdPlaces
      */
     async getFinishStatistics(playerProfileId) {
-        const results = await this.resultRepo
-            .createQueryBuilder('result')
-            .where('result.player_id = :playerId', { playerId: playerProfileId })
-            .getMany();
+        const result = await this.pokerStats.getPlayerStatisticsByProfileId(playerProfileId, undefined, ['wins', 'secondPlaces', 'thirdPlaces', 'tournamentsPlayed']);
+        const wins = result.metrics.wins ?? 0;
+        const second = result.metrics.secondPlaces ?? 0;
+        const third = result.metrics.thirdPlaces ?? 0;
+        const total = result.metrics.tournamentsPlayed ?? 0;
         return {
-            first: results.filter((r) => r.finishPosition === 1).length,
-            second: results.filter((r) => r.finishPosition === 2).length,
-            third: results.filter((r) => r.finishPosition === 3).length,
-            others: results.filter((r) => r.finishPosition > 3).length,
+            first: wins,
+            second,
+            third,
+            others: total - wins - second - third,
         };
     }
     /**
      * Получить график участия (по месяцам)
+     * @deprecated Используйте PokerStatisticsService.getPlayerStatisticsByProfileId с метрикой participationByMonth
      */
     async getParticipationChart(playerProfileId) {
-        const results = await this.resultRepo.find({
-            where: { player: { id: playerProfileId } },
-            relations: ['tournament'],
-        });
-        const byMonth = new Map();
-        for (const r of results) {
-            if (r.tournament?.startTime) {
-                const d = new Date(r.tournament.startTime);
-                const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                byMonth.set(month, (byMonth.get(month) ?? 0) + 1);
-            }
-        }
-        return Array.from(byMonth.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([month, count]) => ({ month, count }));
+        const result = await this.pokerStats.getPlayerStatisticsByProfileId(playerProfileId, undefined, ['participationByMonth']);
+        const items = result.metrics.participationByMonth ?? [];
+        return items.map(({ period, count }) => ({ month: period, count }));
     }
     /**
      * Получить последний сыгранный турнир
+     * @deprecated Специфичная логика; для универсальной статистики используйте PokerStatisticsService
      */
     async getLastTournament(playerProfileId) {
         const result = await this.resultRepo
@@ -243,4 +275,5 @@ class StatisticsService {
     }
 }
 exports.StatisticsService = StatisticsService;
+StatisticsService.instance = null;
 //# sourceMappingURL=StatisticsService.js.map

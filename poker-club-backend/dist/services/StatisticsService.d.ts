@@ -1,15 +1,19 @@
 import { PlayerProfile } from '../models/PlayerProfile';
 import { Tournament } from '../models/Tournament';
 export declare class StatisticsService {
+    private static instance;
     private profileRepo;
     private resultRepo;
     private tournamentRepo;
     private registrationRepo;
+    private pokerStats;
+    static getInstance(): StatisticsService;
     updatePlayerStatistics(userId: string, tournamentId: string): Promise<void>;
     /**
-     * Рассчитать процент финальных столов (winRate)
+     * Рассчитать процент финальных столов (ITM / final table rate).
+     * Сохраняется в profile.winRate.
      */
-    private calculateWinRate;
+    private calculateFinalTableRate;
     /**
      * Рассчитать среднее место финиша
      */
@@ -19,11 +23,13 @@ export declare class StatisticsService {
      */
     private getMostPlayedTournament;
     /**
-     * Обновить серию финишей в призах
+     * Пересчитать streak по всем результатам в хронологическом порядке.
+     * «В призах» = финальный стол (isFinalTable).
      */
-    private updateStreak;
+    private recalculateStreak;
     /**
      * Получить последние N выступлений (дата, место, всего участников)
+     * @deprecated Специфичная логика; для универсальной статистики используйте PokerStatisticsService
      */
     getLastPerformances(playerProfileId: string, limit?: number): Promise<{
         date: string;
@@ -33,10 +39,12 @@ export declare class StatisticsService {
     }[]>;
     /**
      * Победы в турнирах серий (1-е место, турнир с seriesId)
+     * @deprecated Специфичная логика; для универсальной статистики используйте PokerStatisticsService
      */
     getSeriesWins(playerProfileId: string): Promise<number>;
     /**
      * Получить полную статистику игрока (по playerProfileId)
+     * @deprecated Используйте PokerStatisticsService + profile/lastTournament по необходимости
      */
     getPlayerFullStatistics(playerProfileId: string): Promise<{
         profile: PlayerProfile | null;
@@ -67,6 +75,7 @@ export declare class StatisticsService {
     }>;
     /**
      * Получить статистику финишей игрока
+     * @deprecated Используйте PokerStatisticsService.getPlayerStatisticsByProfileId с метриками wins, secondPlaces, thirdPlaces
      */
     getFinishStatistics(playerProfileId: string): Promise<{
         first: number;
@@ -76,6 +85,7 @@ export declare class StatisticsService {
     }>;
     /**
      * Получить график участия (по месяцам)
+     * @deprecated Используйте PokerStatisticsService.getPlayerStatisticsByProfileId с метрикой participationByMonth
      */
     getParticipationChart(playerProfileId: string): Promise<{
         month: string;
@@ -83,6 +93,7 @@ export declare class StatisticsService {
     }[]>;
     /**
      * Получить последний сыгранный турнир
+     * @deprecated Специфичная логика; для универсальной статистики используйте PokerStatisticsService
      */
     getLastTournament(playerProfileId: string): Promise<Tournament | null>;
 }

@@ -175,12 +175,12 @@ function AdminClubs({ onRefresh }: { onRefresh: () => Promise<void> }) {
 
       {(showForm || editId) && (
         <div className="glass-card p-4 mb-6 space-y-4">
-          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input placeholder="Описание" value={form.desc} onChange={(e) => setForm((p) => ({ ...p, desc: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input placeholder="Адрес" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input placeholder="Телефон" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="glass-select w-full px-4 py-2" />
+          <input placeholder="Описание" value={form.desc} onChange={(e) => setForm((p) => ({ ...p, desc: e.target.value }))} className="glass-select w-full px-4 py-2" />
+          <input placeholder="Адрес" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} className="glass-select w-full px-4 py-2" />
+          <input placeholder="Телефон" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} className="glass-select w-full px-4 py-2" />
           {!editId && (
-            <input type="number" placeholder="Кол-во столов *" value={form.tableCount} onChange={(e) => setForm((p) => ({ ...p, tableCount: parseInt(e.target.value) || 1 }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="number" placeholder="Кол-во столов *" value={form.tableCount} onChange={(e) => setForm((p) => ({ ...p, tableCount: parseInt(e.target.value) || 1 }))} className="glass-select w-full px-4 py-2" />
           )}
           {editId ? <button onClick={update} className="glass-btn px-4 py-2 rounded-xl">Сохранить</button> : <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>}
         </div>
@@ -263,7 +263,7 @@ function AdminClubSchedules({ clubId, onClose, clubName }: { clubId: string; onC
       </button>
       {(showForm || editId) && (
         <div className="flex flex-wrap gap-2 mb-4">
-          <select value={form.dayOfWeek} onChange={(e) => setForm((p) => ({ ...p, dayOfWeek: parseInt(e.target.value) }))} className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm">
+          <select value={form.dayOfWeek} onChange={(e) => setForm((p) => ({ ...p, dayOfWeek: parseInt(e.target.value) }))} className="glass-select px-3 py-2 text-sm">
             {[0, 1, 2, 3, 4, 5, 6].map((d) => <option key={d} value={d}>{DAY_NAMES[d]}</option>)}
           </select>
           <input type="time" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm" />
@@ -411,12 +411,12 @@ function AdminSeries() {
 
       {(showForm || editId) && (
         <div className="glass-card p-4 mb-6 space-y-4">
-          <input placeholder="Название серии *" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Название серии *" value={name} onChange={(e) => setName(e.target.value)} className="glass-select w-full px-4 py-2" />
           {!editId && (
             <>
               <div>
                 <label className="text-zinc-400 text-sm">Клуб *</label>
-                <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" required>
+                <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="glass-select w-full px-4 py-2" required>
                   <option value="">— Выберите клуб —</option>
                   {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
@@ -425,53 +425,53 @@ function AdminSeries() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="text-zinc-400 text-sm">Время старта</label>
-                  <input type="time" value={defaultStartTime} onChange={(e) => setDefaultStartTime(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                  <input type="time" value={defaultStartTime} onChange={(e) => setDefaultStartTime(e.target.value)} className="glass-select w-full px-4 py-2" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Бай-ин (₽)</label>
-                  <input type="number" value={defaultBuyIn || ''} onChange={(e) => setDefaultBuyIn(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                  <input type="number" value={defaultBuyIn || ''} onChange={(e) => setDefaultBuyIn(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Стартовый стек</label>
-                  <input type="number" value={defaultStartingStack || ''} onChange={(e) => setDefaultStartingStack(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                  <input type="number" value={defaultStartingStack || ''} onChange={(e) => setDefaultStartingStack(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Структура блайндов</label>
-                  <select value={defaultBlindStructureId} onChange={(e) => setDefaultBlindStructureId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+                  <select value={defaultBlindStructureId} onChange={(e) => setDefaultBlindStructureId(e.target.value)} className="glass-select w-full px-4 py-2">
                     <option value="">—</option>
                     {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Ребай: фишки</label>
-                  <input type="number" value={defaultRebuyChips || ''} onChange={(e) => setDefaultRebuyChips(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                  <input type="number" value={defaultRebuyChips || ''} onChange={(e) => setDefaultRebuyChips(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" placeholder="0" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Ребай: стоимость (₽)</label>
-                  <input type="number" value={defaultRebuyCost || ''} onChange={(e) => setDefaultRebuyCost(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                  <input type="number" value={defaultRebuyCost || ''} onChange={(e) => setDefaultRebuyCost(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" placeholder="0" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Макс. ребаев на игрока</label>
-                  <input type="number" value={defaultMaxRebuys || ''} onChange={(e) => setDefaultMaxRebuys(Math.max(0, parseInt(e.target.value) || 0))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0 = ∞" />
+                  <input type="number" value={defaultMaxRebuys || ''} onChange={(e) => setDefaultMaxRebuys(Math.max(0, parseInt(e.target.value) || 0))} className="glass-select w-full px-4 py-2" placeholder="0 = ∞" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Аддон: фишки</label>
-                  <input type="number" value={defaultAddonChips || ''} onChange={(e) => setDefaultAddonChips(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                  <input type="number" value={defaultAddonChips || ''} onChange={(e) => setDefaultAddonChips(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" placeholder="0" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Аддон: стоимость (₽)</label>
-                  <input type="number" value={defaultAddonCost || ''} onChange={(e) => setDefaultAddonCost(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0" />
+                  <input type="number" value={defaultAddonCost || ''} onChange={(e) => setDefaultAddonCost(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" placeholder="0" />
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm">Макс. аддонов на игрока</label>
-                  <input type="number" value={defaultMaxAddons || ''} onChange={(e) => setDefaultMaxAddons(Math.max(0, parseInt(e.target.value) || 0))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" placeholder="0 = ∞" />
+                  <input type="number" value={defaultMaxAddons || ''} onChange={(e) => setDefaultMaxAddons(Math.max(0, parseInt(e.target.value) || 0))} className="glass-select w-full px-4 py-2" placeholder="0 = ∞" />
                 </div>
               </div>
             </>
           )}
           <div className="flex gap-4">
-            <div><label className="text-zinc-400 text-sm">Дата начала</label><input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
-            <div><label className="text-zinc-400 text-sm">Дата финала</label><input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" /></div>
+            <div><label className="text-zinc-400 text-sm">Дата начала</label><input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="glass-select w-full px-4 py-2" /></div>
+            <div><label className="text-zinc-400 text-sm">Дата финала</label><input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="glass-select w-full px-4 py-2" /></div>
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-2">Дни недели</label>
@@ -713,18 +713,18 @@ function AdminTournaments() {
 
       {(showForm || editId) && (
         <div className="glass-card p-4 mb-6 space-y-4 max-w-xl">
-          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="glass-select w-full px-4 py-2" />
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-zinc-400 text-sm">Серия</label>
-              <select value={form.seriesId} onChange={(e) => setForm((p) => ({ ...p, seriesId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+              <select value={form.seriesId} onChange={(e) => setForm((p) => ({ ...p, seriesId: e.target.value }))} className="glass-select w-full px-4 py-2">
                 <option value="">—</option>
                 {series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
               <label className="text-zinc-400 text-sm">Клуб</label>
-              <select value={form.clubId} onChange={(e) => setForm((p) => ({ ...p, clubId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+              <select value={form.clubId} onChange={(e) => setForm((p) => ({ ...p, clubId: e.target.value }))} className="glass-select w-full px-4 py-2">
                 <option value="">—</option>
                 {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
@@ -732,7 +732,7 @@ function AdminTournaments() {
           </div>
           <div>
             <label className="text-zinc-400 text-sm">Начало</label>
-            <input type="datetime-local" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="datetime-local" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="glass-select w-full px-4 py-2" />
           </div>
           <div className="flex flex-wrap gap-4">
             <input type="number" placeholder="Бай-ин (₽)" min={0} value={form.buyInCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, buyInCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
@@ -741,32 +741,32 @@ function AdminTournaments() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Стоимость ребая (₽)</label>
-              <input type="number" min={0} value={form.rebuyCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.rebuyCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Фишки за ребай</label>
-              <input type="number" min={0} value={form.rebuyChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.rebuyChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Стоимость аддона (₽)</label>
-              <input type="number" min={0} value={form.addonCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.addonCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Фишки за аддон</label>
-              <input type="number" min={0} value={form.addonChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.addonChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Макс. ребаев на игрока</label>
-              <input type="number" min={0} value={form.maxRebuys ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxRebuys: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" title="0 = без лимита" />
+              <input type="number" min={0} value={form.maxRebuys ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxRebuys: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" title="0 = без лимита" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Макс. аддонов на игрока</label>
-              <input type="number" min={0} value={form.maxAddons ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxAddons: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" title="0 = без лимита" />
+              <input type="number" min={0} value={form.maxAddons ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxAddons: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" title="0 = без лимита" />
             </div>
           </div>
           <div>
             <label className="text-zinc-400 text-sm">Структура блайндов</label>
-            <select value={form.blindStructureId} onChange={(e) => setForm((p) => ({ ...p, blindStructureId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={form.blindStructureId} onChange={(e) => setForm((p) => ({ ...p, blindStructureId: e.target.value }))} className="glass-select w-full px-4 py-2">
               <option value="">—</option>
               {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -954,15 +954,15 @@ function AdminBlinds() {
         <div className="glass-card p-6 mb-6 space-y-4">
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Название</label>
-            <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} className="glass-select w-full px-4 py-2" />
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Описание</label>
-            <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="glass-select w-full px-4 py-2" />
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Клуб</label>
-            <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="glass-select w-full px-4 py-2">
               <option value="">Глобальная (все клубы)</option>
               {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
@@ -1167,7 +1167,7 @@ function AdminMenu() {
           <div className="flex flex-wrap gap-2 mt-2">
             <input placeholder="Название" value={itemName} onChange={(e) => setItemName(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
             <input type="number" placeholder="Цена (руб)" value={itemPrice} onChange={(e) => setItemPrice(parseInt(e.target.value) || 0)} className="w-24 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-            <select value={itemCategoryId} onChange={(e) => setItemCategoryId(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={itemCategoryId} onChange={(e) => setItemCategoryId(e.target.value)} className="glass-select px-4 py-2">
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             {itemEditId ? <button onClick={updateItem} className="glass-btn px-4 py-2 rounded-xl">Сохранить</button> : <button onClick={createItem} className="glass-btn px-4 py-2 rounded-xl">Создать</button>}
@@ -1319,7 +1319,7 @@ function AdminUsers() {
               </div>
               {u.role === 'PLAYER' && (
                 <div className="flex gap-2 items-center">
-                  <select value={promoteClubId} onChange={(e) => setPromoteClubId(e.target.value)} className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+                  <select value={promoteClubId} onChange={(e) => setPromoteClubId(e.target.value)} className="glass-select px-3 py-1 text-sm">
                     <option value="">Клуб</option>
                     {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -1330,7 +1330,7 @@ function AdminUsers() {
               )}
               {u.role === 'CONTROLLER' && !u.managedClubId && (
                 <div className="flex gap-2 items-center">
-                  <select value={promoteClubId} onChange={(e) => setPromoteClubId(e.target.value)} className="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+                  <select value={promoteClubId} onChange={(e) => setPromoteClubId(e.target.value)} className="glass-select px-3 py-1 text-sm">
                     <option value="">Клуб</option>
                     {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -1348,9 +1348,11 @@ function AdminUsers() {
 }
 
 const ACHIEVEMENT_STAT_TYPES = [
+  { value: '', label: '— Не задана —' },
   { value: 'TOURNAMENTS_PLAYED', label: 'Турниров сыграно' },
   { value: 'WINS', label: 'Побед' },
   { value: 'CONSECUTIVE_WINS', label: 'Побед подряд' },
+  { value: 'CONSECUTIVE_POSITION', label: 'Место N раз подряд' },
   { value: 'SERIES_WINS', label: 'Побед в серии' },
   { value: 'FINAL_TABLE', label: 'Финальных столов' },
   { value: 'ITM_STREAK', label: 'Финишей в призах подряд' },
@@ -1369,6 +1371,7 @@ function AdminAchievements() {
     iconUrl: '' as string,
     statisticType: '',
     targetValue: 0,
+    targetPosition: 0 as number, // для CONSECUTIVE_POSITION: 1=1-е место, 2=2-е, ..., 0=последнее место
   });
 
   const load = () => {
@@ -1391,9 +1394,10 @@ function AdminAchievements() {
         iconUrl: form.iconUrl || undefined,
         statisticType: form.statisticType || undefined,
         targetValue: form.targetValue || undefined,
+        targetPosition: form.statisticType === 'CONSECUTIVE_POSITION' ? form.targetPosition : undefined,
       });
       setShowForm(false);
-      setForm({ name: '', description: '', conditionDescription: '', iconUrl: '', statisticType: '', targetValue: 0 });
+      setForm({ name: '', description: '', conditionDescription: '', iconUrl: '', statisticType: '', targetValue: 0, targetPosition: 0 });
       setIconPreview(null);
       load();
     } catch {}
@@ -1420,15 +1424,15 @@ function AdminAchievements() {
         <div className="glass-card p-6 mb-6 space-y-4 max-w-xl">
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Название *</label>
-            <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Выиграть 2 раза подряд" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Выиграть 2 раза подряд" className="glass-select w-full px-4 py-2" />
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Описание *</label>
-            <input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Выиграть турнир 2 раза подряд" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} placeholder="Выиграть турнир 2 раза подряд" className="glass-select w-full px-4 py-2" />
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Условие (подсказка при наведении)</label>
-            <input value={form.conditionDescription} onChange={(e) => setForm((p) => ({ ...p, conditionDescription: e.target.value }))} placeholder="Выиграть 2 турнира подряд" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input value={form.conditionDescription} onChange={(e) => setForm((p) => ({ ...p, conditionDescription: e.target.value }))} placeholder="Выиграть 2 турнира подряд" className="glass-select w-full px-4 py-2" />
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-2">Иконка (изображение)</label>
@@ -1480,18 +1484,35 @@ function AdminAchievements() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Статистика</label>
-              <select value={form.statisticType} onChange={(e) => setForm((p) => ({ ...p, statisticType: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
-                <option value="">— Не задана —</option>
+              <select value={form.statisticType} onChange={(e) => setForm((p) => ({ ...p, statisticType: e.target.value }))} className="glass-select w-full px-4 py-2">
                 {ACHIEVEMENT_STAT_TYPES.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
+                  <option key={s.value || 'empty'} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-zinc-400 text-sm block mb-1">Целевое значение</label>
-              <input type="number" min={0} value={form.targetValue || ''} onChange={(e) => setForm((p) => ({ ...p, targetValue: parseInt(e.target.value) || 0 }))} placeholder="2" className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <label className="text-zinc-400 text-sm block mb-1">Целевое значение (кол-во раз)</label>
+              <input type="number" min={0} value={form.targetValue || ''} onChange={(e) => setForm((p) => ({ ...p, targetValue: parseInt(e.target.value) || 0 }))} placeholder="3" className="glass-select w-full px-4 py-2" />
             </div>
           </div>
+          {form.statisticType === 'CONSECUTIVE_POSITION' && (
+            <div>
+              <label className="text-zinc-400 text-sm block mb-1">Место</label>
+              <select value={form.targetPosition} onChange={(e) => setForm((p) => ({ ...p, targetPosition: parseInt(e.target.value) }))} className="glass-select w-full px-4 py-2">
+                <option value={0}>Последнее место (вылетел первым)</option>
+                <option value={1}>1-е место</option>
+                <option value={2}>2-е место</option>
+                <option value={3}>3-е место</option>
+                <option value={4}>4-е место</option>
+                <option value={5}>5-е место</option>
+                <option value={6}>6-е место</option>
+                <option value={7}>7-е место</option>
+                <option value={8}>8-е место</option>
+                <option value={9}>9-е место</option>
+                <option value={10}>10-е место</option>
+              </select>
+            </div>
+          )}
           <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>
         </div>
       )}
@@ -1509,7 +1530,13 @@ function AdminAchievements() {
             <div>
               <span className="text-white">{t.name}</span>
               <span className="text-zinc-500 text-sm ml-2">{t.description}</span>
-              {t.statisticType && <span className="text-zinc-400 text-xs ml-2">({t.statisticType} ≥ {t.targetValue})</span>}
+              {t.statisticType && (
+                <span className="text-zinc-400 text-xs ml-2">
+                  ({t.statisticType === 'CONSECUTIVE_POSITION' && t.targetPosition != null
+                    ? `место ${t.targetPosition === 0 ? 'последнее' : t.targetPosition} × ${t.targetValue} подряд`
+                    : `${t.statisticType} ≥ ${t.targetValue}`})
+                </span>
+              )}
             </div>
           </div>
         ))}

@@ -168,8 +168,8 @@ export class TournamentSeriesService {
    */
   async getSeriesRatingTable(seriesId: string): Promise<{
     seriesName: string;
-    columns: { date: string; dateLabel: string }[];
-    rows: { playerId: string; playerName: string; clubCardNumber?: string; totalPoints: number; pointsByDate: Record<string, number>; positionByDate: Record<string, number> }[];
+    columns: { date: string; dateLabel: string; tournamentId?: string }[];
+    rows: { playerId: string; playerName: string; clubCardNumber?: string; avatarUrl?: string; userId?: string; totalPoints: number; pointsByDate: Record<string, number>; positionByDate: Record<string, number> }[];
   }> {
     const series = await this.getSeriesById(seriesId);
     const tournamentRepo = AppDataSource.getRepository(Tournament);
@@ -191,7 +191,7 @@ export class TournamentSeriesService {
       relations: ['player', 'player.user', 'tournament'],
     });
 
-    const byPlayer = new Map<string, { playerId: string; playerName: string; clubCardNumber?: string; totalPoints: number; pointsByDate: Record<string, number>; positionByDate: Record<string, number> }>();
+    const byPlayer = new Map<string, { playerId: string; playerName: string; clubCardNumber?: string; avatarUrl?: string; userId?: string; totalPoints: number; pointsByDate: Record<string, number>; positionByDate: Record<string, number> }>();
 
     for (const r of results) {
       const pid = r.player?.id;
@@ -205,6 +205,8 @@ export class TournamentSeriesService {
           playerId: pid,
           playerName: r.player?.user?.name || 'Игрок',
           clubCardNumber: r.player?.user?.clubCardNumber,
+          avatarUrl: r.player?.user?.avatarUrl ?? undefined,
+          userId: r.player?.user?.id,
           totalPoints: 0,
           pointsByDate: {},
           positionByDate: {},

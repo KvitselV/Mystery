@@ -3,18 +3,20 @@ import { AchievementType, AchievementCode, AchievementStatisticType } from '../m
 import { AchievementInstance } from '../models/AchievementInstance';
 import { PlayerAchievementPin } from '../models/PlayerAchievementPin';
 import { TournamentResult } from '../models/TournamentResult';
+import { TournamentRegistration } from '../models/TournamentRegistration';
 import { PlayerProfile } from '../models/PlayerProfile';
 import { Tournament } from '../models/Tournament';
-import { StatisticsService } from './StatisticsService';
+import { PokerStatisticsService } from './statistics';
 
 export class AchievementService {
   private achievementTypeRepo = AppDataSource.getRepository(AchievementType);
   private achievementInstanceRepo = AppDataSource.getRepository(AchievementInstance);
   private pinRepo = AppDataSource.getRepository(PlayerAchievementPin);
   private resultRepo = AppDataSource.getRepository(TournamentResult);
+  private registrationRepo = AppDataSource.getRepository(TournamentRegistration);
   private profileRepo = AppDataSource.getRepository(PlayerProfile);
   private tournamentRepo = AppDataSource.getRepository(Tournament);
-  private statisticsService = new StatisticsService();
+  private pokerStats = PokerStatisticsService.getInstance();
 
   /**
    * Инициализировать типы достижений
@@ -188,33 +190,49 @@ export class AchievementService {
       if (a) granted.push(a);
     }
 
-    // 8. Настраиваемые достижения (statisticType + targetValue)
+    // 8. Настраиваемые достижения (statisticType + targetValue) — используем PokerStatisticsService
     const customTypes = await this.achievementTypeRepo.find({
       where: {},
       order: { sortOrder: 'ASC' },
     });
-    const stats = await this.statisticsService.getPlayerFullStatistics(profile.id);
+
+    const hasCustomTypes = customTypes.some((t) => t.statisticType && t.targetValue > 0);
+    const statsResult = hasCustomTypes
+      ? await this.pokerStats.getPlayerStatisticsByProfileId(
+          profile.id,
+          undefined,
+          ['tournamentsPlayed', 'wins', 'seriesWins', 'finalTableCount']
+        )
+      : null;
+
+    const metrics = statsResult?.metrics ?? {};
+
     for (const t of customTypes) {
       if (!t.statisticType || t.targetValue <= 0) continue;
+      if (t.statisticType === AchievementStatisticType.CONSECUTIVE_POSITION && t.targetPosition == null) continue;
       const existing = await this.achievementInstanceRepo.findOne({
         where: { userId, achievementTypeId: t.id },
       });
       if (existing) continue;
 
       let value = 0;
-      if (t.statisticType === AchievementStatisticType.TOURNAMENTS_PLAYED) value = stats.tournamentsPlayed;
-      else if (t.statisticType === AchievementStatisticType.WINS) value = stats.finishes.first;
-      else if (t.statisticType === AchievementStatisticType.SERIES_WINS) value = stats.seriesWins;
-      else if (t.statisticType === AchievementStatisticType.FINAL_TABLE) {
-        const finalTableCount = await this.resultRepo.count({
-          where: { player: { id: profile.id }, isFinalTable: true },
-        });
-        value = finalTableCount;
-      }
-      else if (t.statisticType === AchievementStatisticType.ITM_STREAK) value = stats.bestStreak;
-      else if (t.statisticType === AchievementStatisticType.CONSECUTIVE_WINS) {
+      if (t.statisticType === AchievementStatisticType.TOURNAMENTS_PLAYED) {
+        value = (metrics.tournamentsPlayed as number) ?? 0;
+      } else if (t.statisticType === AchievementStatisticType.WINS) {
+        value = (metrics.wins as number) ?? 0;
+      } else if (t.statisticType === AchievementStatisticType.SERIES_WINS) {
+        value = (metrics.seriesWins as number) ?? 0;
+      } else if (t.statisticType === AchievementStatisticType.FINAL_TABLE) {
+        value = (metrics.finalTableCount as number) ?? 0;
+      } else if (t.statisticType === AchievementStatisticType.ITM_STREAK) {
+        value = profile.bestStreak ?? 0;
+      } else if (t.statisticType === AchievementStatisticType.CONSECUTIVE_WINS) {
         value = await this.getConsecutiveWins(profile.id);
+      } else if (t.statisticType === AchievementStatisticType.CONSECUTIVE_POSITION) {
+        const pos = t.targetPosition ?? 1;
+        value = await this.getConsecutivePositionCount(profile.id, pos);
       }
+
       if (value >= t.targetValue) {
         const a = await this.grantAchievementByTypeId(userId, t.id, tournamentId, { value, target: t.targetValue });
         if (a) granted.push(a);
@@ -225,15 +243,48 @@ export class AchievementService {
   }
 
   private async getConsecutiveWins(playerProfileId: string): Promise<number> {
+    return this.getConsecutivePositionCount(playerProfileId, 1);
+  }
+
+  /**
+   * Количество раз подряд с указанным местом.
+   * @param targetPosition 1=1-е место, 2=2-е место, ..., 0=последнее место (вылетел первым)
+   */
+  private async getConsecutivePositionCount(
+    playerProfileId: string,
+    targetPosition: number
+  ): Promise<number> {
     const results = await this.resultRepo.find({
       where: { player: { id: playerProfileId } },
       relations: ['tournament'],
       order: { id: 'DESC' },
-      take: 20,
+      take: 50,
     });
+    if (results.length === 0) return 0;
+
+    const tournamentIds = [...new Set(results.map((r) => r.tournament?.id).filter(Boolean) as string[])];
+
+    let totalByTid: Record<string, number> = {};
+    if (targetPosition === 0 && tournamentIds.length > 0) {
+      const rows = await this.registrationRepo
+        .createQueryBuilder('r')
+        .select('r.tournament_id', 'tid')
+        .addSelect('COUNT(*)', 'cnt')
+        .where('r.tournament_id IN (:...ids)', { ids: tournamentIds })
+        .groupBy('r.tournament_id')
+        .getRawMany();
+      totalByTid = Object.fromEntries(rows.map((r) => [r.tid, parseInt(String(r.cnt), 10)]));
+    }
+
     let streak = 0;
     for (const r of results) {
-      if (r.finishPosition === 1) streak++;
+      const matches =
+        targetPosition === 0
+          ? r.tournament?.id && totalByTid[r.tournament.id]
+            ? r.finishPosition === totalByTid[r.tournament.id]
+            : false
+          : r.finishPosition === targetPosition;
+      if (matches) streak++;
       else break;
     }
     return streak;
@@ -325,6 +376,7 @@ export class AchievementService {
 
   /**
    * Создать тип достижения (админ)
+   * Для CONSECUTIVE_POSITION: targetPosition = 1..N (место), 0 = последнее место; targetValue = кол-во раз подряд
    */
   async createAchievementType(data: {
     name: string;
@@ -333,6 +385,7 @@ export class AchievementService {
     iconUrl?: string;
     statisticType?: string;
     targetValue?: number;
+    targetPosition?: number;
     conditionDescription?: string;
   }): Promise<AchievementType> {
     const maxOrder = await this.achievementTypeRepo
@@ -348,6 +401,7 @@ export class AchievementService {
       iconUrl: data.iconUrl ?? undefined,
       statisticType: data.statisticType ?? undefined,
       targetValue: data.targetValue ?? 0,
+      targetPosition: data.targetPosition,
       conditionDescription: data.conditionDescription ?? data.description ?? undefined,
       sortOrder,
     });

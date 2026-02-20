@@ -9,5 +9,9 @@ export declare class AdminDataController {
      * PATCH /admin/entity/:table/:id — Обновить запись (только ADMIN)
      */
     static updateEntity(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    /**
+     * POST /admin/recalculate-ratings — Пересчитать все рейтинги по новой системе очков (только ADMIN)
+     */
+    static recalculateRatings(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
 }
 //# sourceMappingURL=AdminDataController.d.ts.map

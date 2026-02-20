@@ -292,7 +292,7 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
   useEffect(() => {
     if (!t?.id) return;
     tournamentsApi.getById(t.id).then((r) => setFullTournament(r.data)).catch(() => setFullTournament(null));
-  }, [t?.id]);
+  }, [t?.id, tournaments]);
 
   const displayT = fullTournament || t;
 
@@ -1299,6 +1299,7 @@ function AutoSeatModal({
                 <label key={p.playerId} className="flex items-center gap-1.5 cursor-pointer text-sm">
                   <input
                     type="checkbox"
+                    className="glass-checkbox shrink-0"
                     checked={(selectedByTable[m.tableId] ?? new Set()).has(p.playerId)}
                     onChange={() => toggleVolunteer(m.tableId, p.playerId, m.countToMove)}
                     disabled={modeByTable[m.tableId] !== 'volunteer'}

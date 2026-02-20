@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { leaderboardsApi, tournamentSeriesApi, tournamentsApi, type Leaderboard, type LeaderboardEntry, type SeriesRatingRow, type Tournament } from '../api';
 import { useClub } from '../contexts/ClubContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,6 +44,39 @@ function rankTextClass(rank: string): string {
     case 'SS': return 'text-amber-400';
     default: return 'text-zinc-300';
   }
+}
+
+/** Ячейка с именем игрока: аватар + имя, при клике — переход в профиль */
+function PlayerCell({ avatarUrl, playerName, clubCardNumber, userId, center }: { avatarUrl?: string; playerName?: string; clubCardNumber?: string; userId?: string; center?: boolean }) {
+  const navigate = useNavigate();
+  const alignClass = center ? 'justify-center' : 'justify-start';
+  const content = (
+    <div className={`flex items-center gap-2 ${alignClass}`}>
+      {avatarUrl && (
+        <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
+          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+      <div>
+        <div className="text-white font-medium">{playerName ?? '—'}</div>
+        {clubCardNumber && (
+          <div className="text-xs text-zinc-500">#{clubCardNumber}</div>
+        )}
+      </div>
+    </div>
+  );
+  if (userId) {
+    return (
+      <button
+        type="button"
+        onClick={() => navigate(`/profile/${userId}`)}
+        className={`w-full hover:bg-white/5 rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors cursor-pointer flex ${alignClass}`}
+      >
+        {content}
+      </button>
+    );
+  }
+  return <div className={`flex ${alignClass}`}>{content}</div>;
 }
 
 function SeriesRatingTable({
@@ -159,13 +193,14 @@ function SeriesRatingTable({
                         {ranks[idx] ?? idx + 1}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-center">
-                      <div>
-                        <div className="text-white font-medium">{row.playerName}</div>
-                        {row.clubCardNumber && (
-                          <div className="text-xs text-zinc-500">#{row.clubCardNumber}</div>
-                        )}
-                      </div>
+                        <td className="px-6 py-3 text-center">
+                      <PlayerCell
+                        avatarUrl={row.avatarUrl}
+                        playerName={row.playerName}
+                        clubCardNumber={row.clubCardNumber}
+                        userId={row.userId}
+                        center
+                      />
                     </td>
                     <td className="px-6 py-3 text-center">
                       <span className="text-emerald-400 font-bold">{row.totalPoints}</span>
@@ -313,7 +348,9 @@ export default function RatingsPage() {
                     return (
                       <tr key={e.id ?? i} className={`border-b border-white/5 hover:bg-white/5 ${rankRowClass(rank)}`}>
                         <td className="px-6 py-4 text-amber-400">{i + 1}</td>
-                        <td className="px-6 py-4 text-white">{e.playerName ?? '—'}</td>
+                        <td className="px-6 py-4 text-white">
+                          <PlayerCell avatarUrl={e.avatarUrl} playerName={e.playerName} userId={e.userId} />
+                        </td>
                         <td className={`px-6 py-4 font-bold ${rankTextClass(rank)}`}>{rank}</td>
                       </tr>
                     );
@@ -359,7 +396,9 @@ export default function RatingsPage() {
                       {entries.map((e, i) => (
                         <tr key={e.id} className="border-b border-white/5 hover:bg-white/5">
                           <td className="px-6 py-4 text-amber-400">{e.rankPosition ?? i + 1}</td>
-                          <td className="px-6 py-4 text-white">{e.playerName ?? '—'}</td>
+                          <td className="px-6 py-4 text-white">
+                            <PlayerCell avatarUrl={e.avatarUrl} playerName={e.playerName} userId={e.userId} />
+                          </td>
                           <td className="px-6 py-4 text-zinc-300">{e.ratingPoints ?? e.points}</td>
                         </tr>
                       ))}

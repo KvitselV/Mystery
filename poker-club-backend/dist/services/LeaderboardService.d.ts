@@ -6,6 +6,8 @@ export declare class LeaderboardService {
     private resultRepository;
     private tournamentRepository;
     private playerRepository;
+    private registrationRepository;
+    private seriesRepository;
     /**
      * Создать или получить рейтинг
      */
@@ -27,9 +29,13 @@ export declare class LeaderboardService {
      */
     getLeaderboardEntries(leaderboardId: string, limit?: number, offset?: number): Promise<LeaderboardEntry[]>;
     /**
-     * Получить все рейтинги
+     * Получить все рейтинги (без удалённых серий)
      */
     getAllLeaderboards(): Promise<Leaderboard[]>;
+    /**
+     * Удалить рейтинги серии (при удалении серии)
+     */
+    deleteLeaderboardsBySeriesId(seriesId: string): Promise<void>;
     /**
      * Создать сезонный рейтинг для текущего месяца
      */
@@ -47,8 +53,17 @@ export declare class LeaderboardService {
      */
     updateLeaderboardsAfterTournament(tournamentId: string): Promise<void>;
     /**
-     * Рассчитать очки за финиш
+     * Рассчитать очки за финиш по таблице начисления
      */
     private calculatePoints;
+    /**
+     * Пересчитать все рейтинги по новой системе очков.
+     * Обновляет очки в результатах турниров и пересобирает серийные и сезонные рейтинги.
+     */
+    recalculateAllRatings(): Promise<{
+        updatedTournaments: number;
+        updatedResults: number;
+        createdMissing: number;
+    }>;
 }
 //# sourceMappingURL=LeaderboardService.d.ts.map

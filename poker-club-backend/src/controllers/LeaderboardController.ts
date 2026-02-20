@@ -54,6 +54,8 @@ export class LeaderboardController {
           id: entry.id,
           rankPosition: entry.rankPosition,
           playerName: entry.playerProfile.user.name,
+          userId: entry.playerProfile.user.id,
+          avatarUrl: entry.playerProfile.user.avatarUrl ?? undefined,
           tournamentsCount: entry.tournamentsCount,
           averageFinish: entry.averageFinish,
           ratingPoints: entry.ratingPoints,
@@ -131,6 +133,8 @@ export class LeaderboardController {
         entries: entries.map((entry) => ({
           rankPosition: entry.rankPosition,
           playerName: entry.playerProfile.user.name,
+          userId: entry.playerProfile.user.id,
+          avatarUrl: entry.playerProfile.user.avatarUrl ?? undefined,
           rankCode: entry.playerProfile.rankCode,
           ratingPoints: entry.ratingPoints,
           tournamentsCount: entry.tournamentsCount,

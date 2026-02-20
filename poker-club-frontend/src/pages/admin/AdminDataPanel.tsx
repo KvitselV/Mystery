@@ -279,6 +279,7 @@ function EditModal({
                 <label key={f} className="flex items-center gap-2">
                   <input
                     type="checkbox"
+                    className="glass-checkbox shrink-0"
                     checked={Boolean(form[f])}
                     onChange={(e) => setForm((prev) => ({ ...prev, [f]: e.target.checked }))}
                   />

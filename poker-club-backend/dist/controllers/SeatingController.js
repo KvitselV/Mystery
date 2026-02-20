@@ -63,6 +63,7 @@ class SeatingController {
                 });
             }
             const seat = await seatingService.manualReseating(tournamentId, playerId, newTableId, newSeatNumber);
+            await liveStateService.recalculateStats(tournamentId);
             (0, websocket_1.broadcastSeatingChange)(app_1.io, tournamentId, { type: 'manual_reseat', playerId, newTableId, newSeatNumber });
             res.json({
                 message: 'Player reseated successfully',

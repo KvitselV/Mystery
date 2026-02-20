@@ -2,7 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminDataController = void 0;
 const AdminDataService_1 = require("../services/AdminDataService");
+const LeaderboardService_1 = require("../services/LeaderboardService");
 const adminDataService = new AdminDataService_1.AdminDataService();
+const leaderboardService = new LeaderboardService_1.LeaderboardService();
 class AdminDataController {
     /**
      * GET /admin/data — Все данные из БД (только ADMIN)
@@ -39,6 +41,27 @@ class AdminDataController {
         catch (error) {
             const msg = error instanceof Error ? error.message : 'Update failed';
             res.status(400).json({ error: msg });
+        }
+    }
+    /**
+     * POST /admin/recalculate-ratings — Пересчитать все рейтинги по новой системе очков (только ADMIN)
+     */
+    static async recalculateRatings(req, res) {
+        try {
+            if (!req.user || req.user.role !== 'ADMIN') {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+            const result = await leaderboardService.recalculateAllRatings();
+            res.json({
+                message: result.createdMissing
+                    ? `Рейтинги пересчитаны. Создано ${result.createdMissing} недостающих результатов.`
+                    : 'Рейтинги пересчитаны',
+                ...result,
+            });
+        }
+        catch (error) {
+            const msg = error instanceof Error ? error.message : 'Ошибка пересчёта рейтингов';
+            res.status(500).json({ error: msg });
         }
     }
 }

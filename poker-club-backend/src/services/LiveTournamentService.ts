@@ -31,7 +31,7 @@ export class LiveTournamentService {
   private mmrService = new MMRService();
   private leaderboardService = new LeaderboardService();
   private achievementService = new AchievementService();
-  private statisticsService = new StatisticsService();
+  private statisticsService = StatisticsService.getInstance();
 
   
   async rebuy(

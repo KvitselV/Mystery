@@ -84,7 +84,7 @@ export class AchievementController {
    */
   static async createType(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const { name, description, icon, iconUrl, statisticType, targetValue, conditionDescription } = req.body;
+      const { name, description, icon, iconUrl, statisticType, targetValue, targetPosition, conditionDescription } = req.body;
       if (!name || !description) {
         res.status(400).json({ error: 'name and description are required' });
         return;
@@ -96,6 +96,7 @@ export class AchievementController {
         iconUrl,
         statisticType,
         targetValue,
+        targetPosition: targetPosition != null ? Number(targetPosition) : undefined,
         conditionDescription,
       });
       res.status(201).json(type);

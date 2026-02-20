@@ -45,7 +45,7 @@ const corsMiddleware = (req: express.Request, res: express.Response, next: expre
 };
 
 app.use(corsMiddleware);
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Для base64-иконок в достижениях
 app.use(sessionMiddleware);
 
 // Routes

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { tournamentsApi } from '../api';
 import type { Tournament, TournamentPlayerResult } from '../api';
+import { AchievementIcon } from './AchievementIcon';
 
 export function PlayerResultsModal({ tournament, onClose }: { tournament: Tournament; onClose: () => void }) {
   const [results, setResults] = useState<TournamentPlayerResult[]>([]);
@@ -40,10 +41,8 @@ export function PlayerResultsModal({ tournament, onClose }: { tournament: Tourna
                   {(r.achievements?.length ?? 0) > 0 && (
                     <div className="flex shrink-0 gap-1" title={r.achievements!.map((a) => a.achievementType?.name).filter(Boolean).join(', ')}>
                       {r.achievements!.map((a) => (
-                        a.achievementType?.iconUrl ? (
-                          <img key={a.id} src={a.achievementType.iconUrl} alt={a.achievementType.name} className="w-6 h-6 rounded object-contain" title={a.achievementType.name} />
-                        ) : (
-                          <span key={a.id} className="w-6 h-6 flex items-center justify-center text-base" title={a.achievementType?.name}>{a.achievementType?.icon || '🏆'}</span>
+                        a.achievementType && (
+                          <AchievementIcon key={a.id} type={a.achievementType} size="sm" />
                         )
                       ))}
                     </div>

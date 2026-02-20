@@ -22,6 +22,8 @@ export enum AchievementStatisticType {
   TOURNAMENTS_PLAYED = 'TOURNAMENTS_PLAYED',
   WINS = 'WINS',
   CONSECUTIVE_WINS = 'CONSECUTIVE_WINS',
+  /** Конкретное место N раз подряд: targetPosition = 1..N (место), 0 = последнее место; targetValue = кол-во раз */
+  CONSECUTIVE_POSITION = 'CONSECUTIVE_POSITION',
   SERIES_WINS = 'SERIES_WINS',
   FINAL_TABLE = 'FINAL_TABLE',
   ITM_STREAK = 'ITM_STREAK',
@@ -58,9 +60,13 @@ export class AchievementType {
   @Column({ type: 'varchar', length: 50, nullable: true })
   statisticType?: string;
 
-  /** Целевое значение (например: 2 победы подряд) */
+  /** Целевое значение (например: 2 победы подряд, или кол-во раз подряд для CONSECUTIVE_POSITION) */
   @Column({ type: 'int', default: 0 })
   targetValue: number;
+
+  /** Место для CONSECUTIVE_POSITION: 1=1-е место, 2=2-е место, ..., 0=последнее место (вылетел первым) */
+  @Column({ type: 'int', nullable: true })
+  targetPosition?: number;
 
   /** Условие достижения (отображается при наведении) */
   @Column({ type: 'text', nullable: true })

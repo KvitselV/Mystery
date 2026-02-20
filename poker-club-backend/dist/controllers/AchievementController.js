@@ -2,7 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AchievementController = void 0;
 const AchievementService_1 = require("../services/AchievementService");
+const database_1 = require("../config/database");
+const PlayerProfile_1 = require("../models/PlayerProfile");
 const achievementService = new AchievementService_1.AchievementService();
+const profileRepo = database_1.AppDataSource.getRepository(PlayerProfile_1.PlayerProfile);
 function canAccessUser(req, userId) {
     if (!req.user)
         return false;
@@ -64,7 +67,7 @@ class AchievementController {
         }
     }
     /**
-     * POST /achievements/seed — только ADMIN (requireRole в роуте)
+     * POST /achievements/seed — только ADMIN
      */
     static async seedTypes(req, res) {
         try {
@@ -73,6 +76,88 @@ class AchievementController {
         }
         catch (error) {
             res.status(500).json({ error: 'Failed to seed achievement types' });
+        }
+    }
+    /**
+     * POST /achievements/types — создать тип достижения (только ADMIN)
+     */
+    static async createType(req, res) {
+        try {
+            const { name, description, icon, iconUrl, statisticType, targetValue, targetPosition, conditionDescription } = req.body;
+            if (!name || !description) {
+                res.status(400).json({ error: 'name and description are required' });
+                return;
+            }
+            const type = await achievementService.createAchievementType({
+                name,
+                description,
+                icon,
+                iconUrl,
+                statisticType,
+                targetValue,
+                targetPosition: targetPosition != null ? Number(targetPosition) : undefined,
+                conditionDescription,
+            });
+            res.status(201).json(type);
+        }
+        catch (error) {
+            res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create achievement type' });
+        }
+    }
+    /**
+     * DELETE /achievements/instances/:id — отозвать достижение (только ADMIN)
+     */
+    static async revokeInstance(req, res) {
+        try {
+            const instanceId = req.params.id;
+            await achievementService.revokeAchievement(instanceId);
+            res.json({ message: 'Achievement revoked' });
+        }
+        catch (error) {
+            res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to revoke achievement' });
+        }
+    }
+    /**
+     * PATCH /achievements/user/:userId/pins — установить закреплённые достижения (до 4)
+     */
+    static async setPins(req, res) {
+        try {
+            const userId = req.params.userId;
+            if (!canAccessUser(req, userId)) {
+                res.status(403).json({ error: 'Forbidden' });
+                return;
+            }
+            const { achievementTypeIds } = req.body;
+            if (!Array.isArray(achievementTypeIds)) {
+                res.status(400).json({ error: 'achievementTypeIds must be an array' });
+                return;
+            }
+            await achievementService.setPinnedAchievements(userId, achievementTypeIds);
+            res.json({ message: 'Pins updated' });
+        }
+        catch (error) {
+            res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to set pins' });
+        }
+    }
+    /**
+     * GET /achievements/profile/:playerProfileId — получить достижения по playerProfileId (доступно всем авторизованным)
+     */
+    static async getAchievementsByPlayerProfileId(req, res) {
+        try {
+            const playerProfileId = req.params.playerProfileId;
+            const profile = await profileRepo.findOne({
+                where: { id: playerProfileId },
+                relations: ['user'],
+            });
+            if (!profile) {
+                res.status(404).json({ error: 'Player profile not found' });
+                return;
+            }
+            const achievements = await achievementService.getUserAchievements(profile.user.id);
+            res.json(achievements);
+        }
+        catch (error) {
+            res.status(500).json({ error: 'Failed to fetch achievements' });
         }
     }
 }

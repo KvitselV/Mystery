@@ -67,7 +67,7 @@ export default function MainLayout() {
                   const c = clubs.find((x) => x.id === e.target.value);
                   setSelectedClub(c ?? null);
                 }}
-                className="glass-card border border-amber-900/30 px-4 py-2 rounded-xl text-sm bg-transparent text-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                className="glass-select px-4 py-2 text-sm"
               >
                 {clubs.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>

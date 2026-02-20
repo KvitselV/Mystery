@@ -171,6 +171,7 @@ export interface AchievementTypeDto {
   iconUrl?: string;
   statisticType?: string;
   targetValue?: number;
+  targetPosition?: number;
   conditionDescription?: string;
   sortOrder: number;
 }
@@ -190,7 +191,7 @@ export const achievementsApi = {
     ),
   setPins: (userId: string, achievementTypeIds: string[]) =>
     api.patch(`/achievements/user/${userId}/pins`, { achievementTypeIds }),
-  createType: (data: { name: string; description: string; icon?: string; iconUrl?: string; statisticType?: string; targetValue?: number; conditionDescription?: string }) =>
+  createType: (data: { name: string; description: string; icon?: string; iconUrl?: string; statisticType?: string; targetValue?: number; targetPosition?: number; conditionDescription?: string }) =>
     api.post<AchievementTypeDto>('/achievements/types', data),
   revokeInstance: (instanceId: string) => api.delete(`/achievements/instances/${instanceId}`),
   seed: () => api.post('/achievements/seed'),
@@ -270,6 +271,8 @@ export interface SeriesRatingRow {
   playerId: string;
   playerName: string;
   clubCardNumber?: string;
+  avatarUrl?: string;
+  userId?: string;
   totalPoints: number;
   pointsByDate: Record<string, number>;
   positionByDate?: Record<string, number>;
@@ -458,6 +461,8 @@ export interface LeaderboardEntry {
   id?: string;
   rankPosition: number;
   playerName?: string;
+  userId?: string;
+  avatarUrl?: string;
   points?: number;
   ratingPoints?: number;
   mmr?: number;

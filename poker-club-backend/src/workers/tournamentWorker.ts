@@ -6,7 +6,7 @@ import { MMRService } from '../services/MMRService';
 import { LeaderboardService } from '../services/LeaderboardService';
 import { LiveTournamentService } from '../services/LiveTournamentService';
 
-const statisticsService = new StatisticsService();
+const statisticsService = StatisticsService.getInstance();
 const achievementService = new AchievementService();
 const mmrService = new MMRService();
 const leaderboardService = new LeaderboardService();

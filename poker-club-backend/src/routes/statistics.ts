@@ -8,6 +8,12 @@ router.use(authMiddleware);
 // Получить профиль по userId для просмотра (доступно всем авторизованным) - должен быть ПЕРЕД /user/:userId
 router.get('/user/:userId/public', StatisticsController.getPublicProfileByUserId);
 
+// Универсальная статистика с фильтрами: ?from=&to=&metrics=
+router.get('/player/:userId', StatisticsController.getPlayerStatisticsWithFilters);
+
+// Сравнение статистики нескольких игроков: POST { userIds: string[], metrics?: string[] }
+router.post('/compare', StatisticsController.comparePlayerStatistics);
+
 // Доступ к статистике: только свой userId или ADMIN
 router.get('/user/:userId', StatisticsController.getFullStatistics);
 router.get('/user/:userId/finishes', StatisticsController.getFinishStatistics);

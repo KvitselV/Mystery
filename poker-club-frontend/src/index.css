@@ -91,6 +91,29 @@ body {
   background-image: radial-gradient(circle at center, #DAA520 35%, transparent 45%);
 }
 
+/* Glass-style select — black & gold */
+.glass-select {
+  background: linear-gradient(135deg, rgba(218,165,32,0.06) 0%, rgba(0,0,0,0.5) 100%);
+  border: 1px solid rgba(218,165,32,0.25);
+  color: #f5f5f5;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.glass-select:hover {
+  border-color: rgba(218,165,32,0.4);
+  background: linear-gradient(135deg, rgba(218,165,32,0.1) 0%, rgba(0,0,0,0.5) 100%);
+}
+.glass-select:focus {
+  outline: none;
+  border-color: rgba(218,165,32,0.5);
+  box-shadow: 0 0 0 2px rgba(218,165,32,0.2);
+}
+.glass-select option {
+  background: #1a1a1a;
+  color: #f5f5f5;
+}
+
 /* TV Liquid Glass — black & gold frosted panels */
 .tv-liquid-glass {
   background: linear-gradient(135deg, rgba(218,165,32,0.1) 0%, rgba(0,0,0,0.3) 50%, rgba(184,134,11,0.04) 100%);

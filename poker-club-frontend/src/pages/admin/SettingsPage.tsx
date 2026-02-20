@@ -180,15 +180,15 @@ function SettingsSeries() {
 
       {(showForm || editId) && (
         <div className="glass-card p-4 mb-6 space-y-4">
-          <input placeholder="Название серии *" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Название серии *" value={name} onChange={(e) => setName(e.target.value)} className="glass-select w-full px-4 py-2" />
           <div className="flex gap-4">
             <div>
               <label className="text-zinc-400 text-sm">Дата начала</label>
-              <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm">Дата финального стола</label>
-              <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} className="glass-select w-full px-4 py-2" />
             </div>
           </div>
           <div>
@@ -203,19 +203,19 @@ function SettingsSeries() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-zinc-400 text-sm">Время старта</label>
-                <input type="time" value={defaultStartTime} onChange={(e) => setDefaultStartTime(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                <input type="time" value={defaultStartTime} onChange={(e) => setDefaultStartTime(e.target.value)} className="glass-select w-full px-4 py-2" />
               </div>
               <div>
                 <label className="text-zinc-400 text-sm">Бай-ин (₽)</label>
-                <input type="number" value={defaultBuyIn || ''} onChange={(e) => setDefaultBuyIn(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                <input type="number" value={defaultBuyIn || ''} onChange={(e) => setDefaultBuyIn(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" />
               </div>
               <div>
                 <label className="text-zinc-400 text-sm">Стартовый стек</label>
-                <input type="number" value={defaultStartingStack || ''} onChange={(e) => setDefaultStartingStack(parseInt(e.target.value) || 0)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+                <input type="number" value={defaultStartingStack || ''} onChange={(e) => setDefaultStartingStack(parseInt(e.target.value) || 0)} className="glass-select w-full px-4 py-2" />
               </div>
               <div>
                 <label className="text-zinc-400 text-sm">Структура блайндов</label>
-                <select value={defaultBlindStructureId} onChange={(e) => setDefaultBlindStructureId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+                <select value={defaultBlindStructureId} onChange={(e) => setDefaultBlindStructureId(e.target.value)} className="glass-select w-full px-4 py-2">
                   <option value="">—</option>
                   {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
@@ -369,58 +369,58 @@ function SettingsTournaments() {
 
       {(showForm || editId) && (
         <div className="glass-card p-4 mb-6 space-y-4 max-w-xl">
-          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Название *" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} className="glass-select w-full px-4 py-2" />
           <div>
             <label className="text-zinc-400 text-sm">Серия</label>
-            <select value={form.seriesId} onChange={(e) => setForm((p) => ({ ...p, seriesId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={form.seriesId} onChange={(e) => setForm((p) => ({ ...p, seriesId: e.target.value }))} className="glass-select w-full px-4 py-2">
               <option value="">—</option>
               {series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
             <label className="text-zinc-400 text-sm">Клуб</label>
-            <select value={form.clubId} onChange={(e) => setForm((p) => ({ ...p, clubId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={form.clubId} onChange={(e) => setForm((p) => ({ ...p, clubId: e.target.value }))} className="glass-select w-full px-4 py-2">
               <option value="">—</option>
               {clubs.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="text-zinc-400 text-sm">Начало</label>
-            <input type="datetime-local" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="datetime-local" value={form.startTime} onChange={(e) => setForm((p) => ({ ...p, startTime: e.target.value }))} className="glass-select w-full px-4 py-2" />
           </div>
           <div className="flex gap-4">
-            <input type="number" placeholder="Бай-ин (₽)" min={0} value={form.buyInCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, buyInCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-            <input type="number" placeholder="Стартовый стек" value={form.startingStack || ''} onChange={(e) => setForm((p) => ({ ...p, startingStack: parseInt(e.target.value) || 0 }))} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input type="number" placeholder="Бай-ин (₽)" min={0} value={form.buyInCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, buyInCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select px-4 py-2" />
+            <input type="number" placeholder="Стартовый стек" value={form.startingStack || ''} onChange={(e) => setForm((p) => ({ ...p, startingStack: parseInt(e.target.value) || 0 }))} className="glass-select px-4 py-2" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Стоимость ребая (₽)</label>
-              <input type="number" min={0} value={form.rebuyCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.rebuyCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Фишки за ребай</label>
-              <input type="number" min={0} value={form.rebuyChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.rebuyChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, rebuyChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Макс. ребаев на игрока</label>
-              <input type="number" min={0} value={form.maxRebuys ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxRebuys: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" title="0 = без лимита" />
+              <input type="number" min={0} value={form.maxRebuys ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxRebuys: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" title="0 = без лимита" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Стоимость аддона (₽)</label>
-              <input type="number" min={0} value={form.addonCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.addonCost ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonCost: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Фишки за аддон</label>
-              <input type="number" min={0} value={form.addonChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+              <input type="number" min={0} value={form.addonChips ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, addonChips: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" />
             </div>
             <div>
               <label className="text-zinc-400 text-sm block mb-1">Макс. аддонов на игрока</label>
-              <input type="number" min={0} value={form.maxAddons ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxAddons: isNaN(v) ? 0 : Math.max(0, v) })); }} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" title="0 = без лимита" />
+              <input type="number" min={0} value={form.maxAddons ?? ''} onChange={(e) => { const v = parseInt(e.target.value, 10); setForm((p) => ({ ...p, maxAddons: isNaN(v) ? 0 : Math.max(0, v) })); }} className="glass-select w-full px-4 py-2" title="0 = без лимита" />
             </div>
           </div>
           <div>
             <label className="text-zinc-400 text-sm">Структура блайндов</label>
-            <select value={form.blindStructureId} onChange={(e) => setForm((p) => ({ ...p, blindStructureId: e.target.value }))} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={form.blindStructureId} onChange={(e) => setForm((p) => ({ ...p, blindStructureId: e.target.value }))} className="glass-select w-full px-4 py-2">
               <option value="">—</option>
               {structures.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -602,15 +602,15 @@ function SettingsBlinds() {
         <div className="glass-card p-6 mb-6 space-y-4">
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Название</label>
-            <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input placeholder="Название" value={name} onChange={(e) => setName(e.target.value)} className="glass-select w-full px-4 py-2" />
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Описание</label>
-            <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="glass-select w-full px-4 py-2" />
           </div>
           <div>
             <label className="text-zinc-400 text-sm block mb-1">Клуб</label>
-            <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={clubId} onChange={(e) => setClubId(e.target.value)} className="glass-select w-full px-4 py-2">
               <option value="">Глобальная (все клубы)</option>
               {clubs.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -726,11 +726,11 @@ function SettingsClubs() {
 
       {showForm && (
         <div className="glass-card p-4 mb-6 space-y-4">
-          <input placeholder="Название *" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input placeholder="Адрес" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input placeholder="Телефон" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-          <input type="number" placeholder="Кол-во столов *" value={tableCount} onChange={(e) => setTableCount(parseInt(e.target.value) || 1)} className="w-full px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+          <input placeholder="Название *" value={name} onChange={(e) => setName(e.target.value)} className="glass-select w-full px-4 py-2" />
+          <input placeholder="Описание" value={desc} onChange={(e) => setDesc(e.target.value)} className="glass-select w-full px-4 py-2" />
+          <input placeholder="Адрес" value={address} onChange={(e) => setAddress(e.target.value)} className="glass-select w-full px-4 py-2" />
+          <input placeholder="Телефон" value={phone} onChange={(e) => setPhone(e.target.value)} className="glass-select w-full px-4 py-2" />
+          <input type="number" placeholder="Кол-во столов *" value={tableCount} onChange={(e) => setTableCount(parseInt(e.target.value) || 1)} className="glass-select w-full px-4 py-2" />
           <button onClick={create} className="glass-btn px-4 py-2 rounded-xl">Создать</button>
         </div>
       )}
@@ -831,7 +831,7 @@ function SettingsMenu() {
         </button>
         {catForm && (
           <div className="flex gap-2 mt-2">
-            <input placeholder="Название" value={catName} onChange={(e) => setCatName(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input placeholder="Название" value={catName} onChange={(e) => setCatName(e.target.value)} className="glass-select px-4 py-2" />
             <button onClick={createCat} className="glass-btn px-4 py-2 rounded-xl">Создать</button>
           </div>
         )}
@@ -852,9 +852,9 @@ function SettingsMenu() {
         </button>
         {itemForm && (
           <div className="flex flex-wrap gap-2 mt-2">
-            <input placeholder="Название" value={itemName} onChange={(e) => setItemName(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
+            <input placeholder="Название" value={itemName} onChange={(e) => setItemName(e.target.value)} className="glass-select px-4 py-2" />
             <input type="number" placeholder="Цена (руб)" value={itemPrice} onChange={(e) => setItemPrice(parseInt(e.target.value) || 0)} className="w-24 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white" />
-            <select value={itemCategoryId} onChange={(e) => setItemCategoryId(e.target.value)} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white">
+            <select value={itemCategoryId} onChange={(e) => setItemCategoryId(e.target.value)} className="glass-select px-4 py-2">
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

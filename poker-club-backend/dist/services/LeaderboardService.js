@@ -7,6 +7,8 @@ const LeaderboardEntry_1 = require("../models/LeaderboardEntry");
 const TournamentResult_1 = require("../models/TournamentResult");
 const PlayerProfile_1 = require("../models/PlayerProfile");
 const Tournament_1 = require("../models/Tournament");
+const TournamentRegistration_1 = require("../models/TournamentRegistration");
+const TournamentSeries_1 = require("../models/TournamentSeries");
 class LeaderboardService {
     constructor() {
         this.leaderboardRepository = database_1.AppDataSource.getRepository(Leaderboard_1.Leaderboard);
@@ -14,6 +16,8 @@ class LeaderboardService {
         this.resultRepository = database_1.AppDataSource.getRepository(TournamentResult_1.TournamentResult);
         this.tournamentRepository = database_1.AppDataSource.getRepository(Tournament_1.Tournament);
         this.playerRepository = database_1.AppDataSource.getRepository(PlayerProfile_1.PlayerProfile);
+        this.registrationRepository = database_1.AppDataSource.getRepository(TournamentRegistration_1.TournamentRegistration);
+        this.seriesRepository = database_1.AppDataSource.getRepository(TournamentSeries_1.TournamentSeries);
     }
     /**
      * Создать или получить рейтинг
@@ -116,12 +120,34 @@ class LeaderboardService {
         });
     }
     /**
-     * Получить все рейтинги
+     * Получить все рейтинги (без удалённых серий)
      */
     async getAllLeaderboards() {
-        return this.leaderboardRepository.find({
+        const leaderboards = await this.leaderboardRepository.find({
             order: { createdAt: 'DESC' },
         });
+        const seriesLbs = leaderboards.filter((lb) => lb.type === 'TOURNAMENT_SERIES' && lb.seriesId);
+        const otherLbs = leaderboards.filter((lb) => lb.type !== 'TOURNAMENT_SERIES' || !lb.seriesId);
+        if (seriesLbs.length === 0)
+            return leaderboards;
+        const existingSeriesIds = new Set((await this.seriesRepository.find({ select: { id: true } })).map((s) => s.id));
+        const validSeriesLbs = seriesLbs.filter((lb) => lb.seriesId && existingSeriesIds.has(lb.seriesId));
+        return [...validSeriesLbs, ...otherLbs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    /**
+     * Удалить рейтинги серии (при удалении серии)
+     */
+    async deleteLeaderboardsBySeriesId(seriesId) {
+        const leaderboards = await this.leaderboardRepository.find({
+            where: { seriesId },
+        });
+        for (const lb of leaderboards) {
+            await this.entryRepository.delete({ leaderboard: { id: lb.id } });
+            await this.leaderboardRepository.remove(lb);
+        }
+        if (leaderboards.length > 0) {
+            console.log(`🗑️ Deleted ${leaderboards.length} leaderboard(s) for series ${seriesId}`);
+        }
     }
     /**
      * Создать сезонный рейтинг для текущего месяца
@@ -204,36 +230,265 @@ class LeaderboardService {
         console.log(`✅ Updated leaderboards after tournament ${tournamentId}`);
     }
     /**
-     * Рассчитать очки за финиш
+     * Рассчитать очки за финиш по таблице начисления
      */
     calculatePoints(finishPosition, totalPlayers) {
-        let points = 0;
-        if (finishPosition === 1) {
-            points = 100;
+        const pos = finishPosition;
+        const n = totalPlayers;
+        if (n <= 9) {
+            if (pos === 1)
+                return 15;
+            if (pos === 2)
+                return 10;
+            if (pos === 3)
+                return 8;
+            if (pos === 4)
+                return 6;
+            if (pos === 5)
+                return 5;
+            if (pos === 6)
+                return 4;
+            if (pos === 7)
+                return 3;
+            if (pos <= 9)
+                return 2;
         }
-        else if (finishPosition === 2) {
-            points = 70;
+        else if (n <= 14) {
+            if (pos === 1)
+                return 20;
+            if (pos === 2)
+                return 15;
+            if (pos === 3)
+                return 10;
+            if (pos === 4)
+                return 8;
+            if (pos === 5)
+                return 6;
+            if (pos === 6)
+                return 5;
+            if (pos === 7)
+                return 4;
+            if (pos <= 9)
+                return 3;
+            if (pos <= 14)
+                return 2;
         }
-        else if (finishPosition === 3) {
-            points = 50;
+        else if (n <= 20) {
+            if (pos === 1)
+                return 25;
+            if (pos === 2)
+                return 20;
+            if (pos === 3)
+                return 15;
+            if (pos === 4)
+                return 10;
+            if (pos === 5)
+                return 8;
+            if (pos === 6)
+                return 6;
+            if (pos === 7)
+                return 5;
+            if (pos <= 9)
+                return 4;
+            if (pos <= 14)
+                return 3;
+            if (pos <= 18)
+                return 2;
+            if (pos <= 20)
+                return 1;
         }
-        else if (finishPosition <= 5) {
-            points = 30;
+        else if (n <= 25) {
+            if (pos === 1)
+                return 30;
+            if (pos === 2)
+                return 25;
+            if (pos === 3)
+                return 20;
+            if (pos === 4)
+                return 15;
+            if (pos === 5)
+                return 10;
+            if (pos === 6)
+                return 8;
+            if (pos === 7)
+                return 6;
+            if (pos <= 9)
+                return 5;
+            if (pos <= 14)
+                return 4;
+            if (pos <= 18)
+                return 3;
+            if (pos <= 22)
+                return 2;
+            if (pos <= 25)
+                return 1;
         }
-        else if (finishPosition <= 9) {
-            points = 20;
+        else if (n <= 30) {
+            if (pos === 1)
+                return 35;
+            if (pos === 2)
+                return 30;
+            if (pos === 3)
+                return 25;
+            if (pos === 4)
+                return 20;
+            if (pos === 5)
+                return 15;
+            if (pos === 6)
+                return 10;
+            if (pos === 7)
+                return 8;
+            if (pos <= 9)
+                return 6;
+            if (pos <= 14)
+                return 5;
+            if (pos <= 18)
+                return 4;
+            if (pos <= 22)
+                return 3;
+            if (pos <= 27)
+                return 2;
+            if (pos <= 30)
+                return 1;
         }
         else {
-            points = 10;
+            // 31+ участников (для 31–35; при 36+ — те же правила, доп. места = 1 очко)
+            if (pos === 1)
+                return 40;
+            if (pos === 2)
+                return 35;
+            if (pos === 3)
+                return 30;
+            if (pos === 4)
+                return 25;
+            if (pos === 5)
+                return 20;
+            if (pos === 6)
+                return 15;
+            if (pos === 7)
+                return 10;
+            if (pos <= 9)
+                return 8;
+            if (pos <= 14)
+                return 7;
+            if (pos <= 18)
+                return 6;
+            if (pos <= 22)
+                return 5;
+            if (pos <= 25)
+                return 4;
+            if (pos <= 27)
+                return 3;
+            if (pos <= 33)
+                return 2;
+            if (pos <= 35)
+                return 1;
+            return 1; // 36+ место
         }
-        // Коэффициент за размер турнира
-        if (totalPlayers >= 50) {
-            points = Math.floor(points * 1.5);
+        return 0;
+    }
+    /**
+     * Пересчитать все рейтинги по новой системе очков.
+     * Обновляет очки в результатах турниров и пересобирает серийные и сезонные рейтинги.
+     */
+    async recalculateAllRatings() {
+        const tournaments = await this.tournamentRepository.find({
+            where: { status: 'ARCHIVED' },
+            relations: ['registrations', 'registrations.player', 'series'],
+        });
+        let updatedResults = 0;
+        let createdMissing = 0;
+        // 0. Создать недостающие результаты (игроки без результата — например, финальный стол при досрочном завершении)
+        for (const tournament of tournaments) {
+            const registrations = await this.registrationRepository.find({
+                where: { tournament: { id: tournament.id } },
+                relations: ['player'],
+                order: { id: 'ASC' },
+            });
+            const existingResults = await this.resultRepository.find({
+                where: { tournament: { id: tournament.id } },
+                relations: ['player'],
+            });
+            const playerIdsWithResult = new Set(existingResults.map((r) => r.player?.id).filter(Boolean));
+            const usedPositions = new Set(existingResults.map((r) => r.finishPosition));
+            const missingRegs = registrations.filter((r) => r.player && !playerIdsWithResult.has(r.player.id));
+            if (missingRegs.length === 0)
+                continue;
+            let nextPos = 1;
+            while (usedPositions.has(nextPos))
+                nextPos++;
+            for (const reg of missingRegs) {
+                if (!reg.player)
+                    continue;
+                const result = this.resultRepository.create({
+                    tournament,
+                    player: reg.player,
+                    finishPosition: nextPos,
+                    isFinalTable: nextPos <= 9,
+                });
+                await this.resultRepository.save(result);
+                createdMissing++;
+                usedPositions.add(nextPos);
+                while (usedPositions.has(nextPos))
+                    nextPos++;
+            }
         }
-        else if (totalPlayers >= 30) {
-            points = Math.floor(points * 1.2);
+        // 1. Пересчитать очки в TournamentResult для каждого завершённого турнира
+        for (const tournament of tournaments) {
+            const results = await this.resultRepository.find({
+                where: { tournament: { id: tournament.id } },
+                relations: ['player'],
+            });
+            const totalPlayers = tournament.registrations?.length ?? 0;
+            if (totalPlayers === 0)
+                continue;
+            for (const result of results) {
+                const points = this.calculatePoints(result.finishPosition, totalPlayers);
+                result.points = points;
+                await this.resultRepository.save(result);
+                updatedResults++;
+            }
         }
-        return points;
+        // 2. Удалить все записи серийных и сезонных рейтингов
+        const leaderboardsToReset = await this.leaderboardRepository.find({
+            where: [
+                { type: 'TOURNAMENT_SERIES' },
+                { type: 'SEASONAL' },
+            ],
+        });
+        for (const lb of leaderboardsToReset) {
+            await this.entryRepository.delete({ leaderboard: { id: lb.id } });
+        }
+        // 3. Заново собрать рейтинги из результатов турниров
+        for (const tournament of tournaments) {
+            const results = await this.resultRepository.find({
+                where: { tournament: { id: tournament.id } },
+                relations: ['player'],
+            });
+            const totalPlayers = tournament.registrations?.length ?? 0;
+            if (totalPlayers === 0 || results.length === 0)
+                continue;
+            // Серийный рейтинг
+            if (tournament.series?.id) {
+                const seriesLb = await this.getOrCreateLeaderboard(tournament.series.name, 'TOURNAMENT_SERIES', tournament.series.periodStart ?? undefined, tournament.series.periodEnd ?? undefined, tournament.series.id);
+                for (const result of results) {
+                    await this.updateLeaderboardEntry(seriesLb.id, result.player.id, result.finishPosition, totalPlayers, result.points);
+                }
+            }
+            // Сезонный рейтинг (месяц турнира)
+            const startDate = new Date(tournament.startTime);
+            const periodStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+            const periodEnd = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+            const monthName = periodStart.toLocaleString('default', { month: 'long', year: 'numeric' });
+            const seasonalLb = await this.getOrCreateLeaderboard(`Seasonal ${monthName}`, 'SEASONAL', periodStart, periodEnd);
+            for (const result of results) {
+                await this.updateLeaderboardEntry(seasonalLb.id, result.player.id, result.finishPosition, totalPlayers, result.points);
+            }
+        }
+        // 4. Обновить рейтинг по ММР
+        await this.updateRankMMRLeaderboard();
+        console.log(`✅ Recalculated all ratings: ${tournaments.length} tournaments, ${updatedResults} results${createdMissing ? `, ${createdMissing} missing results created` : ''}`);
+        return { updatedTournaments: tournaments.length, updatedResults, createdMissing };
     }
 }
 exports.LeaderboardService = LeaderboardService;

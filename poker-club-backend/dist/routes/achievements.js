@@ -14,5 +14,11 @@ router.get('/user/:userId/progress', AchievementController_1.AchievementControll
 // Только ADMIN
 router.post('/check/:userId/:tournamentId', (0, authMiddleware_1.requireRole)(['ADMIN']), AchievementController_1.AchievementController.checkAchievements);
 router.post('/seed', (0, authMiddleware_1.requireRole)(['ADMIN']), AchievementController_1.AchievementController.seedTypes);
+router.post('/types', (0, authMiddleware_1.requireRole)(['ADMIN']), AchievementController_1.AchievementController.createType);
+router.delete('/instances/:id', (0, authMiddleware_1.requireRole)(['ADMIN']), AchievementController_1.AchievementController.revokeInstance);
+// Закреплённые достижения (свой userId или ADMIN)
+router.patch('/user/:userId/pins', AchievementController_1.AchievementController.setPins);
+// Получить достижения по playerProfileId (доступно всем авторизованным)
+router.get('/profile/:playerProfileId', AchievementController_1.AchievementController.getAchievementsByPlayerProfileId);
 exports.default = router;
 //# sourceMappingURL=achievements.js.map

@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AchievementType = exports.AchievementCode = void 0;
+exports.AchievementType = exports.AchievementStatisticType = exports.AchievementCode = void 0;
 const typeorm_1 = require("typeorm");
 const AchievementInstance_1 = require("./AchievementInstance");
 var AchievementCode;
@@ -20,7 +20,20 @@ var AchievementCode;
     AchievementCode["FINAL_TABLE"] = "FINAL_TABLE";
     AchievementCode["WIN"] = "WIN";
     AchievementCode["HOT_STREAK"] = "HOT_STREAK";
+    AchievementCode["SERIES_WINNER"] = "SERIES_WINNER";
 })(AchievementCode || (exports.AchievementCode = AchievementCode = {}));
+/** Тип статистики для настраиваемых достижений */
+var AchievementStatisticType;
+(function (AchievementStatisticType) {
+    AchievementStatisticType["TOURNAMENTS_PLAYED"] = "TOURNAMENTS_PLAYED";
+    AchievementStatisticType["WINS"] = "WINS";
+    AchievementStatisticType["CONSECUTIVE_WINS"] = "CONSECUTIVE_WINS";
+    /** Конкретное место N раз подряд: targetPosition = 1..N (место), 0 = последнее место; targetValue = кол-во раз */
+    AchievementStatisticType["CONSECUTIVE_POSITION"] = "CONSECUTIVE_POSITION";
+    AchievementStatisticType["SERIES_WINS"] = "SERIES_WINS";
+    AchievementStatisticType["FINAL_TABLE"] = "FINAL_TABLE";
+    AchievementStatisticType["ITM_STREAK"] = "ITM_STREAK";
+})(AchievementStatisticType || (exports.AchievementStatisticType = AchievementStatisticType = {}));
 let AchievementType = class AchievementType {
 };
 exports.AchievementType = AchievementType;
@@ -30,8 +43,9 @@ __decorate([
 ], AchievementType.prototype, "id", void 0);
 __decorate([
     (0, typeorm_1.Column)({
-        type: 'enum',
-        enum: AchievementCode,
+        type: 'varchar',
+        length: 50,
+        nullable: true,
         unique: true,
     }),
     __metadata("design:type", String)
@@ -45,9 +59,29 @@ __decorate([
     __metadata("design:type", String)
 ], AchievementType.prototype, "description", void 0);
 __decorate([
-    (0, typeorm_1.Column)({ type: 'varchar', length: 255, nullable: true }),
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
     __metadata("design:type", String)
 ], AchievementType.prototype, "iconUrl", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 32, nullable: true }),
+    __metadata("design:type", String)
+], AchievementType.prototype, "icon", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'varchar', length: 50, nullable: true }),
+    __metadata("design:type", String)
+], AchievementType.prototype, "statisticType", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', default: 0 }),
+    __metadata("design:type", Number)
+], AchievementType.prototype, "targetValue", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'int', nullable: true }),
+    __metadata("design:type", Number)
+], AchievementType.prototype, "targetPosition", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", String)
+], AchievementType.prototype, "conditionDescription", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'int', default: 0 }),
     __metadata("design:type", Number)

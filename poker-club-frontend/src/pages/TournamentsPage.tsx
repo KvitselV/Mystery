@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -893,9 +893,8 @@ function Table2D({
           // Для гостей показываем только занятые места; пустые боксы скрыты
           if (!showAdmin && !isOccupied) return null;
           return (
-            <>
+            <React.Fragment key={seat?.id ?? `empty-${seatNum}`}>
               <div
-                key={seat?.id ?? `empty-${seatNum}`}
                 onClick={() => {
                   if (canClickGuest && isOccupied && seat) {
                     onGuestClick?.({ id: seat.id, seatNumber: seatNum, playerId: seat.playerId, playerName: seat.playerName, clubCardNumber: seat.clubCardNumber });
@@ -961,7 +960,7 @@ function Table2D({
                   {seat.clubCardNumber || seat.playerName || 'Гость'}
                 </span>
               )}
-            </>
+            </React.Fragment>
           );
         })}
       </div>

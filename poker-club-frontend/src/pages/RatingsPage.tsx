@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { leaderboardsApi, tournamentSeriesApi, tournamentsApi, type Leaderboard, type LeaderboardEntry, type SeriesRatingRow, type Tournament } from '../api';
+import { leaderboardsApi, tournamentSeriesApi, tournamentsApi, type Leaderboard, type LeaderboardEntry, type PeriodRatingEntry, type SeriesRatingRow, type Tournament } from '../api';
 import { useClub } from '../contexts/ClubContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PlayerResultsModal } from '../components/PlayerResultsModal';
 
-type Tab = 'series' | 'seasonal' | 'mmr';
+type Tab = 'series' | 'seasonal' | 'mmr' | 'daily';
 
 /** Конвертация MMR в ранг (E–SS) — дублирует логику бэкенда */
 function mmrToRank(mmr: number): string {
@@ -254,6 +254,82 @@ function SeriesRatingTable({
   );
 }
 
+/** Таблица рейтинга за период (неделя / месяц / год) */
+function PeriodRatingTable({
+  title,
+  period,
+  clubId,
+}: {
+  title: string;
+  period: 'week' | 'month' | 'year';
+  clubId?: string;
+}) {
+  const [entries, setEntries] = useState<PeriodRatingEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    leaderboardsApi
+      .getPeriodRatings(period, clubId)
+      .then((r) => setEntries(r.data?.entries || []))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }, [period, clubId]);
+
+  const rankBadgeClass = (rank: number) => {
+    if (rank === 1) return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
+    if (rank === 2) return 'bg-zinc-500/20 text-zinc-300 border-zinc-400/50';
+    if (rank === 3) return 'bg-amber-800/30 text-amber-700 border-amber-700/50';
+    return 'bg-white/5 text-zinc-300 border-white/10';
+  };
+
+  return (
+    <div className="glass-card overflow-hidden">
+      <h3 className="text-lg font-bold text-white px-6 py-4">{title}</h3>
+      {loading ? (
+        <div className="px-6 py-8 text-amber-400 animate-pulse">Загрузка...</div>
+      ) : (
+        <table className="w-full text-left">
+          <thead className="border-b border-white/10">
+            <tr>
+              <th className="px-6 py-4 text-zinc-400 font-medium">#</th>
+              <th className="px-6 py-4 text-zinc-400 font-medium">Игрок</th>
+              <th className="px-6 py-4 text-zinc-400 font-medium">Очки</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e, i) => (
+              <tr key={e.playerId} className="border-b border-white/5 hover:bg-white/5">
+                <td className="px-6 py-4">
+                  <span className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded border text-sm font-medium ${rankBadgeClass(i + 1)}`}>
+                    {i + 1}
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-white">
+                  <PlayerCell
+                    avatarUrl={e.avatarUrl}
+                    playerName={e.playerName}
+                    clubCardNumber={e.clubCardNumber}
+                    userId={e.userId}
+                  />
+                </td>
+                <td className="px-6 py-4 text-emerald-400 font-bold">{e.totalPoints}</td>
+              </tr>
+            ))}
+            {entries.length === 0 && !loading && (
+              <tr>
+                <td colSpan={3} className="px-6 py-8 text-center text-zinc-500">
+                  Нет данных за период
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export default function RatingsPage() {
   const { selectedClub } = useClub();
   const { isAdmin } = useAuth();
@@ -325,6 +401,12 @@ export default function RatingsPage() {
         >
           Рейтинг игроков
         </button>
+        <button
+          onClick={() => setTab('daily')}
+          className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === 'daily' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
+        >
+          Рейтинг по дням
+        </button>
       </div>
 
       {loading ? (
@@ -367,6 +449,23 @@ export default function RatingsPage() {
               selectedClubId={selectedClub?.id}
               defaultSeriesId={seriesLbs[0]?.seriesId ?? null}
             />
+          )}
+
+          {tab === 'daily' && (
+            <div className="space-y-6">
+              <PeriodRatingTable
+                title="Рейтинг недели"
+                period="week"
+              />
+              <PeriodRatingTable
+                title="Рейтинг месяца"
+                period="month"
+              />
+              <PeriodRatingTable
+                title="Рейтинг года"
+                period="year"
+              />
+            </div>
           )}
 
           {tab === 'seasonal' && (

@@ -40,11 +40,14 @@ export declare class TournamentSeriesService {
         columns: {
             date: string;
             dateLabel: string;
+            tournamentId?: string;
         }[];
         rows: {
             playerId: string;
             playerName: string;
             clubCardNumber?: string;
+            avatarUrl?: string;
+            userId?: string;
             totalPoints: number;
             pointsByDate: Record<string, number>;
             positionByDate: Record<string, number>;

@@ -44,6 +44,8 @@ class LeaderboardController {
                     id: entry.id,
                     rankPosition: entry.rankPosition,
                     playerName: entry.playerProfile.user.name,
+                    userId: entry.playerProfile.user.id,
+                    avatarUrl: entry.playerProfile.user.avatarUrl ?? undefined,
                     tournamentsCount: entry.tournamentsCount,
                     averageFinish: entry.averageFinish,
                     ratingPoints: entry.ratingPoints,
@@ -99,6 +101,23 @@ class LeaderboardController {
         }
     }
     /**
+     * GET /leaderboards/period-ratings - Рейтинг за период (неделя / месяц / год)
+     */
+    static async getPeriodRatings(req, res) {
+        try {
+            const period = req.query.period || 'week';
+            const clubId = req.query.clubId || undefined;
+            if (!['week', 'month', 'year'].includes(period)) {
+                return res.status(400).json({ error: 'Invalid period. Use week, month or year' });
+            }
+            const entries = await leaderboardService.getPeriodRatings(period, clubId || null);
+            res.json({ entries });
+        }
+        catch (error) {
+            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+        }
+    }
+    /**
      * GET /leaderboards/rank-mmr - Получить топ по рангам
      */
     static async getRankMMRLeaderboard(req, res) {
@@ -114,6 +133,8 @@ class LeaderboardController {
                 entries: entries.map((entry) => ({
                     rankPosition: entry.rankPosition,
                     playerName: entry.playerProfile.user.name,
+                    userId: entry.playerProfile.user.id,
+                    avatarUrl: entry.playerProfile.user.avatarUrl ?? undefined,
                     rankCode: entry.playerProfile.rankCode,
                     ratingPoints: entry.ratingPoints,
                     tournamentsCount: entry.tournamentsCount,

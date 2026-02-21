@@ -20,6 +20,10 @@ export declare class LeaderboardController {
      */
     static updateRankMMRLeaderboard(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     /**
+     * GET /leaderboards/period-ratings - Рейтинг за период (неделя / месяц / год)
+     */
+    static getPeriodRatings(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    /**
      * GET /leaderboards/rank-mmr - Получить топ по рангам
      */
     static getRankMMRLeaderboard(req: AuthRequest, res: Response): Promise<void>;

@@ -65,5 +65,16 @@ export declare class LeaderboardService {
         updatedResults: number;
         createdMissing: number;
     }>;
+    /**
+     * Получить рейтинг за период (неделя / месяц / год) по очкам из завершённых турниров
+     */
+    getPeriodRatings(period: 'week' | 'month' | 'year', clubId?: string | null): Promise<{
+        playerId: string;
+        playerName: string;
+        userId?: string;
+        avatarUrl?: string;
+        clubCardNumber?: string;
+        totalPoints: number;
+    }[]>;
 }
 //# sourceMappingURL=LeaderboardService.d.ts.map

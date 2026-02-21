@@ -160,6 +160,8 @@ class TournamentSeriesService {
                     playerId: pid,
                     playerName: r.player?.user?.name || 'Игрок',
                     clubCardNumber: r.player?.user?.clubCardNumber,
+                    avatarUrl: r.player?.user?.avatarUrl ?? undefined,
+                    userId: r.player?.user?.id,
                     totalPoints: 0,
                     pointsByDate: {},
                     positionByDate: {},

@@ -145,12 +145,26 @@ export const blindStructuresApi = {
   deactivate: (id: string) => api.delete(`/blind-structures/${id}`),
 };
 
+/** Запись рейтинга за период (неделя/месяц/год) */
+export interface PeriodRatingEntry {
+  playerId: string;
+  playerName: string;
+  userId?: string;
+  avatarUrl?: string;
+  clubCardNumber?: string;
+  totalPoints: number;
+}
+
 // Leaderboards
 export const leaderboardsApi = {
   list: () => api.get<{ leaderboards: Leaderboard[] }>('/leaderboards'),
   getEntries: (id: string, limit?: number, offset?: number) =>
     api.get<{ entries: LeaderboardEntry[] }>(`/leaderboards/${id}/entries`, { params: { limit, offset } }),
   getRankMmr: () => api.get<{ entries: LeaderboardEntry[] }>('/leaderboards/rank-mmr'),
+  getPeriodRatings: (period: 'week' | 'month' | 'year', clubId?: string) =>
+    api.get<{ entries: PeriodRatingEntry[] }>('/leaderboards/period-ratings', {
+      params: clubId ? { period, clubId } : { period },
+    }),
   createSeasonal: () => api.post('/leaderboards/seasonal/create'),
   updateRankMmr: () => api.post('/leaderboards/rank-mmr/update'),
 };

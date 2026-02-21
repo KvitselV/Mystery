@@ -490,6 +490,57 @@ class LeaderboardService {
         console.log(`✅ Recalculated all ratings: ${tournaments.length} tournaments, ${updatedResults} results${createdMissing ? `, ${createdMissing} missing results created` : ''}`);
         return { updatedTournaments: tournaments.length, updatedResults, createdMissing };
     }
+    /**
+     * Получить рейтинг за период (неделя / месяц / год) по очкам из завершённых турниров
+     */
+    async getPeriodRatings(period, clubId) {
+        const now = new Date();
+        let periodStart;
+        if (period === 'week') {
+            periodStart = new Date(now);
+            periodStart.setDate(periodStart.getDate() - 7);
+        }
+        else if (period === 'month') {
+            periodStart = new Date(now);
+            periodStart.setDate(periodStart.getDate() - 30);
+        }
+        else {
+            periodStart = new Date(now);
+            periodStart.setDate(periodStart.getDate() - 365);
+        }
+        const qb = this.resultRepository
+            .createQueryBuilder('r')
+            .innerJoin('r.tournament', 't')
+            .innerJoin('r.player', 'p')
+            .innerJoin('p.user', 'u')
+            .where('t.startTime >= :periodStart', { periodStart })
+            .andWhere('t.startTime <= :now', { now })
+            .andWhere('t.status = :status', { status: 'ARCHIVED' })
+            .select('p.id', 'playerId')
+            .addSelect('u.name', 'playerName')
+            .addSelect('u.id', 'userId')
+            .addSelect('u.avatarUrl', 'avatarUrl')
+            .addSelect('u.clubCardNumber', 'clubCardNumber')
+            .addSelect('SUM(r.points)', 'totalPoints')
+            .groupBy('p.id')
+            .addGroupBy('u.name')
+            .addGroupBy('u.id')
+            .addGroupBy('u.avatarUrl')
+            .addGroupBy('u.clubCardNumber')
+            .orderBy('totalPoints', 'DESC');
+        if (clubId) {
+            qb.andWhere('t.clubId = :clubId', { clubId });
+        }
+        const rows = await qb.getRawMany();
+        return rows.map((r) => ({
+            playerId: r.playerId,
+            playerName: r.playerName ?? '—',
+            userId: r.userId,
+            avatarUrl: r.avatarUrl ?? undefined,
+            clubCardNumber: r.clubCardNumber ?? undefined,
+            totalPoints: parseInt(String(r.totalPoints), 10) || 0,
+        }));
+    }
 }
 exports.LeaderboardService = LeaderboardService;
 //# sourceMappingURL=LeaderboardService.js.map

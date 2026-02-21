@@ -534,4 +534,86 @@ export class LeaderboardService {
 
     return { updatedTournaments: tournaments.length, updatedResults, createdMissing };
   }
+
+  /**
+   * Получить рейтинг за период (неделя / месяц / год) по очкам из завершённых турниров.
+   * Неделя = последние 7 дней, месяц = последние 30 дней, год = последние 365 дней.
+   */
+  async getPeriodRatings(
+    period: 'week' | 'month' | 'year',
+    clubId?: string | null
+  ): Promise<{ playerId: string; playerName: string; userId?: string; avatarUrl?: string; clubCardNumber?: string; totalPoints: number }[]> {
+    const now = new Date();
+    let periodStart: Date;
+    let periodEnd: Date;
+
+    if (period === 'week') {
+      // Последние 7 дней: от сегодня до 7 дней назад
+      periodStart = new Date(now);
+      periodStart.setDate(periodStart.getDate() - 7);
+      periodEnd = new Date(now);
+    } else if (period === 'month') {
+      // Последние 30 дней: от сегодня до 30 дней назад
+      periodStart = new Date(now);
+      periodStart.setDate(periodStart.getDate() - 30);
+      periodEnd = new Date(now);
+    } else {
+      // Последние 365 дней: от сегодня до года назад
+      periodStart = new Date(now);
+      periodStart.setDate(periodStart.getDate() - 365);
+      periodEnd = new Date(now);
+    }
+
+    const qb = this.resultRepository
+      .createQueryBuilder('r')
+      .innerJoinAndSelect('r.tournament', 't')
+      .innerJoinAndSelect('r.player', 'p')
+      .innerJoinAndSelect('p.user', 'u')
+      .where('t.startTime >= :periodStart', { periodStart })
+      .andWhere('t.startTime <= :periodEnd', { periodEnd })
+      .andWhere('(t.status = :archived OR t.status = :finished)', {
+        archived: 'ARCHIVED',
+        finished: 'FINISHED',
+      });
+
+    if (clubId) {
+      qb.andWhere('t.clubId = :clubId', { clubId });
+    }
+
+    const results = await qb.getMany();
+
+    if (process.env.NODE_ENV === 'development' && results.length === 0) {
+      const anyResults = await this.resultRepository.count();
+      const anyInPeriod = await this.resultRepository
+        .createQueryBuilder('r')
+        .innerJoin('r.tournament', 't')
+        .where('t.startTime >= :periodStart', { periodStart })
+        .andWhere('t.startTime <= :periodEnd', { periodEnd })
+        .getCount();
+      console.log(`[getPeriodRatings] period=${period} ${periodStart.toISOString().slice(0, 10)}–${periodEnd.toISOString().slice(0, 10)}: ${results.length} (total in DB: ${anyResults}, in range: ${anyInPeriod})`);
+    }
+
+    const map = new Map<string, { playerId: string; playerName: string; userId?: string; avatarUrl?: string; clubCardNumber?: string; totalPoints: number }>();
+    for (const r of results) {
+      const pid = r.player?.id;
+      if (!pid) continue;
+      const existing = map.get(pid);
+      const pts = r.points ?? 0;
+      const user = r.player?.user;
+      if (existing) {
+        existing.totalPoints += pts;
+      } else {
+        map.set(pid, {
+          playerId: pid,
+          playerName: user?.name ?? '—',
+          userId: user?.id,
+          avatarUrl: user?.avatarUrl ?? undefined,
+          clubCardNumber: user?.clubCardNumber ?? undefined,
+          totalPoints: pts,
+        });
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+  }
 }

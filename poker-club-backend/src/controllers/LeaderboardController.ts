@@ -114,6 +114,28 @@ export class LeaderboardController {
   }
 
   /**
+   * GET /leaderboards/period-ratings - Рейтинг за период (неделя / месяц / год)
+   */
+  static async getPeriodRatings(req: AuthRequest, res: Response) {
+    try {
+      const period = (req.query.period as string) || 'week';
+      const clubId = (req.query.clubId as string) || undefined;
+      if (!['week', 'month', 'year'].includes(period)) {
+        return res.status(400).json({ error: 'Invalid period. Use week, month or year' });
+      }
+      const entries = await leaderboardService.getPeriodRatings(
+        period as 'week' | 'month' | 'year',
+        clubId || null
+      );
+      res.json({ entries });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Operation failed';
+      console.error('[getPeriodRatings]', error);
+      res.status(400).json({ error: msg });
+    }
+  }
+
+  /**
    * GET /leaderboards/rank-mmr - Получить топ по рангам
    */
   static async getRankMMRLeaderboard(req: AuthRequest, res: Response) {

@@ -10,6 +10,12 @@ router.use(authMiddleware);
 // Получить все рейтинги (доступно всем)
 router.get('/', LeaderboardController.getAllLeaderboards);
 
+// Рейтинг за период: неделя / месяц / год (доступно всем) — до /:id
+router.get('/period-ratings', LeaderboardController.getPeriodRatings);
+
+// Получить топ по рангам (доступно всем) — до /:id
+router.get('/rank-mmr', LeaderboardController.getRankMMRLeaderboard);
+
 // Получить записи конкретного рейтинга (доступно всем)
 router.get('/:id/entries', LeaderboardController.getLeaderboardEntries);
 
@@ -18,8 +24,5 @@ router.post('/seasonal/create', LeaderboardController.createSeasonalLeaderboard)
 
 // Обновить рейтинг по ММР (только ADMIN)
 router.post('/rank-mmr/update', LeaderboardController.updateRankMMRLeaderboard);
-
-// Получить топ по рангам (доступно всем)
-router.get('/rank-mmr', LeaderboardController.getRankMMRLeaderboard);
 
 export default router;

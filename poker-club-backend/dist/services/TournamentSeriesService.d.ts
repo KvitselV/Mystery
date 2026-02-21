@@ -35,7 +35,7 @@ export declare class TournamentSeriesService {
      * Таблица рейтинга серии: игроки, итого очков, очки по датам турниров.
      * Колонки: Имя (№ карты) | Итого | Дата1 | Дата2 | ... (новые даты добавляются в 3-ю колонку)
      */
-    getSeriesRatingTable(seriesId: string): Promise<{
+    getSeriesRatingTable(seriesId: string, limit?: number): Promise<{
         seriesName: string;
         columns: {
             date: string;

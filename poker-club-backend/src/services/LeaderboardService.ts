@@ -143,7 +143,7 @@ export class LeaderboardService {
    */
   async getLeaderboardEntries(
     leaderboardId: string,
-    limit: number = 50,
+    limit: number = 20,
     offset: number = 0
   ): Promise<LeaderboardEntry[]> {
     return this.entryRepository.find({
@@ -309,6 +309,63 @@ export class LeaderboardService {
     await this.updateRankMMRLeaderboard();
 
     console.log(`✅ Updated leaderboards after tournament ${tournamentId}`);
+  }
+
+  /**
+   * Обновить рейтинги после импорта (использует уже сохранённые очки в TournamentResult).
+   */
+  async updateLeaderboardsAfterImport(tournamentId: string): Promise<void> {
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+      relations: ['registrations', 'series'],
+    });
+
+    if (!tournament) {
+      throw new Error('Tournament not found');
+    }
+
+    const results = await this.resultRepository.find({
+      where: { tournament: { id: tournamentId } },
+      relations: ['player'],
+    });
+
+    const totalPlayers = tournament.registrations.length;
+
+    // Серийный рейтинг (используем сохранённые очки из импорта)
+    if (tournament.series?.id) {
+      const seriesLb = await this.getOrCreateLeaderboard(
+        tournament.series.name,
+        'TOURNAMENT_SERIES',
+        tournament.series.periodStart,
+        tournament.series.periodEnd,
+        tournament.series.id
+      );
+      for (const result of results) {
+        await this.updateLeaderboardEntry(
+          seriesLb.id,
+          result.player.id,
+          result.finishPosition,
+          totalPlayers,
+          result.points ?? 0
+        );
+      }
+    }
+
+    // Сезонный рейтинг
+    const seasonalLeaderboard = await this.createSeasonalLeaderboard();
+    for (const result of results) {
+      await this.updateLeaderboardEntry(
+        seasonalLeaderboard.id,
+        result.player.id,
+        result.finishPosition,
+        totalPlayers,
+        result.points ?? 0
+      );
+    }
+
+    await this.updateRankMMRLeaderboard();
+
+    console.log(`✅ Updated leaderboards after import ${tournamentId}`);
   }
 
   /**
@@ -541,7 +598,9 @@ export class LeaderboardService {
    */
   async getPeriodRatings(
     period: 'week' | 'month' | 'year',
-    clubId?: string | null
+    clubId?: string | null,
+    limit: number = 20,
+    offset: number = 0
   ): Promise<{ playerId: string; playerName: string; userId?: string; avatarUrl?: string; clubCardNumber?: string; totalPoints: number }[]> {
     const now = new Date();
     let periodStart: Date;
@@ -614,6 +673,7 @@ export class LeaderboardService {
       }
     }
 
-    return Array.from(map.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+    const sorted = Array.from(map.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+    return sorted.slice(offset, offset + limit);
   }
 }

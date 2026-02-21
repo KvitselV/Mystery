@@ -10,6 +10,10 @@ export declare class AdminDataController {
      */
     static updateEntity(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     /**
+     * POST /admin/import-excel — Импорт данных из Excel (только ADMIN)
+     */
+    static importExcel(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    /**
      * POST /admin/recalculate-ratings — Пересчитать все рейтинги по новой системе очков (только ADMIN)
      */
     static recalculateRatings(req: AuthRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;

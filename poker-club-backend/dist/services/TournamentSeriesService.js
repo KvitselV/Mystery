@@ -130,7 +130,7 @@ class TournamentSeriesService {
      * Таблица рейтинга серии: игроки, итого очков, очки по датам турниров.
      * Колонки: Имя (№ карты) | Итого | Дата1 | Дата2 | ... (новые даты добавляются в 3-ю колонку)
      */
-    async getSeriesRatingTable(seriesId) {
+    async getSeriesRatingTable(seriesId, limit = 20) {
         const series = await this.getSeriesById(seriesId);
         const tournamentRepo = database_1.AppDataSource.getRepository(Tournament_1.Tournament);
         const resultRepo = database_1.AppDataSource.getRepository(TournamentResult_1.TournamentResult);
@@ -174,7 +174,8 @@ class TournamentSeriesService {
                 row.positionByDate[dateKey] = pos;
             }
         }
-        const rows = Array.from(byPlayer.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+        const sorted = Array.from(byPlayer.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+        const rows = sorted.slice(0, limit);
         return { seriesName: series.name, columns, rows };
     }
 }

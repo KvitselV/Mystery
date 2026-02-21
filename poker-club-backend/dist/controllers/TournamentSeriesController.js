@@ -94,7 +94,8 @@ class TournamentSeriesController {
     static async getRatingTable(req, res) {
         try {
             const id = req.params.id;
-            const table = await seriesService.getSeriesRatingTable(id);
+            const limit = parseInt(req.query.limit) || 20;
+            const table = await seriesService.getSeriesRatingTable(id, limit);
             res.json(table);
         }
         catch (e) {

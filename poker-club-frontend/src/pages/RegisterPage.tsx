@@ -23,8 +23,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-zinc-950 to-black p-4">
-      <div className="glass-card w-full max-w-md p-8 border border-amber-900/30">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-zinc-950 to-black p-4 sm:p-6">
+      <div className="glass-card w-full max-w-md p-6 sm:p-8 border border-amber-900/30">
         <h1 className="text-2xl font-bold text-amber-400 mb-6 text-center">Регистрация</h1>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input

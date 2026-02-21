@@ -132,8 +132,8 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
 
   if (waiter) {
     return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-white">Игроки турнира — приём заказов</h2>
+      <div className="space-y-4 sm:space-y-6">
+        <h2 className="text-lg sm:text-2xl font-bold text-white">Игроки турнира — приём заказов</h2>
         {live ? (
           <WaiterPlayersList tournamentId={live.id} tournamentName={live.name} />
         ) : (
@@ -144,7 +144,7 @@ export default function TournamentsPage({ waiter }: TournamentsPageProps) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <section>
         {live ? (
           <LiveTournamentBlock
@@ -215,9 +215,9 @@ function ScheduleCalendar({
     tournaments.filter((t) => new Date(t.startTime).toDateString() === d.toDateString());
 
   return (
-    <div className="glass-card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-white">
+    <div className="glass-card p-4 sm:p-6 overflow-x-auto">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <h2 className="text-lg sm:text-xl font-bold text-white min-w-0">
           {format(month, 'LLLL yyyy', { locale: ru })}
         </h2>
         <div className="flex gap-1">
@@ -239,9 +239,9 @@ function ScheduleCalendar({
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-px">
+      <div className="grid grid-cols-7 gap-px min-w-[280px]">
         {DAYS.map((d) => (
-          <div key={d} className="py-2 text-center text-zinc-400 text-sm font-medium">
+          <div key={d} className="py-1 sm:py-2 text-center text-zinc-400 text-xs sm:text-sm font-medium">
             {d}
           </div>
         ))}
@@ -252,7 +252,7 @@ function ScheduleCalendar({
           return (
             <div
               key={date.toISOString()}
-              className={`min-h-[100px] p-2 border border-transparent rounded-lg ${
+              className={`min-h-[70px] sm:min-h-[100px] p-1 sm:p-2 border border-transparent rounded-lg ${
                 isTodayDate ? 'border-blue-500/60 bg-blue-500/10' : ''
               } ${!isCurrentMonth ? 'opacity-50' : ''}`}
             >
@@ -393,13 +393,13 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
   };
 
   return (
-    <div className="glass-card p-6 space-y-4">
-      <h2 className="text-2xl font-bold text-white">Предстоящий турнир</h2>
+    <div className="glass-card p-4 sm:p-6 space-y-4">
+      <h2 className="text-xl sm:text-2xl font-bold text-white">Предстоящий турнир</h2>
       <div className="text-amber-400">{displayT.name}</div>
 
       {/* Блок статуса и обратного отсчёта */}
-      <div className="flex items-stretch gap-4">
-        <div className={`flex shrink-0 w-20 h-20 rounded-full border-4 ${statusConfig.borderClass} bg-black/40 flex flex-col items-center justify-center`} aria-hidden>
+      <div className="flex items-stretch gap-3 sm:gap-4">
+        <div className={`flex shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 ${statusConfig.borderClass} bg-black/40 flex flex-col items-center justify-center`} aria-hidden>
           <span className={`font-bold text-xl leading-tight ${statusConfig.colorClass}`}>{timeValue}</span>
           <span className={`text-xs leading-tight ${statusConfig.colorClass}`}>{timeUnit}</span>
         </div>
@@ -410,7 +410,7 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <div><span className="text-zinc-500">Зарегистрировано:</span> {displayT.registrations?.length ?? 0}</div>
         <div><span className="text-zinc-500">Стартовый стек:</span> {displayT.startingStack}</div>
         <div>
@@ -427,8 +427,8 @@ function UpcomingTournamentBlock({ tournaments, isAdmin, onRefresh }: { tourname
       </div>
       {blindStructureModalOpen &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setBlindStructureModalOpen(false)} role="dialog" aria-modal="true" aria-labelledby="blind-structure-title">
-            <div className="glass-card p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4" onClick={() => setBlindStructureModalOpen(false)} role="dialog" aria-modal="true" aria-labelledby="blind-structure-title">
+          <div className="glass-card p-4 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-start mb-4">
                 <h3 id="blind-structure-title" className="text-xl font-bold text-amber-400">Структура блайндов</h3>
                 <button type="button" onClick={() => setBlindStructureModalOpen(false)} className="text-zinc-400 hover:text-white text-2xl leading-none" aria-label="Закрыть">×</button>
@@ -675,8 +675,8 @@ function TournamentDetailModal({
   const isArchived = tournament.status === 'ARCHIVED' || tournament.status === 'FINISHED';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="glass-card p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="glass-card p-4 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto mx-2 sm:mx-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-4">
           <h3 className="text-xl font-bold text-amber-400">{tournament.name}</h3>
           <button onClick={onClose} className="text-zinc-400 hover:text-white text-2xl leading-none">×</button>
@@ -788,11 +788,11 @@ function LiveTournamentBlock({
   const navigate = useNavigate();
   const [guestProfileModal, setGuestProfileModal] = useState<{ playerProfileId: string; playerName?: string; clubCardNumber?: string } | null>(null);
   return (
-    <div className="space-y-6">
-      <div className="glass-card p-6">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h2 className="text-2xl font-bold text-amber-400">{tournament.name}</h2>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="glass-card p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold text-amber-400 truncate">{tournament.name}</h2>
             <p className="text-zinc-400">Live</p>
           </div>
           {isAdmin && (

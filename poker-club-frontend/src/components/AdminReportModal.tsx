@@ -62,8 +62,8 @@ export function AdminReportModal({
   const profit = cash + nonCash - totalExpenses;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="glass-card p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onClick={onClose}>
+      <div className="glass-card p-4 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-lg font-bold text-white mb-4">Отчёт по турниру: {tournament.name}</h3>
         {loading ? (
           <p className="text-zinc-400">Загрузка...</p>
@@ -88,10 +88,10 @@ export function AdminReportModal({
               </div>
               <div className="space-y-2">
                 {expenses.map((e, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input placeholder="На что" value={e.description} onChange={(ev) => updateExpense(i, 'description', ev.target.value)} className="flex-1 glass-card px-3 py-2" />
-                    <input type="number" placeholder="₽" value={e.amount} onChange={(ev) => updateExpense(i, 'amount', ev.target.value)} className="w-24 glass-card px-3 py-2" />
-                    <button onClick={() => removeExpense(i)} className="text-red-400">×</button>
+                  <div key={i} className="flex gap-2 flex-wrap sm:flex-nowrap">
+                    <input placeholder="На что" value={e.description} onChange={(ev) => updateExpense(i, 'description', ev.target.value)} className="flex-1 min-w-0 glass-card px-3 py-2" />
+                    <input type="number" placeholder="₽" value={e.amount} onChange={(ev) => updateExpense(i, 'amount', ev.target.value)} className="w-20 sm:w-24 glass-card px-3 py-2" />
+                    <button onClick={() => removeExpense(i)} className="text-red-400 shrink-0">×</button>
                   </div>
                 ))}
               </div>

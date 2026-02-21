@@ -36,7 +36,7 @@ class LeaderboardController {
             if (Array.isArray(id)) {
                 return res.status(400).json({ error: 'Invalid leaderboard ID' });
             }
-            const limit = parseInt(req.query.limit) || 50;
+            const limit = parseInt(req.query.limit) || 20;
             const offset = parseInt(req.query.offset) || 0;
             const entries = await leaderboardService.getLeaderboardEntries(id, limit, offset);
             res.json({
@@ -107,14 +107,17 @@ class LeaderboardController {
         try {
             const period = req.query.period || 'week';
             const clubId = req.query.clubId || undefined;
+            const limit = parseInt(req.query.limit) || 20;
             if (!['week', 'month', 'year'].includes(period)) {
                 return res.status(400).json({ error: 'Invalid period. Use week, month or year' });
             }
-            const entries = await leaderboardService.getPeriodRatings(period, clubId || null);
+            const entries = await leaderboardService.getPeriodRatings(period, clubId || null, limit);
             res.json({ entries });
         }
         catch (error) {
-            res.status(400).json({ error: error instanceof Error ? error.message : 'Operation failed' });
+            const msg = error instanceof Error ? error.message : 'Operation failed';
+            console.error('[getPeriodRatings]', error);
+            res.status(400).json({ error: msg });
         }
     }
     /**
@@ -123,7 +126,7 @@ class LeaderboardController {
     static async getRankMMRLeaderboard(req, res) {
         try {
             const leaderboard = await leaderboardService.createRankMMRLeaderboard();
-            const entries = await leaderboardService.getLeaderboardEntries(leaderboard.id, 100);
+            const entries = await leaderboardService.getLeaderboardEntries(leaderboard.id, 20);
             res.json({
                 leaderboard: {
                     id: leaderboard.id,

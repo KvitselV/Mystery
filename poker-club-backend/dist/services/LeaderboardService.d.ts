@@ -53,6 +53,10 @@ export declare class LeaderboardService {
      */
     updateLeaderboardsAfterTournament(tournamentId: string): Promise<void>;
     /**
+     * Обновить рейтинги после импорта (использует уже сохранённые очки в TournamentResult).
+     */
+    updateLeaderboardsAfterImport(tournamentId: string): Promise<void>;
+    /**
      * Рассчитать очки за финиш по таблице начисления
      */
     private calculatePoints;
@@ -66,9 +70,10 @@ export declare class LeaderboardService {
         createdMissing: number;
     }>;
     /**
-     * Получить рейтинг за период (неделя / месяц / год) по очкам из завершённых турниров
+     * Получить рейтинг за период (неделя / месяц / год) по очкам из завершённых турниров.
+     * Неделя = последние 7 дней, месяц = последние 30 дней, год = последние 365 дней.
      */
-    getPeriodRatings(period: 'week' | 'month' | 'year', clubId?: string | null): Promise<{
+    getPeriodRatings(period: 'week' | 'month' | 'year', clubId?: string | null, limit?: number): Promise<{
         playerId: string;
         playerName: string;
         userId?: string;

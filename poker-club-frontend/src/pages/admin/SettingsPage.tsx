@@ -24,41 +24,52 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, isAdmin, isController } = useAuth();
   const { selectedClub } = useClub();
+  const [navOpen, setNavOpen] = useState(false);
   const isControllerForSelectedClub = isController && selectedClub?.id === user?.managedClubId;
   if (isController && !isAdmin && !isControllerForSelectedClub) {
     navigate('/tournaments', { replace: true });
     return null;
   }
   return (
-    <div className="flex gap-6">
-      <nav className="w-48 shrink-0 space-y-1">
-        <NavLink to="/settings/series" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 min-w-0">
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setNavOpen(!navOpen)}
+          className="glass-btn px-4 py-2 rounded-xl text-sm w-full flex items-center justify-between"
+        >
+          {navOpen ? 'Скрыть меню' : 'Показать меню'}
+          <svg className={`w-5 h-5 transition-transform ${navOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+      </div>
+      <nav className={`space-y-1 lg:w-48 lg:shrink-0 ${navOpen ? 'block' : 'hidden lg:block'}`}>
+        <NavLink to="/settings/series" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Турнирные серии
         </NavLink>
-        <NavLink to="/settings/tournaments" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/settings/tournaments" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Турниры
         </NavLink>
-        <NavLink to="/settings/seasons" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/settings/seasons" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Сезоны
         </NavLink>
-        <NavLink to="/settings/blinds" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/settings/blinds" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Структуры блайндов
         </NavLink>
         {isAdmin && (
           <>
-            <NavLink to="/settings/clubs" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+            <NavLink to="/settings/clubs" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
               Клубы
             </NavLink>
-            <NavLink to="/settings/menu" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+            <NavLink to="/settings/menu" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
               Меню
             </NavLink>
-            <NavLink to="/settings/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+            <NavLink to="/settings/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
               Настройки TV
             </NavLink>
           </>
         )}
       </nav>
-      <div className="flex-1 glass-card p-6">
+      <div className="flex-1 min-w-0 glass-card p-4 sm:p-6">
         <Routes>
           <Route path="/" element={<SettingsHome />} />
           <Route path="/series" element={<SettingsSeries />} />

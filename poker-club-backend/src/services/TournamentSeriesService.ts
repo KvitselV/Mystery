@@ -166,7 +166,7 @@ export class TournamentSeriesService {
    * Таблица рейтинга серии: игроки, итого очков, очки по датам турниров.
    * Колонки: Имя (№ карты) | Итого | Дата1 | Дата2 | ... (новые даты добавляются в 3-ю колонку)
    */
-  async getSeriesRatingTable(seriesId: string): Promise<{
+  async getSeriesRatingTable(seriesId: string, limit: number = 20, offset: number = 0): Promise<{
     seriesName: string;
     columns: { date: string; dateLabel: string; tournamentId?: string }[];
     rows: { playerId: string; playerName: string; clubCardNumber?: string; avatarUrl?: string; userId?: string; totalPoints: number; pointsByDate: Record<string, number>; positionByDate: Record<string, number> }[];
@@ -220,7 +220,8 @@ export class TournamentSeriesService {
       }
     }
 
-    const rows = Array.from(byPlayer.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+    const sorted = Array.from(byPlayer.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+    const rows = sorted.slice(offset, offset + limit);
 
     return { seriesName: series.name, columns, rows };
   }

@@ -31,46 +31,61 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AdminReportModal } from '../../components/AdminReportModal';
 import { PlayerResultsModal } from '../../components/PlayerResultsModal';
 import AdminDataPanel from './AdminDataPanel';
+import ImportExcelPage from './ImportExcelPage';
 
 const DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 
 export default function AdminPanelPage() {
   const { refreshClubs } = useClub();
+  const [navOpen, setNavOpen] = useState(false);
   return (
-    <div className="flex gap-6">
-      <nav className="w-56 shrink-0 space-y-1">
-        <NavLink to="/admin" end className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 min-w-0">
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setNavOpen(!navOpen)}
+          className="glass-btn px-4 py-2 rounded-xl text-sm w-full flex items-center justify-between"
+        >
+          {navOpen ? 'Скрыть меню' : 'Показать меню'}
+          <svg className={`w-5 h-5 transition-transform ${navOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+        </button>
+      </div>
+      <nav className={`space-y-1 lg:w-56 lg:shrink-0 ${navOpen ? 'block' : 'hidden lg:block'}`}>
+        <NavLink to="/admin" end className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Обзор
         </NavLink>
-        <NavLink to="/admin/clubs" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/clubs" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Клубы
         </NavLink>
-        <NavLink to="/admin/series" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/series" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Турнирные серии
         </NavLink>
-        <NavLink to="/admin/tournaments" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/tournaments" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Турниры
         </NavLink>
-        <NavLink to="/admin/reports" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/reports" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Финансовые отчёты
         </NavLink>
-        <NavLink to="/admin/blinds" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/blinds" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Структуры блайндов
         </NavLink>
-        <NavLink to="/admin/menu" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/menu" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Меню
         </NavLink>
-        <NavLink to="/admin/seasons" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/seasons" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Рейтинги и сезоны
         </NavLink>
-        <NavLink to="/admin/users" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/users" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Пользователи
         </NavLink>
-        <NavLink to="/admin/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/tv" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           TV
         </NavLink>
-        <NavLink to="/admin/achievements" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`}>
+        <NavLink to="/admin/achievements" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
           Достижения
+        </NavLink>
+        <NavLink to="/admin/import-excel" className={({ isActive }) => `block px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`} onClick={() => setNavOpen(false)}>
+          Импорт Excel
         </NavLink>
         <div className="mt-6 pt-4 border-t border-white/10">
           <NavLink
@@ -79,6 +94,7 @@ export default function AdminPanelPage() {
               `flex items-center gap-2 px-4 py-2 rounded-xl ${isActive ? 'glass-btn' : 'text-zinc-400 hover:text-white'}`
             }
             title="Управление данными"
+            onClick={() => setNavOpen(false)}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -88,7 +104,7 @@ export default function AdminPanelPage() {
           </NavLink>
         </div>
       </nav>
-      <div className="flex-1 min-w-0 glass-card p-6 overflow-x-auto">
+      <div className="flex-1 min-w-0 glass-card p-4 sm:p-6 overflow-x-auto">
         <Routes>
           <Route path="/" element={<AdminHome />} />
           <Route path="/clubs" element={<AdminClubs onRefresh={refreshClubs} />} />
@@ -101,6 +117,7 @@ export default function AdminPanelPage() {
           <Route path="/users" element={<AdminUsers />} />
           <Route path="/tv" element={<AdminTV />} />
           <Route path="/achievements" element={<AdminAchievements />} />
+          <Route path="/import-excel" element={<ImportExcelPage />} />
           <Route path="/data" element={<AdminDataPanel />} />
         </Routes>
       </div>

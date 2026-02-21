@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { leaderboardsApi, tournamentSeriesApi, tournamentsApi, type Leaderboard, type LeaderboardEntry, type PeriodRatingEntry, type SeriesRatingRow, type Tournament } from '../api';
 import { useClub } from '../contexts/ClubContext';
@@ -44,6 +44,48 @@ function rankTextClass(rank: string): string {
     case 'SS': return 'text-amber-400';
     default: return 'text-zinc-300';
   }
+}
+
+const PAGE_SIZE = 20;
+
+/** Sentinel ref для бесконечной прокрутки — вызывает onLoadMore при появлении в зоне видимости */
+function useInfiniteScroll(onLoadMore: () => void, enabled: boolean, loading: boolean, hasMore: boolean) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef(false);
+  useEffect(() => {
+    if (!enabled || !hasMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    if (loadingRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && !loadingRef.current) {
+          loadingRef.current = true;
+          onLoadMore();
+        }
+      },
+      { rootMargin: '100px', threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [enabled, loading, hasMore, onLoadMore]);
+  loadingRef.current = loading;
+  return sentinelRef;
+}
+
+/** Сохраняет и восстанавливает позицию скролла при подгрузке */
+function useScrollRestore(
+  scrollRestoreRef: React.MutableRefObject<number | null>,
+  deps: unknown[]
+) {
+  useLayoutEffect(() => {
+    const saved = scrollRestoreRef.current;
+    if (saved !== null && typeof document !== 'undefined') {
+      const el = document.scrollingElement ?? document.documentElement;
+      el.scrollTop = saved;
+      scrollRestoreRef.current = null;
+    }
+  }, deps);
 }
 
 /** Ячейка с именем игрока: аватар + имя, при клике — переход в профиль */
@@ -93,7 +135,9 @@ function SeriesRatingTable({
   const [selectedSeriesId, setSelectedSeriesId] = useState<string | null>(defaultSeriesId ?? null);
   const [table, setTable] = useState<{ seriesName: string; columns: { date: string; dateLabel: string; tournamentId: string }[]; rows: SeriesRatingRow[] } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [reportTournament, setReportTournament] = useState<Tournament | null>(null);
+  const scrollRestoreRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (defaultSeriesId && !selectedSeriesId) {
@@ -104,14 +148,38 @@ function SeriesRatingTable({
   useEffect(() => {
     if (!selectedSeriesId) {
       setTable(null);
+      setHasMore(true);
       return;
     }
     setLoading(true);
-    tournamentSeriesApi.getRatingTable(selectedSeriesId)
-      .then((r) => setTable(r.data))
+    setHasMore(true);
+    tournamentSeriesApi.getRatingTable(selectedSeriesId, PAGE_SIZE, 0)
+      .then((r) => {
+        setTable(r.data);
+        setHasMore((r.data?.rows?.length ?? 0) >= PAGE_SIZE);
+      })
       .catch(() => setTable(null))
       .finally(() => setLoading(false));
   }, [selectedSeriesId]);
+
+  const loadMore = useCallback(() => {
+    if (!selectedSeriesId || loading || !table || !hasMore) return;
+    scrollRestoreRef.current = (document.scrollingElement ?? document.documentElement).scrollTop;
+    const offset = table.rows.length;
+    setLoading(true);
+    tournamentSeriesApi.getRatingTable(selectedSeriesId, PAGE_SIZE, offset)
+      .then((r) => {
+        const newRows = r.data?.rows ?? [];
+        setHasMore(newRows.length >= PAGE_SIZE);
+        if (newRows.length > 0) {
+          setTable((prev) => prev ? { ...prev, rows: [...prev.rows, ...newRows] } : null);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [selectedSeriesId, loading, table, hasMore]);
+
+  const sentinelRef = useInfiniteScroll(loadMore, !!selectedSeriesId && !!table, loading, hasMore);
+  useScrollRestore(scrollRestoreRef, [table?.rows.length]);
 
   // Вычисление мест с учётом ничьих (66 и 66 → оба 1, следующий 3)
   const ranks = (() => {
@@ -157,7 +225,7 @@ function SeriesRatingTable({
         ))}
       </div>
       {selectedSeriesId && (
-        loading ? (
+        !table && loading ? (
           <div className="text-amber-400 animate-pulse">Загрузка...</div>
         ) : table ? (
           <div className="glass-card overflow-x-auto">
@@ -239,6 +307,16 @@ function SeriesRatingTable({
                 ))}
               </tbody>
             </table>
+            {hasMore && (
+              <>
+                <div ref={sentinelRef} className="h-4 min-h-4" aria-hidden />
+                <div className="h-8 min-h-8 flex items-center px-6">
+                  {loading && (
+                    <span className="text-amber-400 animate-pulse text-sm">Загрузка...</span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <p className="text-zinc-500">Нет данных</p>
@@ -266,15 +344,39 @@ function PeriodRatingTable({
 }) {
   const [entries, setEntries] = useState<PeriodRatingEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(true);
+  const scrollRestoreRef = useRef<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
+    setHasMore(true);
     leaderboardsApi
-      .getPeriodRatings(period, clubId)
-      .then((r) => setEntries(r.data?.entries || []))
+      .getPeriodRatings(period, clubId, PAGE_SIZE, 0)
+      .then((r) => {
+        const data = r.data?.entries || [];
+        setEntries(data);
+        setHasMore(data.length >= PAGE_SIZE);
+      })
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
   }, [period, clubId]);
+
+  const loadMore = useCallback(() => {
+    if (loading || !hasMore) return;
+    scrollRestoreRef.current = (document.scrollingElement ?? document.documentElement).scrollTop;
+    setLoading(true);
+    leaderboardsApi
+      .getPeriodRatings(period, clubId, PAGE_SIZE, entries.length)
+      .then((r) => {
+        const data = r.data?.entries || [];
+        setHasMore(data.length >= PAGE_SIZE);
+        if (data.length > 0) setEntries((prev) => [...prev, ...data]);
+      })
+      .finally(() => setLoading(false));
+  }, [period, clubId, loading, hasMore, entries.length]);
+
+  const sentinelRef = useInfiniteScroll(loadMore, true, loading, hasMore);
+  useScrollRestore(scrollRestoreRef, [entries.length]);
 
   const rankBadgeClass = (rank: number) => {
     if (rank === 1) return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
@@ -284,28 +386,28 @@ function PeriodRatingTable({
   };
 
   return (
-    <div className="glass-card overflow-hidden">
-      <h3 className="text-lg font-bold text-white px-6 py-4">{title}</h3>
+    <div className="glass-card overflow-hidden overflow-x-auto">
+      <h3 className="text-base sm:text-lg font-bold text-white px-4 sm:px-6 py-3 sm:py-4">{title}</h3>
       {loading ? (
         <div className="px-6 py-8 text-amber-400 animate-pulse">Загрузка...</div>
       ) : (
-        <table className="w-full text-left">
+        <table className="w-full text-left min-w-[280px]">
           <thead className="border-b border-white/10">
             <tr>
-              <th className="px-6 py-4 text-zinc-400 font-medium">#</th>
-              <th className="px-6 py-4 text-zinc-400 font-medium">Игрок</th>
-              <th className="px-6 py-4 text-zinc-400 font-medium">Очки</th>
+              <th className="px-3 sm:px-6 py-3 sm:py-4 text-zinc-400 font-medium">#</th>
+              <th className="px-3 sm:px-6 py-3 sm:py-4 text-zinc-400 font-medium">Игрок</th>
+              <th className="px-3 sm:px-6 py-3 sm:py-4 text-zinc-400 font-medium">Очки</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((e, i) => (
               <tr key={e.playerId} className="border-b border-white/5 hover:bg-white/5">
-                <td className="px-6 py-4">
+                <td className="px-3 sm:px-6 py-3 sm:py-4">
                   <span className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded border text-sm font-medium ${rankBadgeClass(i + 1)}`}>
                     {i + 1}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-white">
+                <td className="px-3 sm:px-6 py-3 sm:py-4 text-white">
                   <PlayerCell
                     avatarUrl={e.avatarUrl}
                     playerName={e.playerName}
@@ -313,18 +415,22 @@ function PeriodRatingTable({
                     userId={e.userId}
                   />
                 </td>
-                <td className="px-6 py-4 text-emerald-400 font-bold">{e.totalPoints}</td>
+                <td className="px-3 sm:px-6 py-3 sm:py-4 text-emerald-400 font-bold">{e.totalPoints}</td>
               </tr>
             ))}
             {entries.length === 0 && !loading && (
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-zinc-500">
+                <td colSpan={3} className="px-4 sm:px-6 py-8 text-center text-zinc-500">
                   Нет данных за период
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      )}
+      {hasMore && <div ref={sentinelRef} className="h-4" />}
+      {loading && entries.length > 0 && (
+        <div className="px-6 py-3 text-amber-400 animate-pulse text-sm">Загрузка...</div>
       )}
     </div>
   );
@@ -339,6 +445,12 @@ export default function RatingsPage() {
   const [selectedLb, setSelectedLb] = useState<string | null>(null);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [mmrEntries, setMmrEntries] = useState<LeaderboardEntry[]>([]);
+  const [mmrLoading, setMmrLoading] = useState(true);
+  const [mmrHasMore, setMmrHasMore] = useState(true);
+  const [seasonalLoading, setSeasonalLoading] = useState(false);
+  const [seasonalHasMore, setSeasonalHasMore] = useState(true);
+  const mmrScrollRestoreRef = useRef<number | null>(null);
+  const seasonalScrollRestoreRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -347,13 +459,16 @@ export default function RatingsPage() {
       try {
         const lbRes = await leaderboardsApi.list();
         setLeaderboards(lbRes.data?.leaderboards || []);
-        const mmrRes = await leaderboardsApi.getRankMmr();
-        setMmrEntries(mmrRes.data?.entries || []);
+        const mmrRes = await leaderboardsApi.getRankMmr(PAGE_SIZE, 0);
+        const data = mmrRes.data?.entries || [];
+        setMmrEntries(data);
+        setMmrHasMore(data.length >= PAGE_SIZE);
       } catch {
         setLeaderboards([]);
         setMmrEntries([]);
       } finally {
         setLoading(false);
+        setMmrLoading(false);
       }
     })();
   }, []);
@@ -370,9 +485,56 @@ export default function RatingsPage() {
   }, [selectedClub?.id]);
 
   useEffect(() => {
-    if (!selectedLb) return;
-    leaderboardsApi.getEntries(selectedLb, 50).then((r) => setEntries(r.data?.entries || [])).catch(() => setEntries([]));
+    if (!selectedLb) {
+      setEntries([]);
+      setSeasonalHasMore(true);
+      return;
+    }
+    setSeasonalLoading(true);
+    setSeasonalHasMore(true);
+    leaderboardsApi
+      .getEntries(selectedLb, PAGE_SIZE, 0)
+      .then((r) => {
+        const data = r.data?.entries || [];
+        setEntries(data);
+        setSeasonalHasMore(data.length >= PAGE_SIZE);
+      })
+      .catch(() => setEntries([]))
+      .finally(() => setSeasonalLoading(false));
   }, [selectedLb]);
+
+  const loadMmrMore = useCallback(() => {
+    if (mmrLoading || !mmrHasMore) return;
+    mmrScrollRestoreRef.current = (document.scrollingElement ?? document.documentElement).scrollTop;
+    setMmrLoading(true);
+    leaderboardsApi
+      .getRankMmr(PAGE_SIZE, mmrEntries.length)
+      .then((r) => {
+        const data = r.data?.entries || [];
+        setMmrHasMore(data.length >= PAGE_SIZE);
+        if (data.length > 0) setMmrEntries((prev) => [...prev, ...data]);
+      })
+      .finally(() => setMmrLoading(false));
+  }, [mmrLoading, mmrHasMore, mmrEntries.length]);
+
+  const loadSeasonalMore = useCallback(() => {
+    if (!selectedLb || seasonalLoading || !seasonalHasMore) return;
+    seasonalScrollRestoreRef.current = (document.scrollingElement ?? document.documentElement).scrollTop;
+    setSeasonalLoading(true);
+    leaderboardsApi
+      .getEntries(selectedLb, PAGE_SIZE, entries.length)
+      .then((r) => {
+        const data = r.data?.entries || [];
+        setSeasonalHasMore(data.length >= PAGE_SIZE);
+        if (data.length > 0) setEntries((prev) => [...prev, ...data]);
+      })
+      .finally(() => setSeasonalLoading(false));
+  }, [selectedLb, seasonalLoading, seasonalHasMore, entries.length]);
+
+  const mmrSentinelRef = useInfiniteScroll(loadMmrMore, tab === 'mmr', mmrLoading, mmrHasMore);
+  const seasonalSentinelRef = useInfiniteScroll(loadSeasonalMore, tab === 'seasonal' && !!selectedLb, seasonalLoading, seasonalHasMore);
+  useScrollRestore(mmrScrollRestoreRef, [mmrEntries.length]);
+  useScrollRestore(seasonalScrollRestoreRef, [entries.length]);
 
   const allSeriesLbs = leaderboards.filter((lb) => lb.type === 'TOURNAMENT_SERIES');
   const seriesLbs = selectedClub?.id
@@ -381,31 +543,31 @@ export default function RatingsPage() {
   const seasonalLbs = leaderboards.filter((lb) => lb.type === 'SEASONAL');
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-2">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 sm:mx-0 sm:pb-0 sm:flex-wrap">
         <button
           onClick={() => setTab('series')}
-          className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === 'series' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
+          className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium shrink-0 ${tab === 'series' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
         >
-          Рейтинги серий турниров
+          Рейтинги серий
         </button>
         <button
           onClick={() => setTab('seasonal')}
-          className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === 'seasonal' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
+          className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium shrink-0 ${tab === 'seasonal' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
         >
-          Сезонный рейтинг
+          Сезонный
         </button>
         <button
           onClick={() => setTab('mmr')}
-          className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === 'mmr' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
+          className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium shrink-0 ${tab === 'mmr' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
         >
           Рейтинг игроков
         </button>
         <button
           onClick={() => setTab('daily')}
-          className={`px-4 py-2 rounded-xl text-sm font-medium ${tab === 'daily' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
+          className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium shrink-0 ${tab === 'daily' ? 'glass-btn' : 'text-zinc-400 hover:text-amber-200'}`}
         >
-          Рейтинг по дням
+          По дням
         </button>
       </div>
 
@@ -414,31 +576,35 @@ export default function RatingsPage() {
       ) : (
         <>
           {tab === 'mmr' && (
-            <div className="glass-card overflow-hidden">
-              <table className="w-full text-left">
-                <thead className="border-b border-white/10">
-                  <tr>
-                    <th className="px-6 py-4 text-zinc-400 font-medium">#</th>
-                    <th className="px-6 py-4 text-zinc-400 font-medium">Игрок</th>
-                    <th className="px-6 py-4 text-zinc-400 font-medium">Ранг</th>
-                  </tr>
-                </thead>
+            <div className="glass-card overflow-hidden overflow-x-auto">
+              <table className="w-full text-left min-w-[320px]">
+              <thead className="border-b border-white/10">
+                <tr>
+                  <th className="px-3 sm:px-6 py-3 sm:py-4 text-zinc-400 font-medium">#</th>
+                  <th className="px-3 sm:px-6 py-3 sm:py-4 text-zinc-400 font-medium">Игрок</th>
+                  <th className="px-3 sm:px-6 py-3 sm:py-4 text-zinc-400 font-medium">Ранг</th>
+                </tr>
+              </thead>
                 <tbody>
                   {mmrEntries.map((e, i) => {
                     const mmr = e.mmr ?? e.ratingPoints ?? e.points ?? 0;
                     const rank = e.rankCode ?? mmrToRank(typeof mmr === 'number' ? mmr : 0);
                     return (
                       <tr key={e.id ?? i} className={`border-b border-white/5 hover:bg-white/5 ${rankRowClass(rank)}`}>
-                        <td className="px-6 py-4 text-amber-400">{i + 1}</td>
-                        <td className="px-6 py-4 text-white">
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-amber-400">{i + 1}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-white">
                           <PlayerCell avatarUrl={e.avatarUrl} playerName={e.playerName} userId={e.userId} />
                         </td>
-                        <td className={`px-6 py-4 font-bold ${rankTextClass(rank)}`}>{rank}</td>
+                        <td className={`px-3 sm:px-6 py-3 sm:py-4 font-bold ${rankTextClass(rank)}`}>{rank}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              {mmrHasMore && <div ref={mmrSentinelRef} className="h-4" />}
+              {mmrLoading && mmrEntries.length > 0 && (
+                <div className="px-6 py-3 text-amber-400 animate-pulse text-sm">Загрузка...</div>
+              )}
             </div>
           )}
 
@@ -452,7 +618,7 @@ export default function RatingsPage() {
           )}
 
           {tab === 'daily' && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <PeriodRatingTable
                 title="Рейтинг недели"
                 period="week"
@@ -482,8 +648,8 @@ export default function RatingsPage() {
                 ))}
               </div>
               {selectedLb && (
-                <div className="glass-card overflow-hidden">
-                  <table className="w-full text-left">
+                <div className="glass-card overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left min-w-[280px]">
                     <thead className="border-b border-white/10">
                       <tr>
                         <th className="px-6 py-4 text-zinc-400 font-medium">#</th>
@@ -493,7 +659,7 @@ export default function RatingsPage() {
                     </thead>
                     <tbody>
                       {entries.map((e, i) => (
-                        <tr key={e.id} className="border-b border-white/5 hover:bg-white/5">
+                        <tr key={e.id ?? i} className="border-b border-white/5 hover:bg-white/5">
                           <td className="px-6 py-4 text-amber-400">{e.rankPosition ?? i + 1}</td>
                           <td className="px-6 py-4 text-white">
                             <PlayerCell avatarUrl={e.avatarUrl} playerName={e.playerName} userId={e.userId} />
@@ -503,6 +669,10 @@ export default function RatingsPage() {
                       ))}
                     </tbody>
                   </table>
+                  {seasonalHasMore && <div ref={seasonalSentinelRef} className="h-4" />}
+                  {seasonalLoading && entries.length > 0 && (
+                    <div className="px-6 py-3 text-amber-400 animate-pulse text-sm">Загрузка...</div>
+                  )}
                 </div>
               )}
             </div>

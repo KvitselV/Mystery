@@ -40,7 +40,7 @@ export class LeaderboardController {
         return res.status(400).json({ error: 'Invalid leaderboard ID' });
       }
 
-      const limit = parseInt(req.query.limit as string) || 50;
+      const limit = parseInt(req.query.limit as string) || 20;
       const offset = parseInt(req.query.offset as string) || 0;
 
       const entries = await leaderboardService.getLeaderboardEntries(
@@ -120,12 +120,16 @@ export class LeaderboardController {
     try {
       const period = (req.query.period as string) || 'week';
       const clubId = (req.query.clubId as string) || undefined;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
       if (!['week', 'month', 'year'].includes(period)) {
         return res.status(400).json({ error: 'Invalid period. Use week, month or year' });
       }
       const entries = await leaderboardService.getPeriodRatings(
         period as 'week' | 'month' | 'year',
-        clubId || null
+        clubId || null,
+        limit,
+        offset
       );
       res.json({ entries });
     } catch (error: unknown) {
@@ -140,10 +144,13 @@ export class LeaderboardController {
    */
   static async getRankMMRLeaderboard(req: AuthRequest, res: Response) {
     try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
       const leaderboard = await leaderboardService.createRankMMRLeaderboard();
       const entries = await leaderboardService.getLeaderboardEntries(
         leaderboard.id,
-        100
+        limit,
+        offset
       );
 
       res.json({

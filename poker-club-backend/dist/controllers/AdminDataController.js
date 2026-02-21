@@ -3,8 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminDataController = void 0;
 const AdminDataService_1 = require("../services/AdminDataService");
 const LeaderboardService_1 = require("../services/LeaderboardService");
+const ExcelImportService_1 = require("../services/ExcelImportService");
 const adminDataService = new AdminDataService_1.AdminDataService();
 const leaderboardService = new LeaderboardService_1.LeaderboardService();
+const excelImportService = new ExcelImportService_1.ExcelImportService();
 class AdminDataController {
     /**
      * GET /admin/data — Все данные из БД (только ADMIN)
@@ -41,6 +43,28 @@ class AdminDataController {
         catch (error) {
             const msg = error instanceof Error ? error.message : 'Update failed';
             res.status(400).json({ error: msg });
+        }
+    }
+    /**
+     * POST /admin/import-excel — Импорт данных из Excel (только ADMIN)
+     */
+    static async importExcel(req, res) {
+        try {
+            if (!req.user || req.user.role !== 'ADMIN') {
+                return res.status(403).json({ error: 'Forbidden' });
+            }
+            const body = req.body;
+            if (!body.clubId || !body.seriesName || !Array.isArray(body.players) || !Array.isArray(body.tournaments)) {
+                return res.status(400).json({
+                    error: 'Требуются: clubId, seriesName, players[], tournaments[]',
+                });
+            }
+            const result = await excelImportService.import(body);
+            res.json(result);
+        }
+        catch (error) {
+            const msg = error instanceof Error ? error.message : 'Ошибка импорта';
+            res.status(500).json({ error: msg });
         }
     }
     /**

@@ -72,7 +72,7 @@ function AchievementsBlock({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3 min-h-[80px]">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 min-h-[80px]">
         {displayPins.length === 0 ? (
           <p className="col-span-4 text-zinc-500 text-sm py-4">
             {canEdit ? 'Выберите полученные достижения в разделе «Все достижения»' : 'Нет отображаемых достижений'}
@@ -314,8 +314,8 @@ export default function ProfilePage() {
   const displayCreatedAt = viewingUser?.createdAt || user?.createdAt;
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <div className="glass-card p-6">
+    <div className="max-w-2xl space-y-6 sm:space-y-8 w-full min-w-0">
+      <div className="glass-card p-4 sm:p-6">
         <h2 className="text-xl font-bold text-white mb-4">{isOwnProfile ? 'Информация о себе' : `Профиль: ${displayName}`}</h2>
         {isOwnProfile && !isAdmin && import.meta.env.DEV && (
           <button
@@ -402,7 +402,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="glass-card p-6">
+      <div className="glass-card p-4 sm:p-6">
         <h2 className="text-xl font-bold text-white mb-4">Статистика</h2>
         {stats ? (
           <div className="space-y-6">
@@ -491,7 +491,7 @@ export default function ProfilePage() {
         )}
       </div>
 
-      <div className="glass-card p-6">
+      <div className="glass-card p-4 sm:p-6">
         <h2 className="text-xl font-bold text-white mb-4">Достижения</h2>
         <AchievementsBlock
           progress={achievementProgress}

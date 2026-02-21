@@ -14,14 +14,14 @@ import TVDisplayPage from './pages/TVDisplayPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-cyan-400 animate-pulse">Загрузка...</div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center p-4"><div className="text-cyan-400 animate-pulse">Загрузка...</div></div>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, isAdmin } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-cyan-400 animate-pulse">Загрузка...</div></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center p-4"><div className="text-cyan-400 animate-pulse">Загрузка...</div></div>;
   if (!user) return <Navigate to="/login" replace />;
   if (!isAdmin) return <Navigate to="/tournaments" replace />;
   return <>{children}</>;

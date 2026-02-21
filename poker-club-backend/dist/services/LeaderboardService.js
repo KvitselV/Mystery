@@ -110,7 +110,7 @@ class LeaderboardService {
     /**
      * Получить записи рейтинга
      */
-    async getLeaderboardEntries(leaderboardId, limit = 50, offset = 0) {
+    async getLeaderboardEntries(leaderboardId, limit = 20, offset = 0) {
         return this.entryRepository.find({
             where: { leaderboard: { id: leaderboardId } },
             relations: ['playerProfile', 'playerProfile.user'],
@@ -228,6 +228,37 @@ class LeaderboardService {
         // 3. Обновить рейтинг по ММР
         await this.updateRankMMRLeaderboard();
         console.log(`✅ Updated leaderboards after tournament ${tournamentId}`);
+    }
+    /**
+     * Обновить рейтинги после импорта (использует уже сохранённые очки в TournamentResult).
+     */
+    async updateLeaderboardsAfterImport(tournamentId) {
+        const tournament = await this.tournamentRepository.findOne({
+            where: { id: tournamentId },
+            relations: ['registrations', 'series'],
+        });
+        if (!tournament) {
+            throw new Error('Tournament not found');
+        }
+        const results = await this.resultRepository.find({
+            where: { tournament: { id: tournamentId } },
+            relations: ['player'],
+        });
+        const totalPlayers = tournament.registrations.length;
+        // Серийный рейтинг (используем сохранённые очки из импорта)
+        if (tournament.series?.id) {
+            const seriesLb = await this.getOrCreateLeaderboard(tournament.series.name, 'TOURNAMENT_SERIES', tournament.series.periodStart, tournament.series.periodEnd, tournament.series.id);
+            for (const result of results) {
+                await this.updateLeaderboardEntry(seriesLb.id, result.player.id, result.finishPosition, totalPlayers, result.points ?? 0);
+            }
+        }
+        // Сезонный рейтинг
+        const seasonalLeaderboard = await this.createSeasonalLeaderboard();
+        for (const result of results) {
+            await this.updateLeaderboardEntry(seasonalLeaderboard.id, result.player.id, result.finishPosition, totalPlayers, result.points ?? 0);
+        }
+        await this.updateRankMMRLeaderboard();
+        console.log(`✅ Updated leaderboards after import ${tournamentId}`);
     }
     /**
      * Рассчитать очки за финиш по таблице начисления
@@ -491,55 +522,80 @@ class LeaderboardService {
         return { updatedTournaments: tournaments.length, updatedResults, createdMissing };
     }
     /**
-     * Получить рейтинг за период (неделя / месяц / год) по очкам из завершённых турниров
+     * Получить рейтинг за период (неделя / месяц / год) по очкам из завершённых турниров.
+     * Неделя = последние 7 дней, месяц = последние 30 дней, год = последние 365 дней.
      */
-    async getPeriodRatings(period, clubId) {
+    async getPeriodRatings(period, clubId, limit = 20) {
         const now = new Date();
         let periodStart;
+        let periodEnd;
         if (period === 'week') {
+            // Последние 7 дней: от сегодня до 7 дней назад
             periodStart = new Date(now);
             periodStart.setDate(periodStart.getDate() - 7);
+            periodEnd = new Date(now);
         }
         else if (period === 'month') {
+            // Последние 30 дней: от сегодня до 30 дней назад
             periodStart = new Date(now);
             periodStart.setDate(periodStart.getDate() - 30);
+            periodEnd = new Date(now);
         }
         else {
+            // Последние 365 дней: от сегодня до года назад
             periodStart = new Date(now);
             periodStart.setDate(periodStart.getDate() - 365);
+            periodEnd = new Date(now);
         }
         const qb = this.resultRepository
             .createQueryBuilder('r')
-            .innerJoin('r.tournament', 't')
-            .innerJoin('r.player', 'p')
-            .innerJoin('p.user', 'u')
+            .innerJoinAndSelect('r.tournament', 't')
+            .innerJoinAndSelect('r.player', 'p')
+            .innerJoinAndSelect('p.user', 'u')
             .where('t.startTime >= :periodStart', { periodStart })
-            .andWhere('t.startTime <= :now', { now })
-            .andWhere('t.status = :status', { status: 'ARCHIVED' })
-            .select('p.id', 'playerId')
-            .addSelect('u.name', 'playerName')
-            .addSelect('u.id', 'userId')
-            .addSelect('u.avatarUrl', 'avatarUrl')
-            .addSelect('u.clubCardNumber', 'clubCardNumber')
-            .addSelect('SUM(r.points)', 'totalPoints')
-            .groupBy('p.id')
-            .addGroupBy('u.name')
-            .addGroupBy('u.id')
-            .addGroupBy('u.avatarUrl')
-            .addGroupBy('u.clubCardNumber')
-            .orderBy('totalPoints', 'DESC');
+            .andWhere('t.startTime <= :periodEnd', { periodEnd })
+            .andWhere('(t.status = :archived OR t.status = :finished)', {
+            archived: 'ARCHIVED',
+            finished: 'FINISHED',
+        });
         if (clubId) {
             qb.andWhere('t.clubId = :clubId', { clubId });
         }
-        const rows = await qb.getRawMany();
-        return rows.map((r) => ({
-            playerId: r.playerId,
-            playerName: r.playerName ?? '—',
-            userId: r.userId,
-            avatarUrl: r.avatarUrl ?? undefined,
-            clubCardNumber: r.clubCardNumber ?? undefined,
-            totalPoints: parseInt(String(r.totalPoints), 10) || 0,
-        }));
+        const results = await qb.getMany();
+        if (process.env.NODE_ENV === 'development' && results.length === 0) {
+            const anyResults = await this.resultRepository.count();
+            const anyInPeriod = await this.resultRepository
+                .createQueryBuilder('r')
+                .innerJoin('r.tournament', 't')
+                .where('t.startTime >= :periodStart', { periodStart })
+                .andWhere('t.startTime <= :periodEnd', { periodEnd })
+                .getCount();
+            console.log(`[getPeriodRatings] period=${period} ${periodStart.toISOString().slice(0, 10)}–${periodEnd.toISOString().slice(0, 10)}: ${results.length} (total in DB: ${anyResults}, in range: ${anyInPeriod})`);
+        }
+        const map = new Map();
+        for (const r of results) {
+            const pid = r.player?.id;
+            if (!pid)
+                continue;
+            const existing = map.get(pid);
+            const pts = r.points ?? 0;
+            const user = r.player?.user;
+            if (existing) {
+                existing.totalPoints += pts;
+            }
+            else {
+                map.set(pid, {
+                    playerId: pid,
+                    playerName: user?.name ?? '—',
+                    userId: user?.id,
+                    avatarUrl: user?.avatarUrl ?? undefined,
+                    clubCardNumber: user?.clubCardNumber ?? undefined,
+                    totalPoints: pts,
+                });
+            }
+        }
+        const sorted = Array.from(map.values()).sort((a, b) => b.totalPoints - a.totalPoints);
+        return sorted.slice(0, limit);
     }
 }
 exports.LeaderboardService = LeaderboardService;

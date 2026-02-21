@@ -2,9 +2,11 @@ import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { AdminDataService } from '../services/AdminDataService';
 import { LeaderboardService } from '../services/LeaderboardService';
+import { ExcelImportService, type ExcelImportData } from '../services/ExcelImportService';
 
 const adminDataService = new AdminDataService();
 const leaderboardService = new LeaderboardService();
+const excelImportService = new ExcelImportService();
 
 export class AdminDataController {
   /**
@@ -41,6 +43,28 @@ export class AdminDataController {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Update failed';
       res.status(400).json({ error: msg });
+    }
+  }
+
+  /**
+   * POST /admin/import-excel — Импорт данных из Excel (только ADMIN)
+   */
+  static async importExcel(req: AuthRequest, res: Response) {
+    try {
+      if (!req.user || req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      const body = req.body as ExcelImportData;
+      if (!body.clubId || !body.seriesName || !Array.isArray(body.players) || !Array.isArray(body.tournaments)) {
+        return res.status(400).json({
+          error: 'Требуются: clubId, seriesName, players[], tournaments[]',
+        });
+      }
+      const result = await excelImportService.import(body);
+      res.json(result);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Ошибка импорта';
+      res.status(500).json({ error: msg });
     }
   }
 

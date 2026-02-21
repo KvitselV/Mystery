@@ -4,12 +4,40 @@ import { authApi } from './auth';
 export { api, authApi };
 
 // Admin data — все данные из БД (только ADMIN)
+export interface ExcelImportPlayer {
+  name: string;
+  cardNumber: string;
+}
+export interface ExcelImportTournamentResult {
+  cardNumber: string;
+  points: number;
+}
+export interface ExcelImportTournament {
+  date: string;
+  results: ExcelImportTournamentResult[];
+}
+export interface ExcelImportData {
+  clubId: string;
+  seriesName: string;
+  players: ExcelImportPlayer[];
+  tournaments: ExcelImportTournament[];
+}
+export interface ExcelImportResult {
+  playersCreated: number;
+  playersSkipped: number;
+  tournamentsCreated: number;
+  seriesId: string;
+  seriesName: string;
+}
+
 export const adminDataApi = {
   getAll: () => api.get<Record<string, unknown[]>>('/admin/data'),
   update: (table: string, id: string, data: Record<string, unknown>) =>
     api.patch(`/admin/entity/${table}/${id}`, data),
   recalculateRatings: () =>
     api.post<{ message: string; updatedTournaments: number; updatedResults: number; createdMissing?: number }>('/admin/recalculate-ratings'),
+  importExcel: (data: ExcelImportData) =>
+    api.post<ExcelImportResult>('/admin/import-excel', data),
 };
 
 // Tournament Series
@@ -37,9 +65,10 @@ export const tournamentSeriesApi = {
   update: (id: string, data: Partial<{ name: string; periodStart: string; periodEnd: string; daysOfWeek: number[] }>) =>
     api.patch(`/tournament-series/${id}`, data),
   delete: (id: string) => api.delete(`/tournament-series/${id}`),
-  getRatingTable: (id: string) =>
+  getRatingTable: (id: string, limit?: number, offset?: number) =>
     api.get<{ seriesName: string; columns: { date: string; dateLabel: string; tournamentId: string }[]; rows: SeriesRatingRow[] }>(
-      `/tournament-series/${id}/rating-table`
+      `/tournament-series/${id}/rating-table`,
+      { params: { limit: limit ?? 20, offset: offset ?? 0 } }
     ),
 };
 
@@ -160,10 +189,13 @@ export const leaderboardsApi = {
   list: () => api.get<{ leaderboards: Leaderboard[] }>('/leaderboards'),
   getEntries: (id: string, limit?: number, offset?: number) =>
     api.get<{ entries: LeaderboardEntry[] }>(`/leaderboards/${id}/entries`, { params: { limit, offset } }),
-  getRankMmr: () => api.get<{ entries: LeaderboardEntry[] }>('/leaderboards/rank-mmr'),
-  getPeriodRatings: (period: 'week' | 'month' | 'year', clubId?: string) =>
+  getRankMmr: (limit?: number, offset?: number) =>
+    api.get<{ entries: LeaderboardEntry[] }>('/leaderboards/rank-mmr', {
+      params: { limit: limit ?? 20, offset: offset ?? 0 },
+    }),
+  getPeriodRatings: (period: 'week' | 'month' | 'year', clubId?: string, limit?: number, offset?: number) =>
     api.get<{ entries: PeriodRatingEntry[] }>('/leaderboards/period-ratings', {
-      params: clubId ? { period, clubId } : { period },
+      params: clubId ? { period, clubId, limit: limit ?? 20, offset: offset ?? 0 } : { period, limit: limit ?? 20, offset: offset ?? 0 },
     }),
   createSeasonal: () => api.post('/leaderboards/seasonal/create'),
   updateRankMmr: () => api.post('/leaderboards/rank-mmr/update'),

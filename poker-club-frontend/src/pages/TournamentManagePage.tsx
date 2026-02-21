@@ -140,8 +140,8 @@ export default function TournamentManagePage() {
   if (loading) return <div className="text-amber-400 animate-pulse">Загрузка...</div>;
   if (!live) {
     return (
-      <div className="glass-card p-6">
-        <h2 className="text-xl font-bold text-white mb-4">Управление турниром</h2>
+      <div className="glass-card p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-bold text-white mb-4">Управление турниром</h2>
         <p className="text-zinc-400">Нет активного турнира для управления.</p>
         <button onClick={() => navigate('/tournaments')} className="glass-btn px-4 py-2 rounded-xl mt-4">
           К турнирам
@@ -151,7 +151,7 @@ export default function TournamentManagePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 min-w-0">
       <button
         onClick={() => navigate('/tournaments')}
         className="glass-btn px-4 py-2 rounded-xl text-sm text-zinc-300 hover:text-amber-200"

@@ -95,7 +95,9 @@ export class TournamentSeriesController {
   static async getRatingTable(req: AuthRequest, res: Response) {
     try {
       const id = req.params.id as string;
-      const table = await seriesService.getSeriesRatingTable(id);
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const table = await seriesService.getSeriesRatingTable(id, limit, offset);
       res.json(table);
     } catch (e: unknown) {
       res.status(400).json({ error: e instanceof Error ? e.message : 'Failed' });
